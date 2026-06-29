@@ -75,7 +75,7 @@ function AdminGlobal() {
                 Cockpit Executivo
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
-                Atualizado há 4 min · Próx. ciclo em 56 min
+                Snapshot 29 jun 2026 · Base consolidada
               </span>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
@@ -89,7 +89,7 @@ function AdminGlobal() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
               <Calendar className="h-3.5 w-3.5" />
-              <span className="text-xs">Out 2026 · MTD</span>
+              <span className="text-xs">Jun 2026 · MTD</span>
             </Button>
             <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
               <Filter className="h-3.5 w-3.5" />
