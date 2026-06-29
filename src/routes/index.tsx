@@ -19,8 +19,8 @@ import {
 import { Topbar } from "@/components/admin/Topbar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+
 import {
   fetchGlobalKpis,
   fetchInsights,
