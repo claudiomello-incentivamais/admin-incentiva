@@ -9,12 +9,54 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SuporteRouteImport } from './routes/suporte'
+import { Route as PipelinesRouteImport } from './routes/pipelines'
+import { Route as PerformanceRouteImport } from './routes/performance'
 import { Route as OperacoesRouteImport } from './routes/operacoes'
+import { Route as GovernancaRouteImport } from './routes/governanca'
+import { Route as FaturamentoRouteImport } from './routes/faturamento'
+import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as IndexRouteImport } from './routes/index'
 
+const SuporteRoute = SuporteRouteImport.update({
+  id: '/suporte',
+  path: '/suporte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PipelinesRoute = PipelinesRouteImport.update({
+  id: '/pipelines',
+  path: '/pipelines',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PerformanceRoute = PerformanceRouteImport.update({
+  id: '/performance',
+  path: '/performance',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OperacoesRoute = OperacoesRouteImport.update({
   id: '/operacoes',
   path: '/operacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GovernancaRoute = GovernancaRouteImport.update({
+  id: '/governanca',
+  path: '/governanca',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FaturamentoRoute = FaturamentoRouteImport.update({
+  id: '/faturamento',
+  path: '/faturamento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
+  id: '/configuracoes',
+  path: '/configuracoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ClientesRoute = ClientesRouteImport.update({
+  id: '/clientes',
+  path: '/clientes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -25,37 +67,142 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/clientes': typeof ClientesRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/faturamento': typeof FaturamentoRoute
+  '/governanca': typeof GovernancaRoute
   '/operacoes': typeof OperacoesRoute
+  '/performance': typeof PerformanceRoute
+  '/pipelines': typeof PipelinesRoute
+  '/suporte': typeof SuporteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/clientes': typeof ClientesRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/faturamento': typeof FaturamentoRoute
+  '/governanca': typeof GovernancaRoute
   '/operacoes': typeof OperacoesRoute
+  '/performance': typeof PerformanceRoute
+  '/pipelines': typeof PipelinesRoute
+  '/suporte': typeof SuporteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/clientes': typeof ClientesRoute
+  '/configuracoes': typeof ConfiguracoesRoute
+  '/faturamento': typeof FaturamentoRoute
+  '/governanca': typeof GovernancaRoute
   '/operacoes': typeof OperacoesRoute
+  '/performance': typeof PerformanceRoute
+  '/pipelines': typeof PipelinesRoute
+  '/suporte': typeof SuporteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/operacoes'
+  fullPaths:
+    | '/'
+    | '/clientes'
+    | '/configuracoes'
+    | '/faturamento'
+    | '/governanca'
+    | '/operacoes'
+    | '/performance'
+    | '/pipelines'
+    | '/suporte'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/operacoes'
-  id: '__root__' | '/' | '/operacoes'
+  to:
+    | '/'
+    | '/clientes'
+    | '/configuracoes'
+    | '/faturamento'
+    | '/governanca'
+    | '/operacoes'
+    | '/performance'
+    | '/pipelines'
+    | '/suporte'
+  id:
+    | '__root__'
+    | '/'
+    | '/clientes'
+    | '/configuracoes'
+    | '/faturamento'
+    | '/governanca'
+    | '/operacoes'
+    | '/performance'
+    | '/pipelines'
+    | '/suporte'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ClientesRoute: typeof ClientesRoute
+  ConfiguracoesRoute: typeof ConfiguracoesRoute
+  FaturamentoRoute: typeof FaturamentoRoute
+  GovernancaRoute: typeof GovernancaRoute
   OperacoesRoute: typeof OperacoesRoute
+  PerformanceRoute: typeof PerformanceRoute
+  PipelinesRoute: typeof PipelinesRoute
+  SuporteRoute: typeof SuporteRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/suporte': {
+      id: '/suporte'
+      path: '/suporte'
+      fullPath: '/suporte'
+      preLoaderRoute: typeof SuporteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pipelines': {
+      id: '/pipelines'
+      path: '/pipelines'
+      fullPath: '/pipelines'
+      preLoaderRoute: typeof PipelinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/performance': {
+      id: '/performance'
+      path: '/performance'
+      fullPath: '/performance'
+      preLoaderRoute: typeof PerformanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/operacoes': {
       id: '/operacoes'
       path: '/operacoes'
       fullPath: '/operacoes'
       preLoaderRoute: typeof OperacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/governanca': {
+      id: '/governanca'
+      path: '/governanca'
+      fullPath: '/governanca'
+      preLoaderRoute: typeof GovernancaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/faturamento': {
+      id: '/faturamento'
+      path: '/faturamento'
+      fullPath: '/faturamento'
+      preLoaderRoute: typeof FaturamentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracoes': {
+      id: '/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof ConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clientes': {
+      id: '/clientes'
+      path: '/clientes'
+      fullPath: '/clientes'
+      preLoaderRoute: typeof ClientesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -70,7 +217,14 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ClientesRoute: ClientesRoute,
+  ConfiguracoesRoute: ConfiguracoesRoute,
+  FaturamentoRoute: FaturamentoRoute,
+  GovernancaRoute: GovernancaRoute,
   OperacoesRoute: OperacoesRoute,
+  PerformanceRoute: PerformanceRoute,
+  PipelinesRoute: PipelinesRoute,
+  SuporteRoute: SuporteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
