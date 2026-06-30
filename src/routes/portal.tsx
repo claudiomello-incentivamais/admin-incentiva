@@ -1,15 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Activity,
   ArrowRight,
   Building2,
   CheckCircle2,
+  Database,
   Eye,
   GlobeLock,
   GitBranch,
   LockKeyhole,
+  MessageCircle,
   MessageSquareShare,
   NotebookPen,
+  PhoneCall,
   RadioTower,
+  ServerCog,
   ShieldCheck,
   Sparkles,
   Target,
@@ -28,6 +33,7 @@ import {
 } from "@/components/admin/admin-filters";
 import {
   buildOperationActionPlan,
+  buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationNotionView,
   buildPortalLiveSourceCards,
@@ -98,9 +104,10 @@ function PortalPage() {
     buildOperationCockpitFromOperation(scopedPortalOperation),
     selectedPeriod,
   );
+  const cadenceView = buildOperationCadenceView(scopedPortalOperation, cockpit, dashboard.source);
   const actionPlan = buildOperationActionPlan(scopedPortalOperation);
   const publishPacket = buildPortalPublishPacket(scopedPortalOperation);
-  const liveSourceCards = buildPortalLiveSourceCards(scopedPortalOperation, dashboard.source);
+  const liveSourceCards = buildPortalLiveSourceCards(scopedPortalOperation, cockpit, dashboard.source);
   const notionView = buildOperationNotionView(scopedPortalOperation, cockpit, dashboard.source);
   const drivers = getScoreDrivers(scopedPortalOperation).slice(0, 3);
   const exposedModules =
@@ -556,6 +563,73 @@ function PortalPage() {
         </section>
 
         <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Cadência da operação no portal</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Leitura client-safe do andamento comercial, separando topo, avanço e ritmo sem expor bastidor sensível.
+              </p>
+            </div>
+            <Activity className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="text-sm font-medium text-display">{cadenceView.headline}</div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                {cadenceView.detail}
+              </p>
+              <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {cadenceView.metrics.map((metric) => (
+                  <PortalMiniMetric
+                    key={metric.id}
+                    label={metric.label}
+                    value={metric.value}
+                    detail={metric.detail}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {cadenceView.stages.map((stage) => (
+                  <PortalNarrativeCard
+                    key={stage.id}
+                    label={stage.label}
+                    title={formatNumber(stage.count)}
+                    detail={`${stage.shareLabel}. ${stage.conversionLabel}.`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Janelas de acompanhamento
+              </div>
+              <div className="mt-1 text-base font-semibold text-display">
+                7d, 30d, 90d e mês acumulado
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                Essas janelas ajudam a diferenciar oscilação curta de tendência estrutural sem depender só de sensação de operação.
+              </p>
+
+              <div className="mt-4 grid gap-3">
+                {cadenceView.windows.map((window) => (
+                  <PortalNarrativeCard
+                    key={window.id}
+                    label={window.label}
+                    title={`${window.activeLabel} · ${window.conversionLabel}`}
+                    detail={`${window.velocityLabel}. ${window.detail}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4 gap-3">
             <div>
               <h2 className="text-sm font-semibold text-display">Visão nativa do Notion</h2>
@@ -885,10 +959,10 @@ function LiveSourceCard({
   card,
 }: {
   card: {
-    id: "notion" | "trello";
+    id: "supabase" | "notion" | "trello" | "n8n" | "evolution" | "api4com";
     title: string;
     health: "healthy" | "monitor" | "risk" | "critical";
-    mode: "live" | "operational";
+    mode: "live" | "operational" | "guarded" | "snapshot";
     headline: string;
     detail: string;
     lastSync: string;
@@ -896,10 +970,25 @@ function LiveSourceCard({
     ctaValue: string;
     facts: { label: string; value: string }[];
     nextStep: string;
+    actionLabel?: string;
+    actionHref?: string;
+    actionExternal?: boolean;
+    availabilityLabel?: string;
   };
 }) {
   const meta = statusMeta[card.health];
-  const Icon = card.id === "notion" ? NotebookPen : GitBranch;
+  const Icon =
+    card.id === "supabase"
+      ? Database
+      : card.id === "notion"
+        ? NotebookPen
+        : card.id === "n8n"
+          ? ServerCog
+          : card.id === "evolution"
+            ? MessageCircle
+            : card.id === "api4com"
+              ? PhoneCall
+              : GitBranch;
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
@@ -911,7 +1000,13 @@ function LiveSourceCard({
             </div>
             <div className="text-sm font-medium">{card.title}</div>
             <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
-              {card.mode === "live" ? "live" : "operational"}
+              {card.mode === "live"
+                ? "live"
+                : card.mode === "operational"
+                  ? "operational"
+                  : card.mode === "guarded"
+                    ? "guarded"
+                    : "snapshot"}
             </Badge>
           </div>
           <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{card.headline}</p>
@@ -946,8 +1041,26 @@ function LiveSourceCard({
             </div>
             <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.nextStep}</div>
           </div>
+          {card.availabilityLabel ? (
+            <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              {card.availabilityLabel}
+            </div>
+          ) : null}
         </div>
       </div>
+
+      {card.actionHref && card.actionLabel ? (
+        <Button variant="outline" size="sm" className="mt-4 h-8 w-full gap-2" asChild>
+          <a
+            href={card.actionHref}
+            target={card.actionExternal ? "_blank" : undefined}
+            rel={card.actionExternal ? "noreferrer" : undefined}
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+            {card.actionLabel}
+          </a>
+        </Button>
+      ) : null}
     </div>
   );
 }

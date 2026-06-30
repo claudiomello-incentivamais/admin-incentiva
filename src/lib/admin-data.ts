@@ -348,10 +348,10 @@ export interface PortalPublishPacket {
 }
 
 export interface PortalLiveSourceCard {
-  id: "notion" | "trello";
+  id: "supabase" | "notion" | "trello" | "n8n" | "evolution" | "api4com";
   title: string;
   health: OperationStatus;
-  mode: "live" | "operational";
+  mode: "live" | "operational" | "guarded" | "snapshot";
   headline: string;
   detail: string;
   lastSync: string;
@@ -3547,8 +3547,10 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
 
 export function buildPortalLiveSourceCards(
   operation: Operation,
+  cockpit: IncentivaCockpitData,
   source: GlobalDashboardData["source"],
 ): PortalLiveSourceCard[] {
+  const runtimeView = buildOperationRuntimeView(operation, cockpit, source);
   const notionUrl = notionUrlByOperationName[operation.name];
   const trelloStates = trelloOperationalStateByOperationName[operation.name] ?? [];
   const primaryTrelloState =
@@ -3612,7 +3614,7 @@ export function buildPortalLiveSourceCards(
     id: "notion",
     title: "Pipeline comercial (Notion)",
     health: notionHealth,
-    mode: notionLive ? "live" : "operational",
+    mode: notionLive ? "live" : "guarded",
     headline: notionLive
       ? "Reconciliação viva entre pipeline humano, estágio canônico e prontidão de exposição."
       : "Camada comercial ainda não aterrissou com telemetria viva neste recorte.",
@@ -3721,7 +3723,29 @@ export function buildPortalLiveSourceCards(
       : "O quadro desta operação ainda não está mapeado para abertura direta no portal.",
   };
 
-  return [notionCard, trelloCard];
+  const runtimeCards = runtimeView.cards
+    .filter((card) => ["supabase", "n8n", "evolution", "api4com"].includes(card.id))
+    .map<PortalLiveSourceCard>((card) => ({
+      id: card.id as PortalLiveSourceCard["id"],
+      title: card.title,
+      health: card.health,
+      mode:
+        card.modeLabel === "Leitura viva"
+          ? "live"
+          : card.modeLabel === "Leitura governada"
+            ? "guarded"
+            : "snapshot",
+      headline: card.headline,
+      detail: card.detail,
+      lastSync: card.lastSync,
+      ctaLabel: "Modo",
+      ctaValue: card.modeLabel,
+      facts: card.facts,
+      nextStep: card.nextStep,
+      availabilityLabel: card.sourceOfTruth,
+    }));
+
+  return [runtimeCards[0], notionCard, runtimeCards[1], runtimeCards[2], runtimeCards[3], trelloCard].filter(Boolean);
 }
 
 export function buildOperationNotionView(
