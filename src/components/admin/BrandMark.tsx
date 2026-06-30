@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 
-const INCENTIVA_LOGO_URL =
-  "https://incentivamais.com/wp-content/themes/temaincentiva/assets/img/logo/logo.svg";
+const INCENTIVA_LOGO_URL = "/incentiva-mark.svg";
 
 export function BrandMark({
   compact = false,
@@ -15,13 +14,13 @@ export function BrandMark({
       <div
         className={cn(
           "shrink-0 overflow-hidden rounded-xl bg-white",
-          compact ? "h-9 w-9 p-1.5" : "h-12 w-12 p-2 ring-1 ring-border/80",
+          compact ? "h-9 w-9 p-0.5 ring-1 ring-border/70" : "h-12 w-12 p-0.5 ring-1 ring-border/80",
         )}
       >
         <img
           src={INCENTIVA_LOGO_URL}
           alt="Incentiva"
-          className="h-full w-full object-contain"
+          className="h-full w-full rounded-[10px] object-cover"
         />
       </div>
 
