@@ -8,6 +8,9 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "deploy:prebuilt": "npx nitro deploy --prebuilt",
+    "verify:publish": "bash ./scripts/verify-publish.sh",
+    "cutover:final": "bash ./scripts/final-cutover.sh",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

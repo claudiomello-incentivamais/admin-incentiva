@@ -45,11 +45,23 @@ cd /root/.openclaw/workspace/admin-incentiva
 npx nitro deploy --prebuilt
 ```
 
+Atalho operacional já disponível:
+
+```bash
+npm run cutover:final
+```
+
 3. Validar a URL publicada
 
 ```bash
 curl -L -s https://incentivamais-admin.lovable.app/configuracoes | rg "Paridade da publicação final|90%"
 curl -L -s https://incentivamais-admin.lovable.app/portal | rg "Prontidão do corte externo|Blockers do fechamento externo"
+```
+
+Atalho operacional já disponível:
+
+```bash
+npm run verify:publish
 ```
 
 ## Critério objetivo de fechamento
