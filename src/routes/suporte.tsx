@@ -1,15 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  Activity,
   AlertTriangle,
   ArrowRight,
   BookOpenCheck,
   CheckCircle2,
   ChevronRight,
   ClipboardList,
+  Database,
   LifeBuoy,
+  RadioTower,
+  Send,
+  ServerCog,
   ShieldAlert,
   Siren,
+  SquareChartGantt,
   Wrench,
+  Bot,
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
@@ -159,6 +166,97 @@ const support = {
     "Registrar o que já foi contornado e o que ainda está pendente.",
     "Só encerrar com evidência objetiva ou blocker real nomeado.",
   ],
+  observability: [
+    {
+      id: "n8n",
+      title: "n8n VPS",
+      health: "monitor" as OperationStatus,
+      headline: "Workflows produtivos estáveis, mas falta drill-down mais fino por família.",
+      detail:
+        "Hoje já conseguimos separar produção real de retry histórico, mas a próxima evolução útil é expor waiting, erro e throughput por conjunto de workflow.",
+      owner: "Claw/main",
+      icon: Workflow,
+    },
+    {
+      id: "vps",
+      title: "VPS",
+      health: "healthy" as OperationStatus,
+      headline: "Infra principal sem sinal atual de colapso operacional.",
+      detail:
+        "A necessidade aqui não é reescrever infraestrutura, e sim trazer leitura consolidada de saúde, consumo e incidentes para dentro do admin.",
+      owner: "Claw/main",
+      icon: ServerCog,
+    },
+    {
+      id: "agents",
+      title: "Agentes e modelos",
+      health: "monitor" as OperationStatus,
+      headline: "A governança já existe, mas ainda não está visível em tela única.",
+      detail:
+        "Falta expor sessão, cobertura, modelo configurado, fallback e frente descoberta para reduzir dependência de reporte manual.",
+      owner: "Claw/main",
+      icon: Bot,
+    },
+    {
+      id: "publish",
+      title: "Publish / Lovable",
+      health: "risk" as OperationStatus,
+      headline: "Código validado e publish ainda dependente da estabilidade do fornecedor.",
+      detail:
+        "O risco atual não está no repositório, mas na materialização da URL publicada e no controle de quando o corte virou tela ao vivo.",
+      owner: "Claudio + Claw",
+      icon: RadioTower,
+    },
+  ],
+  alertQueue: [
+    {
+      id: "publish-lock",
+      severity: "critical" as OperationStatus,
+      title: "URL publicada ainda não acompanha o corte novo automaticamente",
+      trigger: "Build validado + publish externo instável",
+      owner: "Claw/main",
+      nextStep: "Seguir avançando no código e republishar assim que a camada do fornecedor normalizar.",
+    },
+    {
+      id: "email-drilldown",
+      severity: "risk" as OperationStatus,
+      title: "Família de e-mail pede observabilidade granular",
+      trigger: "Waiting e throughput ainda agregados demais",
+      owner: "Claw/main",
+      nextStep: "Quebrar a leitura por família e workflow para separar gargalo técnico de pressão comercial.",
+    },
+    {
+      id: "agents-visibility",
+      severity: "monitor" as OperationStatus,
+      title: "Status de agentes e modelos ainda depende de contexto externo",
+      trigger: "Sem painel único para sessão, fallback e cobertura",
+      owner: "Claw/main",
+      nextStep: "Subir camada inicial de observabilidade de agentes dentro do admin interno.",
+    },
+  ],
+  actionCenter: [
+    {
+      title: "Ação recomendada no Trello",
+      detail:
+        "Criar ou atualizar card sempre que um alerta sair de leitura e entrar em intervenção com dono, prazo e evidência esperada.",
+      output: "Card de execução com dono e etapa visível",
+      icon: SquareChartGantt,
+    },
+    {
+      title: "Ação recomendada no Discord",
+      detail:
+        "Disparar só quando houver blocker real, incidente relevante, desvio crítico ou necessidade objetiva de handoff.",
+      output: "Mensagem de acionamento por exceção",
+      icon: Send,
+    },
+    {
+      title: "Ação recomendada no admin",
+      detail:
+        "Registrar o status como detectado, em análise, em execução, aguardando ou resolvido para fechar o ciclo de governança.",
+      output: "Fila visível de ação e fechamento",
+      icon: ClipboardList,
+    },
+  ],
 };
 
 function SupportPage() {
@@ -217,6 +315,25 @@ function SupportPage() {
           ))}
         </section>
 
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Saúde da stack</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Primeira camada de observabilidade do software: o que já está estável, o que ainda
+                pede drill-down e onde existe dependência externa.
+              </p>
+            </div>
+            <Activity className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {support.observability.map((item) => (
+              <ObservabilityCard key={item.id} item={item} />
+            ))}
+          </div>
+        </section>
+
         <section className="grid grid-cols-1 xl:grid-cols-[1.02fr_0.98fr] gap-4">
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
@@ -254,6 +371,45 @@ function SupportPage() {
                 <div key={item} className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
                   {item}
                 </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Fila de alertas acionáveis</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  O que já deveria gerar acompanhamento operacional, sem depender de memória ou
+                  reporte solto.
+                </p>
+              </div>
+              <ShieldAlert className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {support.alertQueue.map((alert) => (
+                <ActionAlertCard key={alert.id} alert={alert} />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Central de ação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  A camada que amarra leitura, decisão e execução até fechar o ciclo de governança.
+                </p>
+              </div>
+              <Siren className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {support.actionCenter.map((item) => (
+                <ActionCenterCard key={item.title} item={item} />
               ))}
             </div>
           </div>
@@ -379,6 +535,105 @@ function RunbookCard({
             <span>{step}</span>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ObservabilityCard({
+  item,
+}: {
+  item: {
+    title: string;
+    headline: string;
+    detail: string;
+    owner: string;
+    health: OperationStatus;
+    icon: React.ComponentType<{ className?: string }>;
+  };
+}) {
+  const meta = statusMeta[item.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            {item.title}
+          </div>
+          <h3 className="mt-1 text-sm font-medium">{item.headline}</h3>
+        </div>
+        <item.icon className="h-4 w-4 text-primary shrink-0" />
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+        <Badge variant="secondary" className="text-[10px] text-mono h-5">
+          {item.owner}
+        </Badge>
+      </div>
+
+      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{item.detail}</p>
+    </div>
+  );
+}
+
+function ActionAlertCard({
+  alert,
+}: {
+  alert: {
+    title: string;
+    trigger: string;
+    owner: string;
+    nextStep: string;
+    severity: OperationStatus;
+  };
+}) {
+  const meta = statusMeta[alert.severity];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium">{alert.title}</h3>
+          <div className="text-[11px] text-muted-foreground mt-1">Trigger: {alert.trigger}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+
+      <div className="mt-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        Dono sugerido: {alert.owner}
+      </div>
+      <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+        Próximo passo: {alert.nextStep}
+      </div>
+    </div>
+  );
+}
+
+function ActionCenterCard({
+  item,
+}: {
+  item: {
+    title: string;
+    detail: string;
+    output: string;
+    icon: React.ComponentType<{ className?: string }>;
+  };
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <item.icon className="h-4 w-4 text-primary" />
+        {item.title}
+      </div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{item.detail}</p>
+      <div className="mt-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+        Saída esperada: {item.output}
       </div>
     </div>
   );
