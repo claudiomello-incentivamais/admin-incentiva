@@ -262,6 +262,58 @@ export interface GlobalDashboardData {
   insights: ExecutiveInsight[];
 }
 
+export interface IntegrationMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IntegrationSource {
+  id: string;
+  title: string;
+  category: string;
+  health: OperationStatus;
+  owner: string;
+  syncStatus: "live" | "guarded" | "manual" | "planned";
+  visibility: "internal" | "client-safe" | "restricted";
+  sourceOfTruth: string;
+  lastSync: string;
+  headline: string;
+  detail: string;
+  powers: string[];
+}
+
+export interface IntegrationBridge {
+  id: string;
+  from: string;
+  to: string;
+  health: OperationStatus;
+  title: string;
+  detail: string;
+  nextStep: string;
+}
+
+export interface IntegrationActionLane {
+  id: string;
+  title: string;
+  owner: string;
+  target: string;
+  health: OperationStatus;
+  detail: string;
+  nextStep: string;
+}
+
+export interface IntegrationHubData {
+  source: "snapshot" | "live";
+  snapshotLabel: string;
+  metrics: IntegrationMetric[];
+  sources: IntegrationSource[];
+  bridges: IntegrationBridge[];
+  actionLanes: IntegrationActionLane[];
+}
+
 export interface ScoreDriver {
   id: string;
   label: string;
@@ -2455,6 +2507,236 @@ export async function loadGlobalDashboard(): Promise<GlobalDashboardData> {
       insights: fetchInsights(),
     };
   }
+}
+
+const integrationHub: IntegrationHubData = {
+  source: "snapshot",
+  snapshotLabel: "30 jun 2026 · centro de integração consolidado",
+  metrics: [
+    {
+      id: "connected-layers",
+      label: "Camadas conectadas",
+      value: "7",
+      tone: "success",
+      detail: "Supabase, n8n, Notion, Trello, Discord, GitHub e publish já estão dentro do mapa único.",
+    },
+    {
+      id: "live-reads",
+      label: "Leituras vivas",
+      value: "3",
+      tone: "monitor",
+      detail: "Supabase, n8n VPS e parte da carteira já podem virar leitura viva no admin.",
+    },
+    {
+      id: "manual-checkpoints",
+      label: "Checkpoints manuais",
+      value: "3",
+      tone: "risk",
+      detail: "Publish, autorização e alguns handoffs ainda dependem de etapa manual controlada.",
+    },
+    {
+      id: "action-targets",
+      label: "Destinos de ação",
+      value: "3",
+      tone: "info",
+      detail: "Trello, Notion e Discord formam hoje a camada principal de aterrissagem das ações.",
+    },
+  ],
+  sources: [
+    {
+      id: "supabase",
+      title: "Supabase",
+      category: "Fonte canônica",
+      health: "healthy",
+      owner: "Claw/main",
+      syncStatus: "live",
+      visibility: "restricted",
+      sourceOfTruth: "Base, estágio canônico, score, SLA e governança",
+      lastSync: "Leitura viva",
+      headline: "Supabase segue como espinha dorsal da governança operacional.",
+      detail:
+        "É a camada que ancora score, base, lock, SLA, personalização e o blueprint replicável entre operações.",
+      powers: ["Admin Global", "Operações", "Performance", "Portal governado"],
+    },
+    {
+      id: "n8n",
+      title: "n8n VPS",
+      category: "Telemetria e execução",
+      health: "healthy",
+      owner: "Claw/main",
+      syncStatus: "live",
+      visibility: "restricted",
+      sourceOfTruth: "Execuções, waiting, erro, throughput, webhook",
+      lastSync: "Leitura viva",
+      headline: "n8n é o motor técnico da observabilidade real do sistema.",
+      detail:
+        "Não é só automação. É a camada que prova se o fluxo rodou, esperou, quebrou ou ficou silenciosamente ineficiente.",
+      powers: ["Suporte", "Pipelines", "Workflow intelligence", "Alertas vivos"],
+    },
+    {
+      id: "notion",
+      title: "Notion",
+      category: "Operação SDR",
+      health: "monitor",
+      owner: "Sales Ops + Claw",
+      syncStatus: "guarded",
+      visibility: "internal",
+      sourceOfTruth: "Pipeline humano, rotina SDR, motivos de perda",
+      lastSync: "Sincronização assistida",
+      headline: "Notion continua como camada humana do pipeline e da rotina comercial.",
+      detail:
+        "Ele não substitui a governança do Supabase, mas ainda é central para contexto operacional, qualificação e leitura comercial de SDR.",
+      powers: ["Operações", "Pipelines", "Leitura comercial por operação"],
+    },
+    {
+      id: "trello",
+      title: "Trello",
+      category: "Execução",
+      health: "monitor",
+      owner: "Ricardo + Claw/main",
+      syncStatus: "guarded",
+      visibility: "internal",
+      sourceOfTruth: "Card, etapa, owner, follow-up e evidência de ação",
+      lastSync: "Integração governada",
+      headline: "Trello é a aterrissagem visível da ação decidida no admin.",
+      detail:
+        "Quando um insight sai do painel e vira execução, ele precisa aparecer aqui com dono, prazo e atualização real.",
+      powers: ["Fila executiva", "Camada de ação prática", "Follow-up operacional"],
+    },
+    {
+      id: "discord",
+      title: "Discord operacional",
+      category: "Acionamento e exceção",
+      health: "monitor",
+      owner: "Claw/main",
+      syncStatus: "manual",
+      visibility: "internal",
+      sourceOfTruth: "Report, handoff, exceção e destrave",
+      lastSync: "Acionamento contextual",
+      headline: "Discord não é fonte-mãe; é canal de ativação e intervenção.",
+      detail:
+        "Serve para alertar, destravar e coordenar. O papel dele no admin é mostrar quando a exceção saiu da fila e virou conversa com dono certo.",
+      powers: ["Suporte", "Ação prática", "Escalada operacional"],
+    },
+    {
+      id: "github",
+      title: "GitHub",
+      category: "Versionamento",
+      health: "healthy",
+      owner: "Claw/main",
+      syncStatus: "live",
+      visibility: "restricted",
+      sourceOfTruth: "Código, commit, branch, histórico de entrega",
+      lastSync: "Push em produção local",
+      headline: "GitHub é a trilha de versionamento da frente Lovable.",
+      detail:
+        "Tudo o que vira produto real precisa nascer como mudança versionada, buildada e empurrada para o repositório.",
+      powers: ["Entrega de blocos", "Histórico técnico", "Base para publish"],
+    },
+    {
+      id: "publish",
+      title: "Lovable / Publish",
+      category: "Materialização externa",
+      health: "risk",
+      owner: "Claw/main + Claudio",
+      syncStatus: "manual",
+      visibility: "client-safe",
+      sourceOfTruth: "URL publicada, corte externo, portal visível",
+      lastSync: "Checkpoint autenticado",
+      headline: "A URL publicada ainda é o elo mais manual da cadeia.",
+      detail:
+        "O código já sobe forte, mas o publish ainda depende de checkpoint autenticado e de uma camada privada real para clientes.",
+      powers: ["Portal privado", "Camada externa do produto", "Homologação final"],
+    },
+  ],
+  bridges: [
+    {
+      id: "supabase-admin",
+      from: "Supabase",
+      to: "Admin",
+      health: "healthy",
+      title: "Leitura executiva consolidada",
+      detail:
+        "Base, score, cobertura e prioridade já conseguem alimentar o cockpit consolidado e o drill-down por operação.",
+      nextStep: "Expandir mais telas para leitura viva, reduzindo fallback onde ainda houver snapshot.",
+    },
+    {
+      id: "n8n-admin",
+      from: "n8n VPS",
+      to: "Suporte + Pipelines",
+      health: "monitor",
+      title: "Observabilidade técnica centralizada",
+      detail:
+        "A telemetria já entra no produto, mas ainda pode ficar mais granular por família, workflow e ownership.",
+      nextStep: "Aprofundar leitura viva por workflow e cruzar com backlog de ação.",
+    },
+    {
+      id: "notion-admin",
+      from: "Notion",
+      to: "Operações",
+      health: "monitor",
+      title: "Contexto SDR e pipeline humano",
+      detail:
+        "O painel já reconhece Notion como camada comercial, mas ainda falta uma tela que mostre sync, divergência e estado dessa ponte com mais clareza.",
+      nextStep: "Subir leitura centralizada de sync Notion x Supabase no hub de integrações.",
+    },
+    {
+      id: "trello-admin",
+      from: "Admin",
+      to: "Trello",
+      health: "monitor",
+      title: "Da recomendação para a execução",
+      detail:
+        "O admin já prepara pacote de ação, mas ainda falta deixar mais explícito no produto quando a ação já foi aterrissada em card real.",
+      nextStep: "Expor status de card, etapa e owner diretamente no hub e nos action packets.",
+    },
+    {
+      id: "github-publish",
+      from: "GitHub",
+      to: "Lovable / Publish",
+      health: "risk",
+      title: "Do código pronto para a tela viva",
+      detail:
+        "Hoje existe versionamento forte, build validado e push, mas a materialização externa ainda pede checkpoint manual.",
+      nextStep: "Fechar auth, perfis e governança de publish para transformar isso em cadeia de produção mais previsível.",
+    },
+  ],
+  actionLanes: [
+    {
+      id: "lane-notion",
+      title: "Notion como camada comercial integrada",
+      owner: "Sales Ops + Claw",
+      target: "Operações / Integrações",
+      health: "monitor",
+      detail:
+        "Precisamos expor no produto o estado de reconciliação entre Notion, Supabase e estágio canônico sem obrigar leitura distribuída.",
+      nextStep: "Adicionar visão de sync e divergência por operação dentro do hub central.",
+    },
+    {
+      id: "lane-trello",
+      title: "Trello como execução realmente visível",
+      owner: "Ricardo + Claw",
+      target: "Admin Global / Integrações",
+      health: "monitor",
+      detail:
+        "A execução ainda é mais clara no board do que dentro do produto; o admin precisa enxergar o estado do card e do follow-up sem sair da tela.",
+      nextStep: "Trazer status de execução e etapa do card para a camada centralizada.",
+    },
+    {
+      id: "lane-auth",
+      title: "Auth, perfil e publicação privada",
+      owner: "Claw/main",
+      target: "Portal / Configurações",
+      health: "risk",
+      detail:
+        "Sem auth real, a visão de portal continua sendo experiência pronta, mas não produto multiusuário fechado.",
+      nextStep: "Entrar na base de autenticação e permissão por papel como próxima etapa estrutural.",
+    },
+  ],
+};
+
+export async function loadIntegrationHub(): Promise<IntegrationHubData> {
+  return integrationHub;
 }
 
 export const statusMeta: Record<

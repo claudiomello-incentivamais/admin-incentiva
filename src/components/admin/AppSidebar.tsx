@@ -10,6 +10,7 @@ import {
   Workflow,
   Receipt,
   GlobeLock,
+  Link2,
 } from "lucide-react";
 
 import {
@@ -42,6 +43,7 @@ const operacional = [
 ];
 
 const sistema = [
+  { title: "Integrações", url: "/integracoes", icon: Link2 },
   { title: "Configurações", url: "/configuracoes", icon: Settings },
   { title: "Suporte", url: "/suporte", icon: LifeBuoy },
 ];

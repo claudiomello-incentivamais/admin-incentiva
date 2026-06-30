@@ -14,6 +14,7 @@ import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PipelinesRouteImport } from './routes/pipelines'
 import { Route as PerformanceRouteImport } from './routes/performance'
 import { Route as OperacoesRouteImport } from './routes/operacoes'
+import { Route as IntegracoesRouteImport } from './routes/integracoes'
 import { Route as GovernancaRouteImport } from './routes/governanca'
 import { Route as FaturamentoRouteImport } from './routes/faturamento'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
@@ -43,6 +44,11 @@ const PerformanceRoute = PerformanceRouteImport.update({
 const OperacoesRoute = OperacoesRouteImport.update({
   id: '/operacoes',
   path: '/operacoes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntegracoesRoute = IntegracoesRouteImport.update({
+  id: '/integracoes',
+  path: '/integracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GovernancaRoute = GovernancaRouteImport.update({
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/faturamento': typeof FaturamentoRoute
   '/governanca': typeof GovernancaRoute
+  '/integracoes': typeof IntegracoesRoute
   '/operacoes': typeof OperacoesRoute
   '/performance': typeof PerformanceRoute
   '/pipelines': typeof PipelinesRoute
@@ -89,6 +96,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/faturamento': typeof FaturamentoRoute
   '/governanca': typeof GovernancaRoute
+  '/integracoes': typeof IntegracoesRoute
   '/operacoes': typeof OperacoesRoute
   '/performance': typeof PerformanceRoute
   '/pipelines': typeof PipelinesRoute
@@ -102,6 +110,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/faturamento': typeof FaturamentoRoute
   '/governanca': typeof GovernancaRoute
+  '/integracoes': typeof IntegracoesRoute
   '/operacoes': typeof OperacoesRoute
   '/performance': typeof PerformanceRoute
   '/pipelines': typeof PipelinesRoute
@@ -116,6 +125,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/faturamento'
     | '/governanca'
+    | '/integracoes'
     | '/operacoes'
     | '/performance'
     | '/pipelines'
@@ -128,6 +138,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/faturamento'
     | '/governanca'
+    | '/integracoes'
     | '/operacoes'
     | '/performance'
     | '/pipelines'
@@ -140,6 +151,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/faturamento'
     | '/governanca'
+    | '/integracoes'
     | '/operacoes'
     | '/performance'
     | '/pipelines'
@@ -153,6 +165,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   FaturamentoRoute: typeof FaturamentoRoute
   GovernancaRoute: typeof GovernancaRoute
+  IntegracoesRoute: typeof IntegracoesRoute
   OperacoesRoute: typeof OperacoesRoute
   PerformanceRoute: typeof PerformanceRoute
   PipelinesRoute: typeof PipelinesRoute
@@ -195,6 +208,13 @@ declare module '@tanstack/react-router' {
       path: '/operacoes'
       fullPath: '/operacoes'
       preLoaderRoute: typeof OperacoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/integracoes': {
+      id: '/integracoes'
+      path: '/integracoes'
+      fullPath: '/integracoes'
+      preLoaderRoute: typeof IntegracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/governanca': {
@@ -241,6 +261,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   FaturamentoRoute: FaturamentoRoute,
   GovernancaRoute: GovernancaRoute,
+  IntegracoesRoute: IntegracoesRoute,
   OperacoesRoute: OperacoesRoute,
   PerformanceRoute: PerformanceRoute,
   PipelinesRoute: PipelinesRoute,

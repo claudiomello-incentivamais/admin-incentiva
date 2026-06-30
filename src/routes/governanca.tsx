@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
   AlertOctagon,
@@ -336,9 +336,11 @@ function GovernancePage() {
             </p>
           </div>
 
-          <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
-            <ArrowRight className="h-3.5 w-3.5" />
-            Próximo passo: Pipelines
+          <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
+            <Link to="/integracoes">
+              <ArrowRight className="h-3.5 w-3.5" />
+              Próximo passo: Integrações
+            </Link>
           </Button>
         </section>
 
