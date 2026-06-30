@@ -27,6 +27,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { BrandMark } from "@/components/admin/BrandMark";
+import { useAdminAuth } from "@/components/admin/auth-context";
 
 const global = [
   { title: "Admin Global", url: "/", icon: LayoutDashboard },
@@ -49,10 +50,18 @@ const sistema = [
 ];
 
 export function AppSidebar() {
+  const { session, signOut } = useAdminAuth();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p));
+  const allowedRoutes = new Set(
+    session?.profileId === "cliente"
+      ? ["/portal"]
+      : session?.profileId === "sales"
+        ? ["/", "/operacoes", "/performance", "/pipelines", "/clientes", "/portal", "/suporte"]
+        : ["/", "/operacoes", "/performance", "/governanca", "/pipelines", "/clientes", "/portal", "/faturamento", "/integracoes", "/configuracoes", "/suporte"],
+  );
 
   const renderGroup = (label: string, items: typeof global) => (
     <SidebarGroup>
@@ -63,7 +72,7 @@ export function AppSidebar() {
       )}
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => {
+          {items.filter((item) => allowedRoutes.has(item.url)).map((item) => {
             const active = isActive(item.url);
             return (
               <SidebarMenuItem key={item.title}>
@@ -120,6 +129,23 @@ export function AppSidebar() {
               <span className="mt-1 block text-xs text-sidebar-foreground">
                 Piloto Lovable + GitHub da Incentiva
               </span>
+              {session && (
+                <>
+                  <span className="mt-3 block text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Sessão
+                  </span>
+                  <span className="mt-1 block text-xs text-sidebar-foreground">
+                    {session.name} · {session.profileId}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={signOut}
+                    className="mt-3 inline-flex text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    Encerrar sessão
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

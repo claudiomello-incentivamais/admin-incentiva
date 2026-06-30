@@ -14,6 +14,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/admin/AppSidebar";
 import { AdminFiltersProvider } from "@/components/admin/admin-filters";
+import { AdminAuthProvider, AuthGate } from "@/components/admin/auth-context";
 
 
 function NotFoundComponent() {
@@ -132,16 +133,20 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AdminFiltersProvider>
-        <SidebarProvider>
-          <div className="app-shell min-h-screen flex w-full bg-background text-foreground">
-            <AppSidebar />
-            <div className="flex-1 flex flex-col min-w-0">
-              <Outlet />
-            </div>
-          </div>
-        </SidebarProvider>
-      </AdminFiltersProvider>
+      <AdminAuthProvider>
+        <AuthGate>
+          <AdminFiltersProvider>
+            <SidebarProvider>
+              <div className="app-shell min-h-screen flex w-full bg-background text-foreground">
+                <AppSidebar />
+                <div className="flex-1 flex flex-col min-w-0">
+                  <Outlet />
+                </div>
+              </div>
+            </SidebarProvider>
+          </AdminFiltersProvider>
+        </AuthGate>
+      </AdminAuthProvider>
     </QueryClientProvider>
   );
 }

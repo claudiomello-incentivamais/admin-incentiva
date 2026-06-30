@@ -8,10 +8,13 @@ import {
 } from "react";
 
 import { fetchOperations, type Operation } from "@/lib/admin-data";
+import {
+  useAdminAuth,
+  type AccessProfileId,
+  type VisibilityMode,
+} from "@/components/admin/auth-context";
 
 export type PeriodPreset = "mtd" | "7d" | "30d" | "90d";
-export type AccessProfileId = "direcao" | "claw" | "sales" | "cliente";
-export type VisibilityMode = "internal" | "client";
 
 type AdminFiltersContextValue = {
   selectedOperationId: string;
@@ -94,22 +97,28 @@ const visibilityModeOptions: Record<VisibilityMode, string> = {
 const AdminFiltersContext = createContext<AdminFiltersContextValue | null>(null);
 
 export function AdminFiltersProvider({ children }: { children: ReactNode }) {
+  const { session, canAccessOperation } = useAdminAuth();
   const [selectedOperationId, setSelectedOperationId] = useState("all");
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodPreset>("mtd");
-  const [selectedAccessProfileId, setSelectedAccessProfileId] = useState<AccessProfileId>("direcao");
   const [selectedVisibilityMode, setSelectedVisibilityMode] = useState<VisibilityMode>("internal");
 
   const operations = useMemo(() => fetchOperations(), []);
   const operationOptions = useMemo<OperationFilterOption[]>(
-    () => [
-      { id: "all", label: "Todas as operações", client: "Carteira consolidada" },
-      ...operations.map((operation) => ({
+    () => {
+      const allowedOperations = operations.filter((operation) => canAccessOperation(operation.id));
+      const baseOptions = allowedOperations.map((operation) => ({
         id: operation.id,
         label: operation.name,
         client: operation.client,
-      })),
-    ],
-    [operations],
+      }));
+
+      if (!session || session.operationIds !== "all") {
+        return baseOptions;
+      }
+
+      return [{ id: "all", label: "Todas as operações", client: "Carteira consolidada" }, ...baseOptions];
+    },
+    [canAccessOperation, operations, session],
   );
 
   useEffect(() => {
@@ -125,16 +134,9 @@ export function AdminFiltersProvider({ children }: { children: ReactNode }) {
       setSelectedPeriod(savedPeriod);
     }
 
-    const savedAccessProfile = window.localStorage.getItem(
-      ACCESS_PROFILE_STORAGE_KEY,
-    ) as AccessProfileId | null;
     const savedVisibilityMode = window.localStorage.getItem(
       VISIBILITY_MODE_STORAGE_KEY,
     ) as VisibilityMode | null;
-
-    if (savedAccessProfile && accessProfileOptions.some((option) => option.id === savedAccessProfile)) {
-      setSelectedAccessProfileId(savedAccessProfile);
-    }
 
     if (savedVisibilityMode && savedVisibilityMode in visibilityModeOptions) {
       setSelectedVisibilityMode(savedVisibilityMode);
@@ -153,13 +155,25 @@ export function AdminFiltersProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(ACCESS_PROFILE_STORAGE_KEY, selectedAccessProfileId);
-  }, [selectedAccessProfileId]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
     window.localStorage.setItem(VISIBILITY_MODE_STORAGE_KEY, selectedVisibilityMode);
   }, [selectedVisibilityMode]);
+
+  useEffect(() => {
+    if (!session) return;
+    if (session.defaultVisibility === "client") {
+      setSelectedVisibilityMode("client");
+      return;
+    }
+    if (selectedVisibilityMode === "client" || selectedVisibilityMode === "internal") return;
+    setSelectedVisibilityMode(session.defaultVisibility);
+  }, [selectedVisibilityMode, session]);
+
+  useEffect(() => {
+    if (!operationOptions.length) return;
+    const currentExists = operationOptions.some((option) => option.id === selectedOperationId);
+    if (currentExists) return;
+    setSelectedOperationId(operationOptions[0]?.id ?? "all");
+  }, [operationOptions, selectedOperationId]);
 
   const selectedOperation =
     operationOptions.find((option) => option.id === selectedOperationId) ?? operationOptions[0];
@@ -168,26 +182,15 @@ export function AdminFiltersProvider({ children }: { children: ReactNode }) {
     operations.find((operation) => operation.id === selectedOperationId) ?? null;
 
   const selectedAccessProfile =
-    accessProfileOptions.find((option) => option.id === selectedAccessProfileId) ??
+    accessProfileOptions.find((option) => option.id === session?.profileId) ??
     accessProfileOptions[0];
-
-  const handleAccessProfileChange = (value: AccessProfileId) => {
-    const profile =
-      accessProfileOptions.find((option) => option.id === value) ?? accessProfileOptions[0];
-    setSelectedAccessProfileId(profile.id);
-
-    // Keeps the portal preview coherent when the audience changes materially.
-    if (profile.defaultVisibility !== selectedVisibilityMode) {
-      setSelectedVisibilityMode(profile.defaultVisibility);
-    }
-  };
 
   return (
     <AdminFiltersContext.Provider
       value={{
         selectedOperationId,
         selectedPeriod,
-        selectedAccessProfileId,
+        selectedAccessProfileId: session?.profileId ?? "direcao",
         selectedVisibilityMode,
         operationOptions,
         accessProfileOptions,
@@ -196,7 +199,7 @@ export function AdminFiltersProvider({ children }: { children: ReactNode }) {
         selectedAccessProfile,
         setSelectedOperationId,
         setSelectedPeriod,
-        setSelectedAccessProfileId: handleAccessProfileChange,
+        setSelectedAccessProfileId: () => {},
         setSelectedVisibilityMode,
       }}
     >

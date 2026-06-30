@@ -1,4 +1,4 @@
-import { Bell, Search, Filter, CalendarRange } from "lucide-react";
+import { Bell, Search, Filter, CalendarRange, LogOut } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  formatPeriodLabel,
-  formatVisibilityModeLabel,
-  useAdminFilters,
-  type AccessProfileId,
-  type PeriodPreset,
-  type VisibilityMode,
-} from "@/components/admin/admin-filters";
+import { formatPeriodLabel, formatVisibilityModeLabel, useAdminFilters, type PeriodPreset, type VisibilityMode } from "@/components/admin/admin-filters";
+import { useAdminAuth } from "@/components/admin/auth-context";
 
 interface TopbarProps {
   breadcrumb: string[];
@@ -28,16 +22,14 @@ export function Topbar({ breadcrumb }: TopbarProps) {
   const {
     selectedOperationId,
     selectedPeriod,
-    selectedAccessProfileId,
     selectedVisibilityMode,
     operationOptions,
-    accessProfileOptions,
     selectedAccessProfile,
     setSelectedOperationId,
     setSelectedPeriod,
-    setSelectedAccessProfileId,
     setSelectedVisibilityMode,
   } = useAdminFilters();
+  const { session, signOut } = useAdminAuth();
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/88 backdrop-blur-xl px-4 topbar-glow">
@@ -79,26 +71,13 @@ export function Topbar({ breadcrumb }: TopbarProps) {
 
         <div className="hidden lg:flex items-center gap-2">
           <Select
-            value={selectedAccessProfileId}
-            onValueChange={(value) => setSelectedAccessProfileId(value as AccessProfileId)}
-          >
-            <SelectTrigger className="h-9 w-[170px] bg-surface border-border text-xs">
-              <SelectValue placeholder="Perfil" />
-            </SelectTrigger>
-            <SelectContent>
-              {accessProfileOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
             value={selectedVisibilityMode}
             onValueChange={(value) => setSelectedVisibilityMode(value as VisibilityMode)}
           >
-            <SelectTrigger className="h-9 w-[170px] bg-surface border-border text-xs">
+            <SelectTrigger
+              className="h-9 w-[170px] bg-surface border-border text-xs"
+              disabled={session?.defaultVisibility === "client"}
+            >
               <SelectValue placeholder="Visibilidade" />
             </SelectTrigger>
             <SelectContent>
@@ -143,7 +122,7 @@ export function Topbar({ breadcrumb }: TopbarProps) {
           variant="outline"
           className="hidden xl:inline-flex h-8 rounded-full border-primary/25 bg-primary/8 text-primary px-3 text-[10px] uppercase tracking-[0.18em]"
         >
-          {selectedAccessProfile.label}
+          {session?.name ?? selectedAccessProfile.label}
         </Badge>
 
         <Badge
@@ -152,6 +131,10 @@ export function Topbar({ breadcrumb }: TopbarProps) {
         >
           {formatVisibilityModeLabel(selectedVisibilityMode)}
         </Badge>
+
+        <Button variant="ghost" size="icon" className="h-9 w-9" onClick={signOut}>
+          <LogOut className="h-4 w-4" />
+        </Button>
 
         <Button variant="ghost" size="icon" className="h-9 w-9">
           <Bell className="h-4 w-4" />
