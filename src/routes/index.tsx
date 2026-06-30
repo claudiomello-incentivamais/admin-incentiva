@@ -23,12 +23,16 @@ import { useAdminFilters, formatPeriodLabel } from "@/components/admin/admin-fil
 import { cn } from "@/lib/utils";
 
 import {
+  buildExecutiveCommandQueue,
+  buildExecutiveFocusAreas,
   buildOperationActionPlan,
   buildOperationCockpitFromOperation,
   getScoreDrivers,
   loadGlobalDashboard,
   priorityMeta,
   statusMeta,
+  type ExecutiveCommandItem,
+  type ExecutiveFocusArea,
   type GlobalDashboardData,
   type Operation,
   type OperationStatus,
@@ -81,6 +85,14 @@ function AdminGlobal() {
         ? insights
         : insights.filter((insight) => !insight.operationId || insight.operationId === selectedOperationId),
     [insights, selectedOperationId],
+  );
+  const executiveQueue = useMemo(
+    () => buildExecutiveCommandQueue(filteredOperations),
+    [filteredOperations],
+  );
+  const executiveFocusAreas = useMemo(
+    () => buildExecutiveFocusAreas(filteredOperations),
+    [filteredOperations],
   );
   const [activeOperationId, setActiveOperationId] = useState(
     selectedOperationId === "all" ? filteredOperations[0]?.id ?? "" : selectedOperationId,
@@ -221,6 +233,11 @@ function AdminGlobal() {
           />
         </section>
 
+        <section className="grid grid-cols-1 xl:grid-cols-[1.4fr_1fr] gap-4">
+          <ExecutiveCommandCenter queue={executiveQueue} />
+          <ExecutiveFocusBoard areas={executiveFocusAreas} />
+        </section>
+
         {/* Ranking + insights */}
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
           {/* Ranking table */}
@@ -353,6 +370,130 @@ function AdminGlobal() {
         </section>
       </main>
     </>
+  );
+}
+
+function ExecutiveCommandCenter({
+  queue,
+}: {
+  queue: ExecutiveCommandItem[];
+}) {
+  return (
+    <div className="surface-card p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-sm font-semibold text-display">Fila Executiva de Ação</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            O que já deveria estar aberto como ação prática agora
+          </p>
+        </div>
+        <Badge variant="secondary" className="text-[10px] text-mono h-5">
+          {queue.length}
+        </Badge>
+      </div>
+
+      <div className="space-y-3">
+        {queue.map((item) => (
+          <div key={item.id} className="rounded-xl border border-border bg-surface px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] font-semibold text-mono tracking-wider h-5 px-1.5",
+                      priorityMeta[item.priority],
+                    )}
+                  >
+                    {item.priority}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+                    {item.operationName}
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className={cn("text-[10px] uppercase tracking-[0.16em] h-5", statusMeta[item.health].color)}
+                  >
+                    {statusMeta[item.health].label}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-[13px] font-medium leading-snug">{item.title}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    {item.detail}
+                  </p>
+                </div>
+              </div>
+
+              <div className="min-w-[120px] text-right space-y-1">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Saída principal
+                </div>
+                <div className="text-[12px] font-semibold text-display">{item.channel}</div>
+                <div className="text-[10px] text-muted-foreground">{item.owner}</div>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                Próximo passo sugerido
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-foreground">{item.nextStep}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ExecutiveFocusBoard({
+  areas,
+}: {
+  areas: ExecutiveFocusArea[];
+}) {
+  return (
+    <div className="surface-card p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-sm font-semibold text-display">Alavancas Transversais</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Onde o admin já consegue coordenar a próxima rodada
+          </p>
+        </div>
+        <Target className="h-3.5 w-3.5 text-primary" />
+      </div>
+
+      <div className="space-y-3">
+        {areas.map((area) => (
+          <div key={area.id} className="rounded-xl border border-border bg-surface px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {area.label}
+                </div>
+                <p className="mt-1 text-[12px] font-medium leading-snug">{area.headline}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-xl font-semibold text-display">{area.count}</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  frentes
+                </div>
+              </div>
+            </div>
+
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              {area.detail}
+            </p>
+
+            <div className="mt-3 flex items-center justify-between gap-3 text-[10px] text-muted-foreground">
+              <span>{area.owner}</span>
+              <span className="uppercase tracking-[0.16em]">{area.channel}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

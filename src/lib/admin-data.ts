@@ -279,6 +279,30 @@ export interface OperationActionPlan {
   trelloCardTitle: string;
 }
 
+export interface ExecutiveCommandItem {
+  id: string;
+  operationId: string;
+  operationName: string;
+  priority: Priority;
+  health: OperationStatus;
+  lane: string;
+  owner: string;
+  channel: "Trello" | "Discord" | "Admin";
+  title: string;
+  detail: string;
+  nextStep: string;
+}
+
+export interface ExecutiveFocusArea {
+  id: string;
+  label: string;
+  count: number;
+  owner: string;
+  channel: "Trello" | "Discord" | "Admin";
+  headline: string;
+  detail: string;
+}
+
 const operations: Operation[] = [
   {
     id: "cafe-fazenda-brasil",
@@ -1797,6 +1821,141 @@ export function buildOperationActionPlan(operation: Operation): OperationActionP
       `e conversão mensal ${operation.monthlyConversion.toFixed(1)}%. Próximo passo sugerido: ${actions[0]}`,
     trelloCardTitle: `${operation.name} · plano de ação operacional`,
   };
+}
+
+export function buildExecutiveCommandQueue(operations: Operation[]): ExecutiveCommandItem[] {
+  return [...operations]
+    .sort((left, right) => left.score - right.score)
+    .map((operation) => {
+      if (operation.baseCoverage < 60) {
+        return {
+          id: `${operation.id}-coverage`,
+          operationId: operation.id,
+          operationName: operation.name,
+          priority: operation.priority,
+          health: operation.health,
+          lane: "Base / ICP",
+          owner: "Bruna + Sales Ops",
+          channel: "Trello" as const,
+          title: `${operation.name} pede reposição imediata de base`,
+          detail:
+            `Cobertura em ${operation.baseCoverage.toFixed(1)}% para uma operação em ${statusMeta[operation.health].label}. ` +
+            "O risco principal deixou de ser workflow e passou a ser abastecimento da cadência.",
+          nextStep:
+            "Abrir card de reposição por ICP e medir recuperação da cobertura antes de otimizar copy ou canal.",
+        };
+      }
+
+      if (operation.dataReconciliation < 85) {
+        return {
+          id: `${operation.id}-reconciliation`,
+          operationId: operation.id,
+          operationName: operation.name,
+          priority: operation.priority,
+          health: operation.health,
+          lane: "Leitura semântica",
+          owner: "Claw + Sales Ops",
+          channel: "Admin" as const,
+          title: `${operation.name} já pede saneamento semântico do funil`,
+          detail:
+            `Reconciliação em ${operation.dataReconciliation.toFixed(1)}% com leitura ainda suscetível a ruído entre Supabase, Notion e estágio canônico.`,
+          nextStep:
+            "Abrir revisão de estágio e divergência antes de concluir sobre performance comercial.",
+        };
+      }
+
+      if (operation.monthlyConversion < 11) {
+        return {
+          id: `${operation.id}-conversion`,
+          operationId: operation.id,
+          operationName: operation.name,
+          priority: operation.priority,
+          health: operation.health,
+          lane: "Gargalo comercial",
+          owner: "Sales Ops",
+          channel: "Discord" as const,
+          title: `${operation.name} precisa de intervenção no funil ativo`,
+          detail:
+            `Conversão mensal em ${operation.monthlyConversion.toFixed(1)}% com espaço claro para ajuste de etapa, handoff e cadência.`,
+          nextStep:
+            "Levar diagnóstico para o Discord da operação com teste claro, dono e prazo fechado.",
+        };
+      }
+
+      return {
+        id: `${operation.id}-stabilization`,
+        operationId: operation.id,
+        operationName: operation.name,
+        priority: operation.priority,
+        health: operation.health,
+        lane: "Estabilização",
+        owner: "Sales Ops",
+        channel: "Admin" as const,
+        title: `${operation.name} já está em faixa mais estável`,
+        detail:
+          "A operação não pede intervenção emergencial, mas já merece monitoração ativa para proteger conversão e qualidade de leitura.",
+        nextStep:
+          "Manter review semanal com foco em tendência, não em incidente isolado.",
+      };
+    });
+}
+
+export function buildExecutiveFocusAreas(operations: Operation[]): ExecutiveFocusArea[] {
+  const coverageOps = operations.filter((operation) => operation.baseCoverage < 60);
+  const semanticOps = operations.filter(
+    (operation) => operation.baseCoverage >= 60 && operation.dataReconciliation < 85,
+  );
+  const conversionOps = operations.filter(
+    (operation) => operation.baseCoverage >= 60 && operation.dataReconciliation >= 85 && operation.monthlyConversion < 11,
+  );
+
+  return [
+    {
+      id: "coverage",
+      label: "Reposição e ICP",
+      count: coverageOps.length,
+      owner: "Bruna + Sales Ops",
+      channel: "Trello",
+      headline:
+        coverageOps.length > 0
+          ? `${coverageOps.length} operação(ões) estão puxando a fila de reposição.`
+          : "Nenhuma operação está pressionando a carteira por falta grave de base.",
+      detail:
+        coverageOps.length > 0
+          ? "Quando a cobertura quebra, o problema principal sai do workflow e vira abastecimento qualificado da cadência."
+          : "A camada de base está sob controle no recorte atual.",
+    },
+    {
+      id: "semantic",
+      label: "Leitura semântica",
+      count: semanticOps.length,
+      owner: "Claw + Sales Ops",
+      channel: "Admin",
+      headline:
+        semanticOps.length > 0
+          ? `${semanticOps.length} operação(ões) já precisam de ajuste fino de estágio e reconciliação.`
+          : "A reconciliação entre camadas está saudável no recorte atual.",
+      detail:
+        semanticOps.length > 0
+          ? "Aqui o risco não é falta de ação, e sim tomar decisão em cima de leitura parcialmente ruidosa."
+          : "A leitura executiva está coerente para tomada de decisão transversal.",
+    },
+    {
+      id: "conversion",
+      label: "Ajuste de funil",
+      count: conversionOps.length,
+      owner: "Sales Ops",
+      channel: "Discord",
+      headline:
+        conversionOps.length > 0
+          ? `${conversionOps.length} operação(ões) já pedem teste comercial explícito.`
+          : "Não há pressão comercial relevante fora das frentes de base e semântica.",
+      detail:
+        conversionOps.length > 0
+          ? "Depois de estabilizar base e leitura, o próximo ganho vem de experimento de funil com dono e prazo."
+          : "O recorte atual está mais pressionado por abastecimento e governança do que por teste comercial.",
+    },
+  ];
 }
 
 export function buildOperationCockpitFromOperation(operation: Operation): IncentivaCockpitData {
