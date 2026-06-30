@@ -3,11 +3,22 @@ import {
   Activity,
   AlertOctagon,
   ArrowRight,
+  Building2,
   CheckCircle2,
   Database,
+  GitBranch,
   Layers3,
+  Link2,
+  LockKeyhole,
+  NotebookPen,
+  RadioTower,
+  Route as RouteIcon,
+  ServerCog,
   ShieldAlert,
   Siren,
+  Target,
+  TimerReset,
+  UserCog,
   Users,
   Workflow,
 } from "lucide-react";
@@ -170,6 +181,123 @@ const governance = {
       detail: "Fecha a leitura por conta, prioridade e risco operacional de cada operação.",
     },
   ],
+  operatingSystem: [
+    {
+      title: "Admin",
+      detail:
+        "Camada-mãe de governança, diagnóstico, observabilidade e comando. Aqui fica a leitura consolidada que reduz report espalhado.",
+      icon: Building2,
+    },
+    {
+      title: "Notion",
+      detail:
+        "Camada operacional do SDR. Continua como frente de pipeline, motivos de perda, qualificação e rotina comercial alimentada pelo n8n.",
+      icon: NotebookPen,
+    },
+    {
+      title: "Trello",
+      detail:
+        "Camada de execução. Toda recomendação do admin que vira ação precisa aterrissar em card com dono, prazo e etapa visível.",
+      icon: GitBranch,
+    },
+    {
+      title: "Discord",
+      detail:
+        "Camada de acionamento e exceção. Serve para alertas relevantes, handoff e destrave, não para substituir o painel nem o Trello.",
+      icon: RadioTower,
+    },
+  ],
+  sourceOfTruth: [
+    {
+      title: "Supabase",
+      detail:
+        "Fonte principal de base, estágio canônico, locks, score, SLA e estrutura operacional replicável por operação.",
+      icon: Database,
+    },
+    {
+      title: "n8n VPS",
+      detail:
+        "Fonte principal de saúde dos workflows, waiting, erro, throughput, webhook e observabilidade técnica por automação.",
+      icon: ServerCog,
+    },
+    {
+      title: "Notion",
+      detail:
+        "Fonte principal da operação SDR e da visão humana de pipeline por operação, sem carregar a governança técnica inteira.",
+      icon: NotebookPen,
+    },
+    {
+      title: "Trello",
+      detail:
+        "Fonte principal de status de execução, prioridade aplicada e follow-up das ações decididas no admin.",
+      icon: Link2,
+    },
+  ],
+  roles: [
+    {
+      title: "Direção",
+      scope: "Claudio + Lucas",
+      detail:
+        "Visão total do sistema, carteira inteira, saúde de stack, custos, agentes, governança e leitura cross-operação.",
+      icon: UserCog,
+    },
+    {
+      title: "Sales Ops / SDR",
+      scope: "Acesso por operação",
+      detail:
+        "Leitura restrita à operação atribuída, foco em pipeline, gargalo, próximos passos e execução associada.",
+      icon: Users,
+    },
+    {
+      title: "Cliente",
+      scope: "Portal derivado",
+      detail:
+        "Vê apenas a própria operação, sem bastidor interno de stack, agentes, outras contas ou governança sensível.",
+      icon: LockKeyhole,
+    },
+  ],
+  actionEngine: [
+    {
+      title: "Detectar",
+      detail: "O admin identifica desvio, risco, quebra, queda de cobertura ou pressão operacional relevante.",
+      icon: Siren,
+    },
+    {
+      title: "Diagnosticar",
+      detail: "A camada de governança explica causa provável, impacto, dono sugerido e urgência real.",
+      icon: Target,
+    },
+    {
+      title: "Abrir ação",
+      detail: "O problema vira plano de ação, card no Trello, mensagem no Discord ou acionamento direto do Claw.",
+      icon: RouteIcon,
+    },
+    {
+      title: "Validar fechamento",
+      detail: "Nada encerra sem evidência: card atualizado, workflow corrigido, dado reprocessado ou risco normalizado.",
+      icon: TimerReset,
+    },
+  ],
+  roadmap: [
+    {
+      title: "Até 03 jul",
+      status: "healthy" as OperationStatus,
+      detail:
+        "Fechar a arquitetura do sistema, consolidar a lógica Admin x Notion x Trello x Discord e deixar a navegação do admin materialmente mais utilizável.",
+    },
+    {
+      title: "Até 10 jul",
+      status: "monitor" as OperationStatus,
+      detail:
+        "Subir uma V1 interna forte com diagnóstico, ação e começo da observabilidade central de n8n VPS, VPS, agentes e alertas.",
+    },
+    {
+      title: "13 a 24 jul",
+      status: "monitor" as OperationStatus,
+      detail:
+        "Entrar em perfis, privacidade, portal por operação/cliente e gatilho real para avaliar a migração de Pro para Business.",
+    },
+  ],
 };
 
 function GovernancePage() {
@@ -236,6 +364,85 @@ function GovernancePage() {
           </div>
         </section>
 
+        <section className="surface-card p-5">
+          <div>
+            <h2 className="text-sm font-semibold text-display">Sistema operacional da gestão</h2>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Este é o desenho-base aprovado para centralizar a gestão sem canibalizar o que já
+              funciona bem hoje.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {governance.operatingSystem.map((item) => (
+              <div key={item.title} className="rounded-xl border border-border bg-surface p-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <item.icon className="h-4 w-4 text-primary" />
+                  {item.title}
+                </div>
+                <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Fonte de verdade por camada</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                O melhor processo aqui não depende de ferramenta nova, e sim de cada camada ter
+                dono e função claros.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {governance.sourceOfTruth.map((item) => (
+                <div key={item.title} className="rounded-xl border border-border bg-surface p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <item.icon className="h-4 w-4 text-primary" />
+                    {item.title}
+                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                    {item.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Perfis e exposição</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                A estrutura já nasce pensando em visão total interna e portal derivado por operação.
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {governance.roles.map((role) => (
+                <div key={role.title} className="rounded-xl border border-border bg-surface p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <role.icon className="h-4 w-4 text-primary" />
+                      {role.title}
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] uppercase tracking-[0.14em] border-primary/30 text-primary"
+                    >
+                      {role.scope}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                    {role.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           {governance.metrics.map((metric) => (
             <GovernanceMetricCard key={metric.label} metric={metric} />
@@ -297,6 +504,48 @@ function GovernancePage() {
                 </p>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Motor de ação</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                O admin só vira software de gestão quando sai de leitura e fecha o ciclo até a
+                ação validada.
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {governance.actionEngine.map((step) => (
+                <div key={step.title} className="rounded-xl border border-border bg-surface p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <step.icon className="h-4 w-4 text-primary" />
+                    {step.title}
+                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                    {step.detail}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Roadmap materializado</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Ordem de execução para não gastar plano, tempo nem energia com sofisticação antes
+                da hora.
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {governance.roadmap.map((checkpoint) => (
+                <CheckpointCard key={checkpoint.title} checkpoint={checkpoint} />
+              ))}
+            </div>
           </div>
         </section>
       </main>
