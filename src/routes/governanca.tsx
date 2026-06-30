@@ -11,6 +11,7 @@ import {
   Link2,
   LockKeyhole,
   NotebookPen,
+  PhoneCall,
   RadioTower,
   Route as RouteIcon,
   ServerCog,
@@ -65,15 +66,15 @@ const governance = {
     },
     {
       label: "Fila de ownership",
-      value: "3",
-      detail: "Base, observabilidade de e-mail e publicação visual seguem como próximos donos claros.",
+      value: "5",
+      detail: "Base, n8n VPS, Evolution API, API4Com e publicação visual seguem como próximos donos claros.",
       tone: "info" as const,
       icon: Users,
     },
     {
       label: "Checkpoints críticos",
-      value: "4",
-      detail: "Dados, n8n, ownership e clareza de leitura são os quatro checkpoints que mais importam agora.",
+      value: "6",
+      detail: "Dados, n8n, Evolution, API4Com, ownership e clareza de leitura são os checkpoints que mais importam agora.",
       tone: "monitor" as const,
       icon: Layers3,
     },
@@ -95,6 +96,11 @@ const governance = {
       title: "Saúde do n8n",
       detail: "Separar quebra técnica real de ruído, waiting e retry herdado, sem misturar isso com problema comercial.",
       icon: Activity,
+    },
+    {
+      title: "Runtime do WhatsApp",
+      detail: "Deixar explícito o que é saúde de instância, webhook, fila e disponibilidade da Evolution API.",
+      icon: RadioTower,
     },
     {
       title: "Ownership e SLA",
@@ -134,6 +140,24 @@ const governance = {
       detail:
         "O cockpit já mostra waiting e throughput, mas a governança ainda não abre bem o gargalo workflow a workflow dentro da família de e-mail.",
       action: "Próxima camada útil é quebrar e-mail por família e workflow com status, fila e throughput granular.",
+    },
+    {
+      id: "evolution-health",
+      health: "monitor" as OperationStatus,
+      lane: "Evolution API",
+      title: "Saúde do WhatsApp ainda está implícita demais.",
+      detail:
+        "A operação já mostra efeito de WhatsApp no cockpit, mas a governança ainda não abre de forma explícita instância, webhook, fila e disponibilidade por operação.",
+      action: "Subir Evolution como fonte técnica de primeira classe e cruzar health do canal com cadência e gargalo comercial.",
+    },
+    {
+      id: "api4com-report",
+      health: "monitor" as OperationStatus,
+      lane: "API4Com",
+      title: "O report diário das 17h dos SDRs ainda não virou camada nativa do admin.",
+      detail:
+        "O sinal de ligações, conexão, produtividade e reunião gerada existe, mas ainda aparece como report lateral e não como leitura governada por operação.",
+      action: "Trazer API4Com para dentro do admin e cruzar voz SDR com estágio, atividade e conversão.",
     },
     {
       id: "publish-sync",
@@ -226,6 +250,18 @@ const governance = {
       icon: ServerCog,
     },
     {
+      title: "Evolution API",
+      detail:
+        "Fonte principal de saúde do WhatsApp: instância, webhook, fila, disponibilidade e risco de canal por operação.",
+      icon: RadioTower,
+    },
+    {
+      title: "API4Com",
+      detail:
+        "Fonte principal do report de voz dos SDRs, com leitura diária de ligações, conexão e reunião originada.",
+      icon: PhoneCall,
+    },
+    {
       title: "Notion",
       detail:
         "Fonte principal da operação SDR e da visão humana de pipeline por operação, sem carregar a governança técnica inteira.",
@@ -294,7 +330,7 @@ const governance = {
       title: "Até 10 jul",
       status: "monitor" as OperationStatus,
       detail:
-        "Subir uma V1 interna forte com diagnóstico, ação e começo da observabilidade central de n8n VPS, VPS, agentes e alertas.",
+        "Subir uma V1 interna forte com diagnóstico, ação e começo da observabilidade central de n8n VPS, Evolution API, API4Com, agentes e alertas.",
     },
     {
       title: "13 a 24 jul",

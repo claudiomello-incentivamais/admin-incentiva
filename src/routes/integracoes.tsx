@@ -6,7 +6,9 @@ import {
   Database,
   GitBranch,
   LockKeyhole,
+  MessageCircle,
   NotebookPen,
+  PhoneCall,
   RadioTower,
   RefreshCcw,
   ServerCog,
@@ -107,7 +109,7 @@ function IntegrationsPage() {
             />
             <GuideCard
               title="4. Fila"
-              detail="O hub deixa explícito o que ainda falta integrar para a gestão ficar concentrada numa tela só."
+              detail="O hub deixa explícito o que ainda falta integrar para a gestão ficar concentrada numa tela só, incluindo Evolution e API4Com."
             />
           </div>
         </section>
@@ -121,8 +123,7 @@ function IntegrationsPage() {
         <section className="space-y-1">
           <h2 className="text-sm font-semibold text-display">Mapa central das fontes</h2>
           <p className="text-[11px] text-muted-foreground">
-            Aqui fica claro o papel de Supabase, n8n, Notion, Trello, Discord, GitHub e publish na
-            operação como produto.
+            Aqui fica claro o papel de Supabase, n8n, Evolution API, API4Com, Notion, Trello, Discord, GitHub e publish na operação como produto.
           </p>
         </section>
 
@@ -232,6 +233,8 @@ function IntegrationSourceCard({ source }: { source: IntegrationSource }) {
   const iconMap = {
     supabase: Database,
     n8n: ServerCog,
+    evolution: MessageCircle,
+    api4com: PhoneCall,
     notion: NotebookPen,
     trello: GitBranch,
     discord: RadioTower,

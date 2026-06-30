@@ -15,7 +15,9 @@ import {
   MessageCircle,
   NotebookPen,
   Orbit,
+  PhoneCall,
   RefreshCcw,
+  ServerCog,
   ShieldAlert,
   Sparkles,
   Target,
@@ -32,8 +34,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  buildOperationCadenceView,
   buildOperationNotionView,
   buildOperationCockpitFromOperation,
+  buildOperationRuntimeView,
   buildOperationTrelloView,
   fetchOperations,
   type IncentivaExecutionBacklogItem,
@@ -97,6 +101,12 @@ function Page() {
     ? buildOperationNotionView(effectiveOperation, cockpit, cockpit.source)
     : null;
   const trelloView = effectiveOperation ? buildOperationTrelloView(effectiveOperation, cockpit) : null;
+  const cadenceView = effectiveOperation
+    ? buildOperationCadenceView(effectiveOperation, cockpit, cockpit.source)
+    : null;
+  const runtimeView = effectiveOperation
+    ? buildOperationRuntimeView(effectiveOperation, cockpit, cockpit.source)
+    : null;
   const [selectedNotionStageId, setSelectedNotionStageId] = useState<string | null>(null);
   const [selectedPipelineStageFilter, setSelectedPipelineStageFilter] = useState<string>("all");
   const [selectedPipelineOwnerFilter, setSelectedPipelineOwnerFilter] = useState<string>("all");
@@ -720,6 +730,104 @@ function Page() {
           </div>
         </section>
 
+        {cadenceView ? (
+          <section className="grid grid-cols-1 xl:grid-cols-[1.08fr_0.92fr] gap-4">
+            <div className="surface-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-display">Cadência comercial</h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Aqui a operação cruza base, etapa, atividade e conversão sem depender só de leitura solta de pipeline.
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+                  {cadenceView.mode === "live" ? "Supabase live" : "Governado"}
+                </Badge>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-surface p-4">
+                <div className="text-sm font-medium text-display">{cadenceView.headline}</div>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  {cadenceView.detail}
+                </p>
+                <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {cadenceView.metrics.map((metric) => (
+                  <ExecKpi
+                    key={metric.id}
+                    label={metric.label}
+                    value={metric.value}
+                    sub={metric.detail}
+                    icon={
+                      metric.id === "canonical-unstarted"
+                        ? ListTodo
+                        : metric.id === "active-now"
+                          ? Activity
+                          : metric.id === "coverage-days"
+                            ? Gauge
+                            : Target
+                    }
+                    tone={metric.tone ?? "monitor"}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {cadenceView.stages.map((stage) => (
+                  <CadenceStageCard key={stage.id} stage={stage} />
+                ))}
+              </div>
+            </div>
+
+            <div className="surface-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-display">Janelas de leitura</h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Últimos 7, 30, 90 dias e acumulado do mês para não misturar pico curto com tendência estrutural.
+                  </p>
+                </div>
+                <BarChart3 className="h-3.5 w-3.5 text-primary" />
+              </div>
+
+              <div className="space-y-3">
+                {cadenceView.windows.map((window) => (
+                  <CadenceWindowCard key={window.id} window={window} />
+                ))}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {runtimeView ? (
+          <section className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Fontes e runtime da operação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Aqui fica explícito o que vem de `Supabase`, `Notion`, `n8n VPS`, `Evolution API` e `API4Com`, com modo de leitura e próximo passo.
+                </p>
+              </div>
+              <ServerCog className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="text-sm font-medium text-display">{runtimeView.headline}</div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                {runtimeView.detail}
+              </p>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+              {runtimeView.cards.map((card) => (
+                <RuntimeSourceCard key={card.id} card={card} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="space-y-1">
           <h2 className="text-sm font-semibold text-display">Estado atual</h2>
           <p className="text-[11px] text-muted-foreground">
@@ -1320,6 +1428,169 @@ function Page() {
         </section>
       </main>
     </>
+  );
+}
+
+function CadenceStageCard({
+  stage,
+}: {
+  stage: {
+    id: string;
+    label: string;
+    count: number;
+    shareLabel: string;
+    conversionLabel: string;
+    tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+  };
+}) {
+  const toneClass =
+    stage.tone === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : stage.tone === "risk" || stage.tone === "critical"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : stage.tone === "monitor"
+          ? "border-amber-500/20 bg-amber-500/5 text-amber-600"
+          : "border-primary/20 bg-primary/5 text-primary";
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{stage.label}</div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+          {stage.tone === "healthy"
+            ? "Forte"
+            : stage.tone === "risk" || stage.tone === "critical"
+              ? "Pressão"
+              : stage.tone === "monitor"
+                ? "Monitorar"
+                : "Ler"}
+        </Badge>
+      </div>
+      <div className="mt-3 text-[28px] leading-none font-semibold text-display tracking-tight tabular-nums">
+        {formatNumber(stage.count)}
+      </div>
+      <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{stage.shareLabel}</div>
+      <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{stage.conversionLabel}</div>
+    </div>
+  );
+}
+
+function CadenceWindowCard({
+  window,
+}: {
+  window: {
+    id: string;
+    label: string;
+    activeLabel: string;
+    conversionLabel: string;
+    velocityLabel: string;
+    detail: string;
+    tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+  };
+}) {
+  const toneClass =
+    window.tone === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : window.tone === "risk" || window.tone === "critical"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : window.tone === "monitor"
+          ? "border-amber-500/20 bg-amber-500/5 text-amber-600"
+          : "border-primary/20 bg-primary/5 text-primary";
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium text-foreground">{window.label}</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{window.detail}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+          {window.velocityLabel}
+        </Badge>
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MiniStateCard label="Ativos" value={window.activeLabel} />
+        <MiniStateCard label="Conversão" value={window.conversionLabel} />
+      </div>
+    </div>
+  );
+}
+
+function RuntimeSourceCard({
+  card,
+}: {
+  card: {
+    id: string;
+    title: string;
+    health: "healthy" | "monitor" | "risk" | "critical";
+    modeLabel: string;
+    lastSync: string;
+    owner: string;
+    sourceOfTruth: string;
+    headline: string;
+    detail: string;
+    facts: { label: string; value: string }[];
+    nextStep: string;
+  };
+}) {
+  const toneClass =
+    card.health === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : card.health === "risk" || card.health === "critical"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : "border-amber-500/20 bg-amber-500/5 text-amber-600";
+
+  const Icon =
+    card.id === "supabase"
+      ? Database
+      : card.id === "notion"
+        ? NotebookPen
+        : card.id === "n8n"
+          ? ServerCog
+          : card.id === "evolution"
+            ? MessageCircle
+            : PhoneCall;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className={cn("rounded-xl border p-2", toneClass)}>
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="text-sm font-medium text-foreground">{card.title}</div>
+          </div>
+          <div className="mt-2 text-[11px] text-muted-foreground">{card.modeLabel}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+          {statusMeta[card.health].label}
+        </Badge>
+      </div>
+
+      <p className="mt-3 text-[12px] leading-relaxed text-foreground">{card.headline}</p>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{card.detail}</p>
+
+      <div className="mt-4 grid gap-2">
+        <MiniStateCard label="Fonte de verdade" value={card.sourceOfTruth} />
+        <MiniStateCard label="Owner" value={card.owner} />
+        <MiniStateCard label="Última leitura" value={card.lastSync} />
+      </div>
+
+      <div className="mt-4 grid gap-2">
+        {card.facts.map((fact) => (
+          <div key={`${card.id}-${fact.label}`} className="rounded-lg border border-border bg-surface px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{fact.label}</div>
+            <div className="mt-1 text-[11px] leading-relaxed text-foreground">{fact.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-surface px-3 py-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Próximo passo</div>
+        <p className="mt-2 text-[12px] leading-relaxed text-foreground">{card.nextStep}</p>
+      </div>
+    </div>
   );
 }
 

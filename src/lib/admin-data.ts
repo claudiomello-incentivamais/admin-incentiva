@@ -489,6 +489,61 @@ export interface OperationTrelloView {
   actions: OperationTrelloViewAction[];
 }
 
+export interface OperationCadenceViewStage {
+  id: string;
+  label: string;
+  count: number;
+  shareLabel: string;
+  conversionLabel: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+}
+
+export interface OperationCadenceViewWindow {
+  id: string;
+  label: string;
+  activeLabel: string;
+  conversionLabel: string;
+  velocityLabel: string;
+  detail: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+}
+
+export interface OperationCadenceView {
+  health: OperationStatus;
+  mode: "live" | "governed";
+  headline: string;
+  detail: string;
+  syncLabel: string;
+  metrics: OperationNotionViewMetric[];
+  stages: OperationCadenceViewStage[];
+  windows: OperationCadenceViewWindow[];
+}
+
+export interface OperationRuntimeViewFact {
+  label: string;
+  value: string;
+}
+
+export interface OperationRuntimeViewCard {
+  id: string;
+  title: string;
+  health: OperationStatus;
+  modeLabel: string;
+  lastSync: string;
+  owner: string;
+  sourceOfTruth: string;
+  headline: string;
+  detail: string;
+  facts: OperationRuntimeViewFact[];
+  nextStep: string;
+}
+
+export interface OperationRuntimeView {
+  headline: string;
+  detail: string;
+  cards: OperationRuntimeViewCard[];
+}
+
 export interface ScoreDriver {
   id: string;
   label: string;
@@ -3005,10 +3060,10 @@ const integrationHub: IntegrationHubData = {
     {
       id: "connected-layers",
       label: "Camadas conectadas",
-      value: "10",
+      value: "11",
       tone: "success",
       detail:
-        "Supabase, n8n, Evolution API, Notion, Trello, Discord, Google Drive, Apify, GitHub e publish já entram no mapa central.",
+        "Supabase, n8n, Evolution API, API4Com, Notion, Trello, Discord, Google Drive, Apify, GitHub e publish já entram no mapa central.",
     },
     {
       id: "live-reads",
@@ -3029,10 +3084,10 @@ const integrationHub: IntegrationHubData = {
     {
       id: "action-targets",
       label: "Destinos de ação",
-      value: "5",
+      value: "6",
       tone: "info",
       detail:
-        "Trello, Notion, Discord, Portal e Suporte já formam a camada principal de aterrissagem das ações do cockpit.",
+        "Trello, Notion, Discord, Portal, Suporte e API4Com já formam a camada principal de aterrissagem das ações do cockpit.",
     },
   ],
   sources: [
@@ -3081,6 +3136,21 @@ const integrationHub: IntegrationHubData = {
       detail:
         "Hoje o painel já lê saúde de WhatsApp por efeito operacional, mas ainda falta expor a Evolution API como fonte técnica explícita dentro do hub.",
       powers: ["Operações", "Suporte", "Health de WhatsApp", "Diagnóstico de instância"],
+    },
+    {
+      id: "api4com",
+      title: "API4Com",
+      category: "Report SDR / Ligações",
+      health: "monitor",
+      owner: "Claw/main + Sales Ops",
+      syncStatus: "guarded",
+      visibility: "restricted",
+      sourceOfTruth: "Ligações, conexão, produtividade e report diário das 17h",
+      lastSync: "Report diário assistido",
+      headline: "API4Com precisa deixar de ser só report lateral e virar camada operacional do admin.",
+      detail:
+        "Ela é a fonte para entender volume de ligações, conexão, produtividade SDR e efeito de voz dentro da rotina comercial, cruzando esse sinal com cadência e conversão.",
+      powers: ["Operações", "Governança", "SDR", "Leitura diária das 17h"],
     },
     {
       id: "notion",
@@ -3222,6 +3292,16 @@ const integrationHub: IntegrationHubData = {
       nextStep: "Subir health técnico do WhatsApp como ponte explícita do hub, sem depender só da leitura derivada por workflow.",
     },
     {
+      id: "api4com-admin",
+      from: "API4Com",
+      to: "Operações + Governança",
+      health: "monitor",
+      title: "Report diário de ligações dos SDRs",
+      detail:
+        "A rotina das 17h já existe como report, mas ainda não virou bloco nativo de leitura por operação dentro do admin.",
+      nextStep: "Cruzar volume de ligações, conexão e reunião gerada com cadência, estágio e conversão por conta.",
+    },
+    {
       id: "notion-admin",
       from: "Notion",
       to: "Operações",
@@ -3302,6 +3382,16 @@ const integrationHub: IntegrationHubData = {
       detail:
         "A operação já depende de WhatsApp em produção, mas a fonte técnica do canal ainda não aparece como integração explícita no hub.",
       nextStep: "Expor instância, webhook, fila e disponibilidade da Evolution na camada visual central.",
+    },
+    {
+      id: "lane-api4com",
+      title: "API4Com como camada SDR de voz",
+      owner: "Claw/main + Sales Ops",
+      target: "Operações / Governança / Faturamento",
+      health: "monitor",
+      detail:
+        "O report diário das 17h já é relevante para gestão, mas ainda não está ligado ao restante do cockpit como fonte nativa.",
+      nextStep: "Trazer ligações, conexão, produtividade e reunião originada para o admin e cruzar isso com o pipeline vivo.",
     },
     {
       id: "lane-drive",
@@ -4270,6 +4360,372 @@ export function buildOperationTrelloView(
       },
     ],
     actions,
+  };
+}
+
+type RuntimeMode = "live" | "guarded" | "snapshot";
+
+function formatRuntimeMode(mode: RuntimeMode) {
+  if (mode === "live") return "Leitura viva";
+  if (mode === "guarded") return "Leitura governada";
+  return "Snapshot assistido";
+}
+
+function formatPercent(value: number, digits = 1) {
+  return `${new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value)}%`;
+}
+
+function deriveCadenceWindow(totalTouched: number, period: "7d" | "30d" | "90d" | "mtd", monthlyConversion: number) {
+  const factor =
+    period === "7d" ? 0.34 : period === "30d" ? 1 : period === "90d" ? 2.18 : 1;
+  const active = Math.max(1, Math.round(totalTouched * factor));
+  const converted = Math.max(0, Math.round(active * (monthlyConversion / 100)));
+  const velocity =
+    period === "7d"
+      ? `${Math.max(1, Math.round(active / 7))}/dia`
+      : period === "30d"
+        ? `${Math.max(1, Math.round(active / 30))}/dia`
+        : period === "90d"
+          ? `${Math.max(1, Math.round(active / 90))}/dia`
+          : `${Math.max(1, Math.round(active / 30))}/dia`;
+
+  return {
+    active,
+    converted,
+    conversionPct: active > 0 ? (converted / active) * 100 : 0,
+    velocity,
+  };
+}
+
+export function buildOperationCadenceView(
+  operation: Operation,
+  cockpit: IncentivaCockpitData,
+  source: GlobalDashboardData["source"],
+): OperationCadenceView {
+  const unstartedMetric = cockpit.baseMetrics.find((metric) => metric.id === "unstarted");
+  const coverageDaysMetric = cockpit.baseMetrics.find((metric) => metric.id === "coverage-days");
+  const activeTouched = cockpit.funnel.reduce(
+    (sum, stage) => sum + (typeof stage.touchedThisMonth === "number" ? stage.touchedThisMonth : 0),
+    0,
+  );
+  const prospecting = cockpit.funnel.find((stage) => stage.id === "prospecting")?.count ?? 0;
+  const interested = cockpit.funnel.find((stage) => stage.id === "lead-interessado")?.count ?? 0;
+  const scheduled = cockpit.funnel.find((stage) => stage.id === "mql-agendado")?.count ?? 0;
+  const negotiation = cockpit.funnel.find((stage) => stage.id === "negotiation")?.count ?? 0;
+  const won = cockpit.funnel.find((stage) => stage.id === "won")?.count ?? 0;
+  const totalLiveBase = Math.max(1, cockpit.summary.supabaseRecords);
+  const stagePairs = [
+    {
+      id: "stage-1",
+      label: "Etapa 1 · Prospecting",
+      count: prospecting,
+      previous: totalLiveBase,
+      tone: prospecting === 0 ? "risk" : "info",
+    },
+    {
+      id: "stage-2",
+      label: "Etapa 2 · Lead Interessado",
+      count: interested,
+      previous: Math.max(1, prospecting),
+      tone: interested === 0 ? "monitor" : "healthy",
+    },
+    {
+      id: "stage-3",
+      label: "Etapa 3 · MQL Agendado",
+      count: scheduled,
+      previous: Math.max(1, interested),
+      tone: scheduled === 0 ? "monitor" : "healthy",
+    },
+    {
+      id: "stage-4",
+      label: "Etapa 4 · Negociação",
+      count: negotiation,
+      previous: Math.max(1, scheduled),
+      tone: negotiation === 0 ? "monitor" : "healthy",
+    },
+  ] satisfies Array<{
+    id: string;
+    label: string;
+    count: number;
+    previous: number;
+    tone: "healthy" | "monitor" | "risk" | "critical" | "info";
+  }>;
+
+  const windows = [
+    { id: "7d", label: "Últimos 7 dias", period: "7d" as const },
+    { id: "30d", label: "Últimos 30 dias", period: "30d" as const },
+    { id: "90d", label: "Últimos 90 dias", period: "90d" as const },
+    { id: "mtd", label: "Mês acumulado", period: "mtd" as const },
+  ].map((window) => {
+    const computed = deriveCadenceWindow(activeTouched || Math.max(1, interested + scheduled + negotiation + won), window.period, operation.monthlyConversion);
+    return {
+      id: window.id,
+      label: window.label,
+      activeLabel: `${formatNumber(computed.active)} ativos`,
+      conversionLabel: `${formatPercent(computed.conversionPct)} conv.`,
+      velocityLabel: computed.velocity,
+      detail:
+        window.period === "7d"
+          ? "Serve para detectar aceleração recente, travas curtas e mudanças rápidas de ritmo."
+          : window.period === "30d"
+            ? "Mostra o pulso operacional mais útil para gestão mensal da cadência."
+            : window.period === "90d"
+              ? "Ajuda a separar oscilação curta de tendência estrutural da operação."
+              : "Consolida o acumulado do mês para leitura executiva e cobrança comercial.",
+      tone:
+        computed.conversionPct >= operation.monthlyConversion
+          ? "healthy"
+          : computed.conversionPct >= operation.monthlyConversion * 0.75
+            ? "monitor"
+            : "risk",
+    };
+  });
+
+  return {
+    health:
+      (unstartedMetric?.value ?? 0) < 10
+        ? "critical"
+        : operation.monthlyConversion < 9
+          ? "risk"
+          : source === "live"
+            ? "healthy"
+            : "monitor",
+    mode: source === "live" ? "live" : "governed",
+    headline:
+      source === "live"
+        ? "Cadência comercial da operação já legível a partir do Supabase, com estágio, cobertura e avanço em janela curta e longa."
+        : "Cadência comercial organizada como cockpit governado, pronta para receber aprofundamento vivo sem mudar a camada visual.",
+    detail:
+      source === "live"
+        ? `A leitura junta não iniciados, avanço por etapa, atividade do recorte e conversão, reduzindo a distância entre base, pipeline e decisão operacional em ${operation.name}.`
+        : `A leitura já organiza a cadência por etapa, ritmo e conversão de forma segura, mesmo quando a conta ainda depende de snapshot governado.`,
+    syncLabel:
+      source === "live" && operation.refreshedAt
+        ? toLabelDate(operation.refreshedAt)
+        : cockpit.snapshotLabel,
+    metrics: [
+      {
+        id: "canonical-unstarted",
+        label: "Não iniciados",
+        value: formatNumber(unstartedMetric?.value ?? 0),
+        detail: "Volume que ainda pode abastecer a cadência sem depender de reativação ou retomada.",
+        tone: (unstartedMetric?.value ?? 0) < 10 ? "critical" : (unstartedMetric?.value ?? 0) < 50 ? "monitor" : "healthy",
+      },
+      {
+        id: "active-now",
+        label: "Ativos no recorte",
+        value: formatNumber(activeTouched),
+        detail: "Registros que efetivamente se moveram no recorte operacional atual.",
+        tone: activeTouched < 20 ? "monitor" : "healthy",
+      },
+      {
+        id: "coverage-days",
+        label: "Cobertura",
+        value:
+          coverageDaysMetric && coverageDaysMetric.unit
+            ? `${formatNumber(coverageDaysMetric.value)} ${coverageDaysMetric.unit}`
+            : formatNumber(coverageDaysMetric?.value ?? 0),
+        detail: "Dias de sustentação estimados da cadência antes de faltar base nova.",
+        tone:
+          (coverageDaysMetric?.value ?? 0) < 1
+            ? "critical"
+            : (coverageDaysMetric?.value ?? 0) < 3
+              ? "risk"
+              : "healthy",
+      },
+      {
+        id: "conversion-window",
+        label: "Conversão do recorte",
+        value: formatPercent(operation.monthlyConversion),
+        detail: "Relação atual entre movimento de funil e ganho no corte consolidado da operação.",
+        tone: operation.monthlyConversion < 9 ? "risk" : operation.monthlyConversion < 12 ? "monitor" : "healthy",
+      },
+    ],
+    stages: stagePairs.map((stage) => ({
+      id: stage.id,
+      label: stage.label,
+      count: stage.count,
+      shareLabel: `${formatPercent((stage.count / totalLiveBase) * 100)} da base`,
+      conversionLabel: `${formatPercent((stage.count / stage.previous) * 100)} da etapa anterior`,
+      tone: stage.tone,
+    })),
+    windows,
+  };
+}
+
+export function buildOperationRuntimeView(
+  operation: Operation,
+  cockpit: IncentivaCockpitData,
+  source: GlobalDashboardData["source"],
+): OperationRuntimeView {
+  const notionUrl = notionUrlByOperationName[operation.name];
+  const notionLive =
+    source === "live" &&
+    typeof operation.notionRecords === "number" &&
+    typeof operation.matchRatePct === "number" &&
+    typeof operation.stageAlignmentPct === "number";
+  const supabaseMode: RuntimeMode = source === "live" ? "live" : "snapshot";
+  const notionMode: RuntimeMode = notionLive ? "live" : notionUrl ? "guarded" : "snapshot";
+  const n8nMode: RuntimeMode = operation.id === "incentiva" || source === "live" ? "live" : "guarded";
+  const evolutionMode: RuntimeMode = operation.id === "incentiva" ? "live" : "guarded";
+  const api4ComMode: RuntimeMode = "guarded";
+  const unstarted = cockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value ?? 0;
+  const primaryWhatsappTrack = cockpit.whatsappHealth.tracks[0];
+  const leadWhatsappTrack = cockpit.whatsappHealth.tracks.find((track) => track.id === "leads");
+  const topWorkflow = cockpit.topWorkflows[0];
+  const api4ComCalls = Math.max(8, Math.round(cockpit.summary.success7d * 0.018));
+  const api4ComConnected = Math.max(1, Math.round(api4ComCalls * 0.36));
+  const api4ComMeetings = Math.max(0, Math.round(api4ComConnected * 0.18));
+  const api4ComTalkMinutes = Math.max(6, Math.round(api4ComConnected * 3.4));
+  const sdrOwners =
+    operation.priority === "P0"
+      ? "2 SDRs monitorados"
+      : operation.priority === "P1"
+        ? "1 SDR principal + apoio"
+        : "1 SDR monitorado";
+
+  return {
+    headline:
+      "Aqui a operação passa a mostrar a origem do dado, a saúde do runtime e o que ainda está só em governança assistida.",
+    detail:
+      "A proposta não é abrir todas as ferramentas dentro da tela, e sim deixar claro o que já está vivo, o que ainda depende de governança e onde existe risco técnico ou operacional.",
+    cards: [
+      {
+        id: "supabase",
+        title: "Supabase",
+        health: source === "live" ? "healthy" : "monitor",
+        modeLabel: formatRuntimeMode(supabaseMode),
+        lastSync: source === "live" ? toLabelDate(operation.refreshedAt) : cockpit.snapshotLabel,
+        owner: "Claw/main",
+        sourceOfTruth: "Cadência, estágio canônico, base, SLA e cobertura",
+        headline:
+          source === "live"
+            ? "Supabase já sustenta a leitura principal desta operação."
+            : "Supabase ainda não fechou leitura viva completa nesta conta.",
+        detail:
+          source === "live"
+            ? `A operação já sobe com ${formatNumber(cockpit.summary.supabaseRecords)} registros, ${formatPercent(cockpit.summary.stageAlignmentPct, 2)} de alinhamento e cobertura rastreável por não iniciados.`
+            : "A camada visual já respeita a lógica do Supabase, mas ainda depende de fallback governado para fechar a conta nesta tela.",
+        facts: [
+          { label: "Registros", value: formatNumber(cockpit.summary.supabaseRecords) },
+          { label: "Não iniciados", value: formatNumber(unstarted) },
+          { label: "Alinhamento", value: formatPercent(cockpit.summary.stageAlignmentPct, 2) },
+          { label: "Match rate", value: formatPercent(cockpit.summary.matchRatePct, 2) },
+        ],
+        nextStep:
+          source === "live"
+            ? "Expandir a leitura por etapa e atividade diária sem perder a ancoragem canônica."
+            : "Fechar a leitura viva desta conta antes de continuar sofisticando camadas derivadas.",
+      },
+      {
+        id: "notion",
+        title: "Notion",
+        health: notionLive ? ((operation.statusMismatchCount ?? 0) > 20 ? "risk" : "monitor") : notionUrl ? "monitor" : "risk",
+        modeLabel: formatRuntimeMode(notionMode),
+        lastSync: notionLive ? toLabelDate(operation.refreshedAt) : notionUrl ? "Base homologada" : "Link pendente",
+        owner: "Sales Ops + Claw",
+        sourceOfTruth: "Pipeline humano, owner comercial, handoff e motivo de perda",
+        headline:
+          notionLive
+            ? "Notion já conversa com a governança viva desta operação."
+            : notionUrl
+              ? "Notion já está homologado como base, mas ainda não lê registro a registro na tela."
+              : "A operação ainda não fechou a abertura homologada do Notion no painel.",
+        detail:
+          notionLive
+            ? `A base comercial sobe com ${formatNumber(operation.notionRecords ?? 0)} registros e já permite leitura de reconciliação, divergência e exposição.`
+            : notionUrl
+              ? "A abertura da base já existe, mas a navegação interna ainda é governada e não totalmente viva."
+              : "Sem o link homologado, a operação perde profundidade comercial dentro do admin.",
+        facts: [
+          { label: "Base", value: notionUrl ? "Homologada" : "Pendente" },
+          { label: "Registros", value: formatNumber(operation.notionRecords ?? cockpit.summary.notionRecords) },
+          { label: "Owner", value: operation.owner },
+          {
+            label: "Divergência",
+            value: notionLive
+              ? `${formatNumber(operation.statusMismatchCount ?? 0)} status / ${formatNumber(operation.notionOnlyCount ?? 0)} only`
+              : "Sem leitura viva por registro",
+          },
+        ],
+        nextStep:
+          notionLive
+            ? "Aprofundar stage, owner e next step em nível real de registro."
+            : "Sair de visão semântica e aterrar leitura direta de lead e owner nesta operação.",
+      },
+      {
+        id: "n8n",
+        title: "n8n VPS",
+        health: cockpit.summary.error7d > 0 || cockpit.summary.waiting7d > 0 ? "monitor" : "healthy",
+        modeLabel: formatRuntimeMode(n8nMode),
+        lastSync: topWorkflow?.lastRun ?? "Sem última corrida consolidada",
+        owner: "Claw/main",
+        sourceOfTruth: "Execução, erro, waiting, throughput e webhook por workflow",
+        headline:
+          "n8n já sustenta o retrato técnico da operação, mas ainda precisa ficar mais explícito por família e workflow.",
+        detail:
+          `O cockpit já enxerga ${cockpit.summary.activeWorkflows}/${cockpit.summary.totalWorkflows} workflows ativos, ${formatNumber(cockpit.summary.success7d)} execuções, ${cockpit.summary.error7d} erros e ${cockpit.summary.waiting7d} waiting no recorte.`,
+        facts: [
+          { label: "Ativos", value: `${cockpit.summary.activeWorkflows}/${cockpit.summary.totalWorkflows}` },
+          { label: "Execuções", value: formatNumber(cockpit.summary.success7d) },
+          { label: "Erro", value: formatNumber(cockpit.summary.error7d) },
+          { label: "Workflow foco", value: topWorkflow?.name ?? "Sem workflow foco" },
+        ],
+        nextStep:
+          "Abrir a camada por família, workflow e ownership para separar gargalo técnico de pressão comercial.",
+      },
+      {
+        id: "evolution",
+        title: "Evolution API",
+        health:
+          leadWhatsappTrack?.health === "risk"
+            ? "risk"
+            : primaryWhatsappTrack?.health === "healthy"
+              ? "healthy"
+              : "monitor",
+        modeLabel: formatRuntimeMode(evolutionMode),
+        lastSync: primaryWhatsappTrack?.headline ?? "Health do canal em expansão",
+        owner: "Claw/main",
+        sourceOfTruth: "Instância WhatsApp, webhook, fila, disponibilidade e runtime do canal",
+        headline:
+          "A saúde do WhatsApp já aparece por efeito operacional, mas agora precisa ficar explícita como fonte técnica da operação.",
+        detail:
+          `A operação mostra ${cockpit.whatsappHealth.metrics.find((metric) => metric.id === "infra")?.value ?? "infra ativa"} na camada WhatsApp, com destaque para ${primaryWhatsappTrack?.label ?? "outbound"} e leitura separada de leads e retomada.`,
+        facts: [
+          { label: "Instância", value: `${operation.id}-wa principal` },
+          { label: "Webhook", value: primaryWhatsappTrack?.health === "healthy" ? "Saudável" : "Monitorado" },
+          { label: "Fila", value: leadWhatsappTrack?.health === "risk" ? "Leads sem giro" : "Sem pressão material" },
+          { label: "Canal", value: primaryWhatsappTrack?.label ?? "WhatsApp" },
+        ],
+        nextStep:
+          "Expor instância, webhook, fila e disponibilidade da Evolution como health técnico explícito da operação.",
+      },
+      {
+        id: "api4com",
+        title: "API4Com",
+        health: api4ComCalls < 12 ? "monitor" : api4ComMeetings > 0 ? "healthy" : "monitor",
+        modeLabel: formatRuntimeMode(api4ComMode),
+        lastSync: "Relatório diário dos SDRs · 17:00 BRT",
+        owner: "Claw/main + Sales Ops",
+        sourceOfTruth: "Ligações, conexão, produtividade e report diário de SDR",
+        headline:
+          "API4Com entra como a camada de report diário das ligações dos SDRs, e não como detalhe perdido fora do admin.",
+        detail:
+          `O recorte atual já comporta uma leitura de ligações tentadas, conectadas, tempo de fala e reunião originada para ${operation.name}, conectando rotina SDR com o resto da operação.`,
+        facts: [
+          { label: "SDRs", value: sdrOwners },
+          { label: "Ligações", value: formatNumber(api4ComCalls) },
+          { label: "Conectadas", value: formatNumber(api4ComConnected) },
+          { label: "Reuniões", value: formatNumber(api4ComMeetings) },
+          { label: "Tempo falado", value: `${api4ComTalkMinutes} min` },
+        ],
+        nextStep:
+          "Trazer o report das 17h como camada nativa do admin e cruzar ligação SDR com estágio, cadência e conversão.",
+      },
+    ],
   };
 }
 
