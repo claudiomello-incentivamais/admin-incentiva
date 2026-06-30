@@ -40,6 +40,97 @@ export interface ExecutiveInsight {
   timestamp: string;
 }
 
+export interface IncentivaCockpitSummary {
+  health: OperationStatus;
+  focus: string;
+  priorityScore: number;
+  stageAlignmentPct: number;
+  matchRatePct: number;
+  avgLeadScore: number;
+  supabaseRecords: number;
+  notionRecords: number;
+  activeWorkflows: number;
+  totalWorkflows: number;
+  success7d: number;
+  error7d: number;
+  waiting7d: number;
+}
+
+export interface IncentivaFunnelStage {
+  id: string;
+  label: string;
+  count: number;
+  touchedThisMonth?: number;
+}
+
+export interface IncentivaBaseMetric {
+  id: string;
+  label: string;
+  value: number;
+  unit?: string;
+  tone?: "default" | "success" | "warning" | "destructive" | "info";
+  detail: string;
+}
+
+export interface IncentivaChannelStatus {
+  id: string;
+  label: string;
+  health: OperationStatus;
+  activeWorkflows: number;
+  totalWorkflows: number;
+  headline: string;
+  detail: string;
+}
+
+export interface IncentivaWorkflowFamily {
+  id: string;
+  label: string;
+  total: number;
+  active: number;
+  health: OperationStatus;
+  summary: string;
+}
+
+export interface IncentivaWorkflowRun {
+  name: string;
+  family: string;
+  active: boolean;
+  executions7d: number;
+  success7d: number;
+  error7d: number;
+  waiting7d: number;
+  lastRun: string;
+}
+
+export interface IncentivaCockpitAlert {
+  id: string;
+  severity: "critical" | "risk" | "monitor" | "info";
+  title: string;
+  detail: string;
+}
+
+export interface IncentivaCockpitData {
+  operationName: string;
+  snapshotLabel: string;
+  source: "snapshot" | "live";
+  summary: IncentivaCockpitSummary;
+  funnel: IncentivaFunnelStage[];
+  baseMetrics: IncentivaBaseMetric[];
+  channels: IncentivaChannelStatus[];
+  workflowFamilies: IncentivaWorkflowFamily[];
+  topWorkflows: IncentivaWorkflowRun[];
+  alerts: IncentivaCockpitAlert[];
+}
+
+export interface GlobalDashboardData {
+  source: "snapshot" | "live";
+  snapshotLabel: string;
+  kpis: GlobalKpis;
+  operations: Operation[];
+  distribution: Record<OperationStatus, number>;
+  insights: ExecutiveInsight[];
+}
+
 const operations: Operation[] = [
   {
     id: "cafe-fazenda-brasil",
@@ -223,6 +314,239 @@ const insights: ExecutiveInsight[] = [
   },
 ];
 
+const incentivaCockpit: IncentivaCockpitData = {
+  operationName: "Incentiva",
+  snapshotLabel: "Snapshot real consolidado em 29 jun 2026",
+  source: "snapshot",
+  summary: {
+    health: "risk",
+    focus: "Reposição de base",
+    priorityScore: 55,
+    stageAlignmentPct: 95.69,
+    matchRatePct: 99.85,
+    avgLeadScore: 71.36,
+    supabaseRecords: 2737,
+    notionRecords: 2965,
+    activeWorkflows: 41,
+    totalWorkflows: 52,
+    success7d: 4835,
+    error7d: 7,
+    waiting7d: 5,
+  },
+  funnel: [
+    { id: "prospecting", label: "Prospecting", count: 2443, touchedThisMonth: 28 },
+    { id: "lead-interessado", label: "Lead Interessado", count: 35, touchedThisMonth: 25 },
+    { id: "mql-agendado", label: "MQL Agendado", count: 7, touchedThisMonth: 2 },
+    { id: "mql-realizado", label: "MQL Realizado", count: 5, touchedThisMonth: 0 },
+    { id: "negotiation", label: "Negociação", count: 8, touchedThisMonth: 0 },
+    { id: "won", label: "Cliente Ganho", count: 2, touchedThisMonth: 1 },
+    { id: "lost", label: "Perdido", count: 452 },
+  ],
+  baseMetrics: [
+    {
+      id: "unstarted",
+      label: "Não iniciados canônicos",
+      value: 6,
+      tone: "destructive",
+      detail: "Cobertura muito abaixo da meta diária atual de 25 ativações.",
+    },
+    {
+      id: "coverage-days",
+      label: "Cobertura em dias",
+      value: 0,
+      unit: "d",
+      tone: "destructive",
+      detail: "A base atual não sustenta a cadência com folga operacional.",
+    },
+    {
+      id: "reactivation",
+      label: "Pool de reativação",
+      value: 812,
+      tone: "warning",
+      detail: "Volume grande o suficiente para virar alavanca de curto prazo.",
+    },
+    {
+      id: "suppressed",
+      label: "Supressões ativas",
+      value: 398,
+      tone: "info",
+      detail: "Base já tem massa relevante fora de cadência produtiva.",
+    },
+    {
+      id: "reprospeccao",
+      label: "Reprospecção elegível",
+      value: 6,
+      tone: "warning",
+      detail: "Baixo volume elegível imediato para reaproveitamento.",
+    },
+    {
+      id: "retomada",
+      label: "Retomada elegível",
+      value: 10,
+      tone: "info",
+      detail: "Fila de retomada pequena, mas acionável em paralelo.",
+    },
+  ],
+  channels: [
+    {
+      id: "whatsapp",
+      label: "WhatsApp",
+      health: "monitor",
+      activeWorkflows: 8,
+      totalWorkflows: 8,
+      headline: "Cadência ativa com cobertura de base pressionada",
+      detail: "A camada técnica está operacional, mas a reposição de não iniciados virou o gargalo real.",
+    },
+    {
+      id: "email",
+      label: "E-mail",
+      health: "risk",
+      activeWorkflows: 5,
+      totalWorkflows: 5,
+      headline: "Fila com waiting recorrente em FUP2",
+      detail: "A telemetria já mostra waiting acumulado, pedindo leitura mais fina de throughput.",
+    },
+    {
+      id: "linkedin",
+      label: "LinkedIn",
+      health: "monitor",
+      activeWorkflows: 14,
+      totalWorkflows: 23,
+      headline: "Social selling ativo, mas ainda heterogêneo",
+      detail: "A operação já tem densidade real de workflows sociais e de follow-up para drill-down executivo.",
+    },
+    {
+      id: "instagram-inbound",
+      label: "Instagram / Inbound",
+      health: "healthy",
+      activeWorkflows: 7,
+      totalWorkflows: 7,
+      headline: "Canal mais volumoso da telemetria recente",
+      detail: "Instagram concentrou a maior parte das execuções dos últimos 7 dias e já sustenta leitura de automação viva.",
+    },
+  ],
+  workflowFamilies: [
+    {
+      id: "linkedin-social",
+      label: "LinkedIn Social",
+      total: 17,
+      active: 9,
+      health: "monitor",
+      summary: "Família mais extensa da operação e base principal para social selling assistido.",
+    },
+    {
+      id: "whatsapp-fup",
+      label: "WhatsApp FUP",
+      total: 8,
+      active: 8,
+      health: "healthy",
+      summary: "Cadência 100% ativa na camada de workflows, com pressão hoje mais em base do que em infraestrutura.",
+    },
+    {
+      id: "instagram",
+      label: "Instagram",
+      total: 6,
+      active: 6,
+      health: "healthy",
+      summary: "Frente com maior volume recente e boa estabilidade operacional.",
+    },
+    {
+      id: "email-fup",
+      label: "E-mail FUP",
+      total: 5,
+      active: 5,
+      health: "risk",
+      summary: "Volume baixo com waiting presente, bom candidato para a próxima camada de workflow intelligence.",
+    },
+    {
+      id: "reativacao",
+      label: "Reativação",
+      total: 3,
+      active: 3,
+      health: "monitor",
+      summary: "Ativa e com espaço para ganhar protagonismo enquanto a base nova segue curta.",
+    },
+  ],
+  topWorkflows: [
+    {
+      name: "Incentiva - Instagram - Lead Inbound Sync",
+      family: "instagram",
+      active: true,
+      executions7d: 1281,
+      success7d: 1280,
+      error7d: 1,
+      waiting7d: 0,
+      lastRun: "29 jun 2026 · 20:35",
+    },
+    {
+      name: "Incentiva - Instagram - Action Queue",
+      family: "instagram",
+      active: true,
+      executions7d: 1280,
+      success7d: 1278,
+      error7d: 2,
+      waiting7d: 0,
+      lastRun: "29 jun 2026 · 20:34",
+    },
+    {
+      name: "Incentiva - Instagram - Engagement Score",
+      family: "instagram",
+      active: true,
+      executions7d: 1280,
+      success7d: 1278,
+      error7d: 2,
+      waiting7d: 0,
+      lastRun: "29 jun 2026 · 20:35",
+    },
+    {
+      name: "Incentiva - Instagram - Agente Conversa",
+      family: "agente_conversa",
+      active: true,
+      executions7d: 640,
+      success7d: 639,
+      error7d: 1,
+      waiting7d: 0,
+      lastRun: "29 jun 2026 · 20:34",
+    },
+    {
+      name: "Incentiva - Prospecção Ativa - Outbound - Email - FUP2",
+      family: "email_fup",
+      active: true,
+      executions7d: 5,
+      success7d: 0,
+      error7d: 0,
+      waiting7d: 5,
+      lastRun: "29 jun 2026 · 19:30",
+    },
+  ],
+  alerts: [
+    {
+      id: "base-risk",
+      severity: "critical",
+      title: "Cobertura de não iniciados entrou em zona vermelha",
+      detail: "A Incentiva fechou o snapshot com apenas 6 não iniciados canônicos para uma meta diária de 25 ativações.",
+    },
+    {
+      id: "reconciliation",
+      severity: "risk",
+      title: "Reconciliação estrutural boa, semântica ainda pede ajuste",
+      detail: "O match rate está em 99,85%, mas ainda existem 2.452 divergências de status e 283 registros só no Notion.",
+    },
+    {
+      id: "email-waiting",
+      severity: "monitor",
+      title: "E-mail já mostrou waiting recorrente no FUP2",
+      detail: "A família de e-mail está viva, mas a fila pede observação antes de virar gargalo silencioso.",
+    },
+    {
+      id: "social-density",
+      severity: "info",
+      title: "Incentiva já tem densidade real para workflow intelligence",
+      detail: "O volume de automação em Instagram, LinkedIn e Agente Conversa já justifica cockpit profundo por canal e família.",
+    },
+  ],
+};
+
 export function fetchOperations(): Operation[] {
   return [...operations].sort((a, b) => a.score - b.score);
 }
@@ -260,6 +584,411 @@ export function fetchStatusDistribution(): Record<OperationStatus, number> {
 
 export function fetchInsights(): ExecutiveInsight[] {
   return insights;
+}
+
+export function fetchIncentivaCockpit(): IncentivaCockpitData {
+  return incentivaCockpit;
+}
+
+type GovernanceAdminGlobalRow = {
+  operation_name: string;
+  status_health: string;
+  primary_focus: string;
+  priority_score: number | string;
+  supabase_total_records: number | string | null;
+  notion_total_records: number | string | null;
+  reactivation_count: number | string | null;
+  reprospeccao_eligible_count: number | string | null;
+  retomada_eligible_count: number | string | null;
+  suppressed_count: number | string | null;
+  avg_lead_score: number | string | null;
+  daily_activation_target: number | string | null;
+  coverage_days: number | string | null;
+  canonical_unstarted_count: number | string | null;
+  prospecting_count: number | string | null;
+  lead_interessado_count: number | string | null;
+  mql_agendado_count: number | string | null;
+  mql_realizado_count: number | string | null;
+  negotiation_count: number | string | null;
+  won_count: number | string | null;
+  lost_count: number | string | null;
+  active_funnel_touched_this_month: number | string | null;
+  lead_interessado_touched_this_month: number | string | null;
+  mql_agendado_touched_this_month: number | string | null;
+  mql_realizado_touched_this_month: number | string | null;
+  negotiation_touched_this_month: number | string | null;
+  won_touched_this_month: number | string | null;
+  match_rate_pct: number | string | null;
+  status_mismatch_count: number | string | null;
+  notion_only_count: number | string | null;
+  canonical_stage_alignment_pct: number | string | null;
+  refreshed_at: string | null;
+};
+
+function toNumber(value: number | string | null | undefined, fallback = 0) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+  if (typeof value === "string") {
+    const normalized = value.trim().replace(",", ".");
+    if (!normalized) return fallback;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+function toLabelDate(value: string | null | undefined) {
+  if (!value) return "Leitura viva do Supabase";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Leitura viva do Supabase";
+  return `Leitura viva do Supabase · ${date.toLocaleDateString("pt-BR")} ${date.toLocaleTimeString(
+    "pt-BR",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    },
+  )}`;
+}
+
+function normalizeHealth(value: string | null | undefined): OperationStatus {
+  if (value === "critical") return "critical";
+  if (value === "risk") return "risk";
+  if (value === "healthy") return "healthy";
+  return "monitor";
+}
+
+function coveragePctFromRow(row: GovernanceAdminGlobalRow) {
+  const unstarted = toNumber(row.canonical_unstarted_count);
+  const target = Math.max(1, toNumber(row.daily_activation_target, 1));
+  return Math.max(0, Math.min(100, (unstarted / target) * 100));
+}
+
+function monthlyConversionPctFromRow(row: GovernanceAdminGlobalRow) {
+  const wonTouched = toNumber(row.won_touched_this_month);
+  const funnelTouched = Math.max(1, toNumber(row.active_funnel_touched_this_month));
+  return (wonTouched / funnelTouched) * 100;
+}
+
+function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdminGlobalRow): IncentivaCockpitData {
+  const dailyActivationTarget = toNumber(row.daily_activation_target, 25);
+  const canonicalUnstarted = toNumber(row.canonical_unstarted_count);
+  const coverageDays = toNumber(row.coverage_days);
+  const reactivationCount = toNumber(row.reactivation_count);
+  const reprospeccaoEligible = toNumber(row.reprospeccao_eligible_count);
+  const retomadaEligible = toNumber(row.retomada_eligible_count);
+  const suppressedCount = toNumber(row.suppressed_count);
+  const stageAlignmentPct = toNumber(row.canonical_stage_alignment_pct);
+  const matchRatePct = toNumber(row.match_rate_pct);
+  const avgLeadScore = toNumber(row.avg_lead_score);
+  const priorityScore = toNumber(row.priority_score);
+  const supabaseRecords = toNumber(row.supabase_total_records);
+  const notionRecords = toNumber(row.notion_total_records);
+  const activeFunnelTouched = toNumber(row.active_funnel_touched_this_month);
+  const leadInteressadoTouched = toNumber(row.lead_interessado_touched_this_month);
+  const mqlAgendadoTouched = toNumber(row.mql_agendado_touched_this_month);
+  const mqlRealizadoTouched = toNumber(row.mql_realizado_touched_this_month);
+  const negotiationTouched = toNumber(row.negotiation_touched_this_month);
+  const wonTouched = toNumber(row.won_touched_this_month);
+  const statusMismatchCount = toNumber(row.status_mismatch_count);
+  const notionOnlyCount = toNumber(row.notion_only_count);
+
+  return {
+    ...base,
+    source: "live",
+    snapshotLabel: toLabelDate(row.refreshed_at),
+    summary: {
+      ...base.summary,
+      health: normalizeHealth(row.status_health),
+      focus: row.primary_focus,
+      priorityScore,
+      stageAlignmentPct,
+      matchRatePct,
+      avgLeadScore,
+      supabaseRecords,
+      notionRecords,
+    },
+    funnel: [
+      { id: "prospecting", label: "Prospecting", count: toNumber(row.prospecting_count), touchedThisMonth: activeFunnelTouched },
+      { id: "lead-interessado", label: "Lead Interessado", count: toNumber(row.lead_interessado_count), touchedThisMonth: leadInteressadoTouched },
+      { id: "mql-agendado", label: "MQL Agendado", count: toNumber(row.mql_agendado_count), touchedThisMonth: mqlAgendadoTouched },
+      { id: "mql-realizado", label: "MQL Realizado", count: toNumber(row.mql_realizado_count), touchedThisMonth: mqlRealizadoTouched },
+      { id: "negotiation", label: "Negociação", count: toNumber(row.negotiation_count), touchedThisMonth: negotiationTouched },
+      { id: "won", label: "Cliente Ganho", count: toNumber(row.won_count), touchedThisMonth: wonTouched },
+      { id: "lost", label: "Perdido", count: toNumber(row.lost_count) },
+    ],
+    baseMetrics: [
+      {
+        id: "unstarted",
+        label: "Não iniciados canônicos",
+        value: canonicalUnstarted,
+        tone: canonicalUnstarted < dailyActivationTarget ? "destructive" : "success",
+        detail: `Meta diária atual: ${dailyActivationTarget} ativações.`,
+      },
+      {
+        id: "coverage-days",
+        label: "Cobertura em dias",
+        value: coverageDays,
+        unit: "d",
+        tone: coverageDays < 1 ? "destructive" : coverageDays < 3 ? "warning" : "success",
+        detail: "Leitura viva da cobertura operacional da base.",
+      },
+      {
+        id: "reactivation",
+        label: "Pool de reativação",
+        value: reactivationCount,
+        tone: reactivationCount > 200 ? "warning" : "info",
+        detail: "Leads hoje classificados para reativação na operação.",
+      },
+      {
+        id: "suppressed",
+        label: "Supressões ativas",
+        value: suppressedCount,
+        tone: "info",
+        detail: "Base temporariamente fora de cadência por regras de supressão.",
+      },
+      {
+        id: "reprospeccao",
+        label: "Reprospecção elegível",
+        value: reprospeccaoEligible,
+        tone: reprospeccaoEligible < 10 ? "warning" : "info",
+        detail: "Volume imediato de reaproveitamento via reprospecção.",
+      },
+      {
+        id: "retomada",
+        label: "Retomada elegível",
+        value: retomadaEligible,
+        tone: "info",
+        detail: "Leads prontos para retomada de conversa.",
+      },
+    ],
+    alerts: [
+      {
+        id: "base-risk",
+        severity: canonicalUnstarted < dailyActivationTarget ? "critical" : "monitor",
+        title:
+          canonicalUnstarted < dailyActivationTarget
+            ? "Cobertura de não iniciados ainda abaixo da meta diária"
+            : "Cobertura de base já saiu da zona crítica",
+        detail: `A Incentiva está com ${canonicalUnstarted} não iniciados canônicos para uma meta atual de ${dailyActivationTarget} ativações.`,
+      },
+      {
+        id: "reconciliation",
+        severity: stageAlignmentPct < 90 || matchRatePct < 95 ? "risk" : "monitor",
+        title: "Reconciliação estrutural e semântica em leitura viva",
+        detail: `Match rate em ${matchRatePct.toFixed(2)}% e alinhamento canônico em ${stageAlignmentPct.toFixed(2)}%, com ${statusMismatchCount} divergências de status e ${notionOnlyCount} registros só no Notion.`,
+      },
+      base.alerts[2],
+      base.alerts[3],
+    ],
+  };
+}
+
+async function fetchGovernanceAdminGlobalRow(operationName: string): Promise<GovernanceAdminGlobalRow | null> {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+  if (!url || !key) return null;
+
+  const endpoint = new URL(`${url.replace(/\/$/, "")}/rest/v1/admin_global_v1`);
+  endpoint.searchParams.set("select", "*");
+  endpoint.searchParams.set("operation_name", `eq.${operationName}`);
+  endpoint.searchParams.set("limit", "1");
+
+  const response = await fetch(endpoint.toString(), {
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+      "Accept-Profile": "governance",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`supabase_admin_global_fetch_failed_${response.status}`);
+  }
+
+  const rows = (await response.json()) as GovernanceAdminGlobalRow[];
+  return rows[0] ?? null;
+}
+
+export async function loadIncentivaCockpit(): Promise<IncentivaCockpitData> {
+  try {
+    const row = await fetchGovernanceAdminGlobalRow("Incentiva");
+    if (!row) return incentivaCockpit;
+    return applyLiveGovernanceRow(incentivaCockpit, row);
+  } catch (error) {
+    console.error(error);
+    return incentivaCockpit;
+  }
+}
+
+async function fetchGovernanceAdminGlobalRows(): Promise<GovernanceAdminGlobalRow[] | null> {
+  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+
+  if (!url || !key) return null;
+
+  const endpoint = new URL(`${url.replace(/\/$/, "")}/rest/v1/admin_global_v1`);
+  endpoint.searchParams.set("select", "*");
+  endpoint.searchParams.set("order", "priority_score.desc,operation_name.asc");
+
+  const response = await fetch(endpoint.toString(), {
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+      "Accept-Profile": "governance",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`supabase_admin_global_list_failed_${response.status}`);
+  }
+
+  return (await response.json()) as GovernanceAdminGlobalRow[];
+}
+
+function mapPriority(score: number): Priority {
+  if (score >= 60) return "P0";
+  if (score >= 45) return "P1";
+  if (score >= 25) return "P2";
+  return "P3";
+}
+
+function mapLiveRowsToOperations(rows: GovernanceAdminGlobalRow[]): Operation[] {
+  return rows
+    .map((row) => {
+      const name = row.operation_name;
+      const score = toNumber(row.priority_score);
+      const baseCoverage = coveragePctFromRow(row);
+      const dataReconciliation = toNumber(row.canonical_stage_alignment_pct);
+      const monthlyConversion = monthlyConversionPctFromRow(row);
+
+      return {
+        id: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+        name,
+        client: name === "Incentiva" ? "Incentiva Mais" : name,
+        priority: mapPriority(score),
+        focus: row.primary_focus,
+        score,
+        baseCoverage,
+        dataReconciliation,
+        monthlyConversion,
+        health: normalizeHealth(row.status_health),
+        owner: "Sales Ops",
+      } satisfies Operation;
+    })
+    .sort((a, b) => a.score - b.score);
+}
+
+function mapLiveRowsToKpis(rows: GovernanceAdminGlobalRow[]): GlobalKpis {
+  const operations = mapLiveRowsToOperations(rows);
+  const monitored = operations.length;
+  const atRisk = operations.filter((o) => o.health === "risk").length;
+  const critical = operations.filter((o) => o.health === "critical").length;
+  const baseCoverage =
+    operations.reduce((sum, operation) => sum + operation.baseCoverage, 0) / Math.max(operations.length, 1);
+  const totalLeads = rows.reduce((sum, row) => sum + toNumber(row.supabase_total_records), 0);
+  const monthlyConversions = rows.reduce((sum, row) => sum + toNumber(row.won_touched_this_month), 0);
+
+  return {
+    monitored,
+    atRisk,
+    critical,
+    baseCoverage: Math.round(baseCoverage * 10) / 10,
+    totalLeads,
+    monthlyConversions,
+    conversionDelta: 6.8,
+    leadsDelta: 4.2,
+    coverageDelta: -3.1,
+    riskDelta: -1.0,
+  };
+}
+
+function mapLiveRowsToDistribution(rows: GovernanceAdminGlobalRow[]): Record<OperationStatus, number> {
+  return rows.reduce(
+    (acc, row) => {
+      acc[normalizeHealth(row.status_health)] += 1;
+      return acc;
+    },
+    { healthy: 0, monitor: 0, risk: 0, critical: 0 } as Record<OperationStatus, number>,
+  );
+}
+
+function buildLiveInsights(rows: GovernanceAdminGlobalRow[]): ExecutiveInsight[] {
+  const sorted = [...rows].sort((a, b) => toNumber(b.priority_score) - toNumber(a.priority_score));
+  const top = sorted[0];
+  const incentiva = rows.find((row) => row.operation_name === "Incentiva");
+
+  return [
+    top
+      ? {
+          id: "live-top-priority",
+          severity: normalizeHealth(top.status_health) === "critical" ? "critical" : "risk",
+          title: `${top.operation_name} puxa a fila de prioridade executiva`,
+          detail: `Foco principal atual: ${top.primary_focus}. Score ${toNumber(top.priority_score)} na leitura viva da governança.`,
+          timestamp: "agora",
+        }
+      : insights[0],
+    {
+      id: "live-base-coverage",
+      severity: "risk",
+      title: "Cobertura de base segue como principal risco transversal",
+      detail: "A leitura live mantém a reposição de base como gargalo dominante entre as operações críticas e em risco.",
+      timestamp: "agora",
+    },
+    incentiva
+      ? {
+          id: "live-incentiva",
+          severity: "monitor",
+          title: "Incentiva já opera como piloto de cockpit profundo",
+          detail: `Alinhamento canônico em ${toNumber(incentiva.canonical_stage_alignment_pct).toFixed(2)}% e match rate em ${toNumber(incentiva.match_rate_pct).toFixed(2)}%.`,
+          operationId: "incentiva",
+          timestamp: "agora",
+        }
+      : insights[3],
+    {
+      id: "live-reconciliation",
+      severity: "info",
+      title: "Reconciliação estrutural já pode dirigir a camada visual",
+      detail: "O Admin Global agora está preparado para usar diretamente a view de governança quando a env pública estiver ativa.",
+      timestamp: "agora",
+    },
+  ];
+}
+
+export async function loadGlobalDashboard(): Promise<GlobalDashboardData> {
+  try {
+    const rows = await fetchGovernanceAdminGlobalRows();
+    if (!rows || rows.length === 0) {
+      return {
+        source: "snapshot",
+        snapshotLabel: "Snapshot 29 jun 2026 · Base consolidada",
+        kpis: fetchGlobalKpis(),
+        operations: fetchOperations(),
+        distribution: fetchStatusDistribution(),
+        insights: fetchInsights(),
+      };
+    }
+
+    return {
+      source: "live",
+      snapshotLabel: toLabelDate(rows[0]?.refreshed_at),
+      kpis: mapLiveRowsToKpis(rows),
+      operations: mapLiveRowsToOperations(rows),
+      distribution: mapLiveRowsToDistribution(rows),
+      insights: buildLiveInsights(rows),
+    };
+  } catch (error) {
+    console.error(error);
+    return {
+      source: "snapshot",
+      snapshotLabel: "Snapshot 29 jun 2026 · Base consolidada",
+      kpis: fetchGlobalKpis(),
+      operations: fetchOperations(),
+      distribution: fetchStatusDistribution(),
+      insights: fetchInsights(),
+    };
+  }
 }
 
 export const statusMeta: Record<

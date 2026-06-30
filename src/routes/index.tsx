@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import type { ComponentType } from "react";
 import {
   AlertOctagon,
   AlertTriangle,
@@ -22,12 +23,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 import {
-  fetchGlobalKpis,
-  fetchInsights,
-  fetchOperations,
-  fetchStatusDistribution,
+  loadGlobalDashboard,
   priorityMeta,
   statusMeta,
+  type GlobalDashboardData,
   type OperationStatus,
 } from "@/lib/admin-data";
 
@@ -42,6 +41,7 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
+  loader: async () => loadGlobalDashboard(),
   component: AdminGlobal,
 });
 
@@ -50,10 +50,8 @@ function formatNumber(n: number) {
 }
 
 function AdminGlobal() {
-  const kpis = fetchGlobalKpis();
-  const operations = fetchOperations();
-  const distribution = fetchStatusDistribution();
-  const insights = fetchInsights();
+  const dashboard = Route.useLoaderData();
+  const { kpis, operations, distribution, insights } = dashboard;
 
   const totalOps =
     distribution.healthy + distribution.monitor + distribution.risk + distribution.critical;
@@ -75,8 +73,11 @@ function AdminGlobal() {
                 Cockpit Executivo
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
-                Snapshot 29 jun 2026 · Base consolidada
+                {dashboard.snapshotLabel}
               </span>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {dashboard.source === "live" ? "Supabase live" : "Snapshot fallback"}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Visão Consolidada de Operações
@@ -291,7 +292,7 @@ function ExecKpi({
   label: string;
   value: string;
   sub?: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
   delta?: number;
   tone?: "default" | "success" | "warning" | "destructive" | "info";
   pulse?: boolean;
@@ -460,7 +461,7 @@ function StatusDistribution({
 function ExecutiveInsights({
   insights,
 }: {
-  insights: ReturnType<typeof fetchInsights>;
+  insights: GlobalDashboardData["insights"];
 }) {
   const sevMeta = {
     critical: { Icon: AlertOctagon, color: "text-destructive", bg: "bg-destructive/10" },
