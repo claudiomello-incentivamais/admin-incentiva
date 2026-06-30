@@ -2981,8 +2981,8 @@ const integrationHub: IntegrationHubData = {
       health: "monitor",
       title: "Contexto SDR e pipeline humano",
       detail:
-        "O portal já mostra reconciliação comercial vinda da governança viva, com match rate, divergência e leitura por operação no recorte publicado.",
-      nextStep: "Aprofundar a ponte com owner, histórico e drill-down direto da reconciliação sem sair da conta.",
+        "O portal já mostra reconciliação comercial vinda da governança viva, com faixa de reconciliação, frescor do sync, exposição sugerida e leitura por operação no recorte publicado.",
+      nextStep: "Aprofundar a ponte com owner comercial, histórico e drill-down direto da divergência sem sair da conta.",
     },
     {
       id: "trello-admin",
@@ -3013,8 +3013,8 @@ const integrationHub: IntegrationHubData = {
       target: "Operações / Integrações",
       health: "monitor",
       detail:
-        "O produto já mostra reconciliação entre Notion, Supabase e estágio canônico no portal publicado; agora a evolução é ganhar mais profundidade operacional nessa leitura.",
-      nextStep: "Adicionar owner, histórico e drill-down de divergência por operação dentro do hub central.",
+        "O produto já mostra reconciliação entre Notion, Supabase e estágio canônico no portal publicado, com ação sugerida e faixa de exposição por operação.",
+      nextStep: "Adicionar owner comercial, histórico e drill-down navegável de divergência por operação dentro do hub central.",
     },
     {
       id: "lane-trello",
@@ -3146,6 +3146,32 @@ export function buildPortalLiveSourceCards(
     typeof operation.notionRecords === "number" &&
     typeof operation.matchRatePct === "number" &&
     typeof operation.stageAlignmentPct === "number";
+  const notionStageLabel = notionLive
+    ? (operation.stageAlignmentPct ?? 0) >= 97 && (operation.matchRatePct ?? 0) >= 98
+      ? "Reconciliação forte"
+      : (operation.stageAlignmentPct ?? 0) >= 92 && (operation.matchRatePct ?? 0) >= 96
+        ? "Reconciliação em ajuste"
+        : "Divergência material"
+    : "Snapshot governado";
+  const notionFreshnessLabel = notionLive
+    ? operation.refreshedAt
+      ? `Sync ${toLabelDate(operation.refreshedAt)}`
+      : "Sync vivo sem carimbo"
+    : "Sem telemetria viva";
+  const notionExposureLabel = notionLive
+    ? (operation.statusMismatchCount ?? 0) <= 5 && (operation.notionOnlyCount ?? 0) <= 3
+      ? "Cliente-safe forte"
+      : (operation.statusMismatchCount ?? 0) <= 20 && (operation.notionOnlyCount ?? 0) <= 10
+        ? "Cliente-safe com monitoramento"
+        : "Segurar exposição total"
+    : "Recorte ainda governado";
+  const notionActionLabel = notionLive
+    ? (operation.statusMismatchCount ?? 0) > 20 || (operation.notionOnlyCount ?? 0) > 10
+      ? "Priorizar saneamento do funil humano antes de ampliar exposição"
+      : (operation.statusMismatchCount ?? 0) > 5 || (operation.notionOnlyCount ?? 0) > 3
+        ? "Monitorar divergência e ajustar pipeline com Sales Ops"
+        : "Manter leitura viva e usar o portal como visão externa segura"
+    : "Fechar leitura viva antes de vender reconciliação como verdade operacional";
 
   const notionHealth: OperationStatus = notionLive
     ? (operation.stageAlignmentPct ?? 0) < 90 || (operation.matchRatePct ?? 0) < 95
@@ -3161,7 +3187,7 @@ export function buildPortalLiveSourceCards(
     health: notionHealth,
     mode: notionLive ? "live" : "operational",
     headline: notionLive
-      ? "Reconciliação viva entre pipeline humano e estágio canônico."
+      ? "Reconciliação viva entre pipeline humano, estágio canônico e prontidão de exposição."
       : "Camada comercial ainda não aterrissou com telemetria viva neste recorte.",
     detail: notionLive
       ? `${operation.notionRecords} registros no Notion, match rate de ${operation.matchRatePct?.toFixed(2)}% e ${operation.statusMismatchCount} divergências de status na leitura viva atual.`
@@ -3172,19 +3198,9 @@ export function buildPortalLiveSourceCards(
     facts: notionLive
       ? [
           { label: "Owner", value: operation.owner },
-          {
-            label: "Etapa",
-            value:
-              (operation.stageAlignmentPct ?? 0) >= 95
-                ? "Reconciliação forte"
-                : (operation.stageAlignmentPct ?? 0) >= 90
-                  ? "Reconciliação em ajuste"
-                  : "Divergência material",
-          },
-          {
-            label: "Alinhamento",
-            value: `${operation.stageAlignmentPct?.toFixed(2)}% canônico`,
-          },
+          { label: "Etapa", value: notionStageLabel },
+          { label: "Sync", value: notionFreshnessLabel },
+          { label: "Exposição", value: notionExposureLabel },
           {
             label: "Divergência",
             value: `${operation.statusMismatchCount ?? 0} status / ${operation.notionOnlyCount ?? 0} notion only`,
@@ -3196,9 +3212,7 @@ export function buildPortalLiveSourceCards(
           { label: "Alinhamento", value: "Sem leitura viva suficiente" },
           { label: "Divergência", value: "Drill-down pendente" },
         ],
-    nextStep: notionLive
-      ? "Aprofundar owner, histórico e drill-down de divergência por operação."
-      : "Fechar a telemetria viva desta conta antes de expor reconciliação como verdade operacional.",
+    nextStep: notionLive ? notionActionLabel : "Fechar a telemetria viva desta conta antes de expor reconciliação como verdade operacional.",
   };
 
   const trelloHealth: OperationStatus = !primaryTrelloState
