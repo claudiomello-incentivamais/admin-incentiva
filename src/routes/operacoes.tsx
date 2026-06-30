@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   loadIncentivaCockpit,
+  type IncentivaEmailHealthTrack,
   statusMeta,
   type IncentivaCockpitAlert,
   type IncentivaCockpitData,
@@ -311,6 +312,61 @@ function Page() {
             <div className="space-y-3">
               {cockpit.prospectingReadiness.lanes.map((lane) => (
                 <ProspectingLaneCard key={lane.id} lane={lane} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">E-mail / Waiting / Throughput</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Leitura do gargalo já confirmado na família de e-mail da Incentiva
+                </p>
+              </div>
+              <Mail className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cockpit.emailHealth.metrics.map((metric) => (
+                <ExecKpi
+                  key={metric.id}
+                  label={metric.label}
+                  value={metric.value}
+                  sub={metric.detail}
+                  icon={
+                    metric.id === "email-active"
+                      ? Mail
+                      : metric.id === "email-waiting"
+                        ? AlertOctagon
+                        : metric.id === "email-throughput"
+                          ? Activity
+                          : Workflow
+                  }
+                  tone={metric.tone ?? "monitor"}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Ponto de intervenção do e-mail</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Onde atacar para transformar fila em throughput útil
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                Próxima camada <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.emailHealth.tracks.map((track) => (
+                <EmailTrackCard key={track.id} track={track} />
               ))}
             </div>
           </div>
@@ -825,6 +881,26 @@ function ProspectingLaneCard({ lane }: { lane: IncentivaProspectingLane }) {
             {lane.recommendation}
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailTrackCard({ track }: { track: IncentivaEmailHealthTrack }) {
+  const meta = statusMeta[track.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3.5">
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium">{track.label}</span>
+          <Badge variant="outline" className={cn("text-[10px] h-5", meta.color)}>
+            {meta.label}
+          </Badge>
+        </div>
+        <p className="text-[12px] text-foreground">{track.headline}</p>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{track.detail}</p>
+        <div className="text-[11px] text-primary leading-relaxed">{track.recommendation}</div>
       </div>
     </div>
   );

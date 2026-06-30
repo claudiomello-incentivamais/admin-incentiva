@@ -119,6 +119,23 @@ export interface IncentivaWhatsappHealthTrack {
   workflows: string;
 }
 
+export interface IncentivaEmailHealthMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IncentivaEmailHealthTrack {
+  id: string;
+  label: string;
+  health: OperationStatus;
+  headline: string;
+  detail: string;
+  recommendation: string;
+}
+
 export interface IncentivaWorkflowInsightMetric {
   id: string;
   label: string;
@@ -171,6 +188,10 @@ export interface IncentivaCockpitData {
   prospectingReadiness: {
     metrics: IncentivaProspectingMetric[];
     lanes: IncentivaProspectingLane[];
+  };
+  emailHealth: {
+    metrics: IncentivaEmailHealthMetric[];
+    tracks: IncentivaEmailHealthTrack[];
   };
   whatsappHealth: {
     metrics: IncentivaWhatsappHealthMetric[];
@@ -514,6 +535,64 @@ const incentivaCockpit: IncentivaCockpitData = {
         headline: "Retomada já é uma faixa pequena e executável sem grande fricção.",
         detail: "A fila é curta, porém com boa chance de virar tração rápida em cima de conversa já iniciada.",
         recommendation: "Manter retomada rodando como camada tática enquanto a lista nova e a reativação ganham escala.",
+      },
+    ],
+  },
+  emailHealth: {
+    metrics: [
+      {
+        id: "email-active",
+        label: "Infra de e-mail ativa",
+        value: "5/5",
+        tone: "success",
+        detail: "Todos os workflows FUP de e-mail seguem ativos na camada atual.",
+      },
+      {
+        id: "email-waiting",
+        label: "Waiting concentrado",
+        value: "5",
+        tone: "risk",
+        detail: "O snapshot fechou o FUP2 com 5 itens em waiting e sem erro explícito.",
+      },
+      {
+        id: "email-throughput",
+        label: "Throughput útil 7d",
+        value: "0",
+        tone: "critical",
+        detail: "O principal workflow monitorado de e-mail não converteu waiting em sucesso no período.",
+      },
+      {
+        id: "email-family-risk",
+        label: "Família sob risco",
+        value: "FUP2",
+        tone: "monitor",
+        detail: "O gargalo atual é específico, não uma quebra total da frente de e-mail.",
+      },
+    ],
+    tracks: [
+      {
+        id: "email-fup2",
+        label: "FUP2 / fila",
+        health: "risk",
+        headline: "FUP2 virou o primeiro gargalo silencioso do canal.",
+        detail: "Há corrida recente, mas ela acumulou waiting sem sucesso confirmado, o que já justifica leitura de throughput e fila.",
+        recommendation: "A próxima intervenção deve abrir o detalhe do FUP2 antes que a fila escale invisivelmente.",
+      },
+      {
+        id: "email-family",
+        label: "Família E-mail FUP",
+        health: "monitor",
+        headline: "A família está viva, mas ainda sem observabilidade executiva suficiente.",
+        detail: "Os 5 workflows estão ativos, porém o cockpit ainda não diferencia claramente throughput, fila e sucesso por etapa.",
+        recommendation: "Na V2, separar throughput, waiting e saída útil por workflow da família de e-mail.",
+      },
+      {
+        id: "email-priority",
+        label: "Próxima prioridade",
+        health: "healthy",
+        headline: "O problema de e-mail já está isolado o bastante para virar módulo próprio.",
+        detail: "Não parece uma quebra estrutural do canal inteiro, e sim um ponto localizado que agora já merece drill-down.",
+        recommendation: "Depois deste bloco, o próximo corte natural é dashboard de throughput por workflow e backlog operacional por frente.",
       },
     ],
   },
@@ -1104,6 +1183,58 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
         }
 
         return lane;
+      }),
+    },
+    emailHealth: {
+      metrics: base.emailHealth.metrics.map((metric) => {
+        if (metric.id === "email-active") {
+          const emailChannel = base.channels.find((channel) => channel.id === "email");
+          const activeWorkflows = emailChannel?.activeWorkflows ?? 5;
+          const totalWorkflows = emailChannel?.totalWorkflows ?? 5;
+
+          return {
+            ...metric,
+            value: `${activeWorkflows}/${totalWorkflows}`,
+            detail: "A leitura viva preserva a família de e-mail ativa; a próxima camada ainda precisa abrir fila por workflow.",
+          };
+        }
+
+        if (metric.id === "email-waiting") {
+          return {
+            ...metric,
+            value: String(base.summary.waiting7d),
+            tone: base.summary.waiting7d > 0 ? "risk" : "success",
+            detail: "Sem telemetria viva por workflow nesta camada, mantemos o principal sinal de waiting do snapshot consolidado.",
+          };
+        }
+
+        if (metric.id === "email-throughput") {
+          return {
+            ...metric,
+            value: "snapshot",
+            tone: "monitor",
+            detail: "A governança live ainda não abriu throughput por workflow de e-mail; mantido o retrato já validado no snapshot.",
+          };
+        }
+
+        return metric;
+      }),
+      tracks: base.emailHealth.tracks.map((track) => {
+        if (track.id === "email-fup2") {
+          return {
+            ...track,
+            detail: "A leitura viva da governança ainda não separa a fila por workflow; mantido o FUP2 como principal risco já confirmado no snapshot.",
+          };
+        }
+
+        if (track.id === "email-family") {
+          return {
+            ...track,
+            detail: "A família segue íntegra em ativação, mas a observabilidade fina por workflow ainda é a principal lacuna desta camada live.",
+          };
+        }
+
+        return track;
       }),
     },
     alerts: [
