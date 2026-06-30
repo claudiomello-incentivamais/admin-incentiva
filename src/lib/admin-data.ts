@@ -353,6 +353,8 @@ export interface PortalLiveSourceCard {
   lastSync: string;
   ctaLabel: string;
   ctaValue: string;
+  facts: { label: string; value: string }[];
+  nextStep: string;
 }
 
 export interface ScoreDriver {
@@ -542,75 +544,197 @@ const operations: Operation[] = [
   },
 ];
 
-const trelloOperationalStateByOperationName: Record<
+type TrelloOperationalState = {
+  segment: string;
+  status: "open" | "quiet";
+  count: number;
+  lastAlertAt: string;
+  lastObservedAt: string;
+  cardUrl: string;
+};
+
+const trelloOperationalStateByOperationName: Record<string, TrelloOperationalState[]> = {
+  Acelerato: [
+    {
+      segment: "Acelerato",
+      status: "open",
+      count: 0,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:08.075623-03:00",
+      cardUrl: "",
+    },
+    {
+      segment: "Tecnologia",
+      status: "open",
+      count: 0,
+      lastAlertAt: "2026-06-25T10:40:09.101562-03:00",
+      lastObservedAt: "2026-06-30T14:04:08.225275-03:00",
+      cardUrl: "https://trello.com/c/a1pCP8D3/16-nova-lista-tecnologia-50-n%C3%A3o-iniciados",
+    },
+  ],
+  "Café Fazenda Brasil": [
+    {
+      segment: "Café Fazenda Brasil",
+      status: "quiet",
+      count: 660,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:08.376456-03:00",
+      cardUrl: "",
+    },
+  ],
+  DocSeg: [
+    {
+      segment: "DocSeg",
+      status: "open",
+      count: 20,
+      lastAlertAt: "2026-06-25T10:19:48.364753-03:00",
+      lastObservedAt: "2026-06-30T14:04:08.596253-03:00",
+      cardUrl: "https://trello.com/c/TVMwVOe3/12-nova-lista-docseg-50-n%C3%A3o-iniciados",
+    },
+  ],
+  Iamit: [
+    {
+      segment: "Iamit",
+      status: "quiet",
+      count: 287,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:08.807474-03:00",
+      cardUrl: "",
+    },
+  ],
+  Incentiva: [
+    {
+      segment: "Karen",
+      status: "open",
+      count: 0,
+      lastAlertAt: "2026-06-25T10:40:22.763273-03:00",
+      lastObservedAt: "2026-06-30T14:04:09.143993-03:00",
+      cardUrl: "https://trello.com/c/jgAitx2U/89-nova-lista-incentiva-50-n%C3%A3o-iniciados",
+    },
+  ],
+  "Lima Duarte Alimentos": [
+    {
+      segment: "Lima Duarte Alimentos",
+      status: "quiet",
+      count: 180,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:09.397499-03:00",
+      cardUrl: "",
+    },
+  ],
+  Nimbus: [
+    {
+      segment: "Nimbus",
+      status: "open",
+      count: 0,
+      lastAlertAt: "2026-06-25T10:40:38.007775-03:00",
+      lastObservedAt: "2026-06-30T14:04:09.510734-03:00",
+      cardUrl: "https://trello.com/c/KucshyuO/11-nova-lista-nimbus-50-n%C3%A3o-iniciados",
+    },
+  ],
+  "Plan Idiomas": [
+    {
+      segment: "Plan Idiomas",
+      status: "quiet",
+      count: 199,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:09.693043-03:00",
+      cardUrl: "",
+    },
+  ],
+  "Prime Action": [
+    {
+      segment: "Agente IA Brasil",
+      status: "open",
+      count: 0,
+      lastAlertAt: "2026-06-25T10:40:51.271804-03:00",
+      lastObservedAt: "2026-06-30T14:04:09.862994-03:00",
+      cardUrl: "https://trello.com/c/f4Q7tVgb/15-nova-lista-agente-ia-brasil-50-n%C3%A3o-iniciados",
+    },
+    {
+      segment: "Consultoria Brasil",
+      status: "open",
+      count: 0,
+      lastAlertAt: "2026-06-25T10:41:06.836977-03:00",
+      lastObservedAt: "2026-06-30T14:04:11.012317-03:00",
+      cardUrl: "https://trello.com/c/7YF5nZpv/16-nova-lista-consultoria-brasil-50-n%C3%A3o-iniciados",
+    },
+    {
+      segment: "Consultoria México",
+      status: "quiet",
+      count: 427,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:12.130467-03:00",
+      cardUrl: "",
+    },
+  ],
+  "Trial Ambiental": [
+    {
+      segment: "Trial Ambiental",
+      status: "quiet",
+      count: 61,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:12.244483-03:00",
+      cardUrl: "",
+    },
+  ],
+  We9: [
+    {
+      segment: "WE9",
+      status: "quiet",
+      count: 211,
+      lastAlertAt: "",
+      lastObservedAt: "2026-06-30T14:04:12.463796-03:00",
+      cardUrl: "",
+    },
+  ],
+};
+
+const cadenceOperationalStateByOperationName: Record<
   string,
-  { status: "open" | "quiet"; count: number; lastObservedAt: string; cardUrl: string }
+  { status: "open" | "quiet"; count: number; lastObservedAt: string; lastMentionedAt: string }
 > = {
-  Acelerato: {
-    status: "open",
-    count: 0,
-    lastObservedAt: "2026-06-30T14:04:08.225275-03:00",
-    cardUrl: "https://trello.com/c/a1pCP8D3/16-nova-lista-tecnologia-50-n%C3%A3o-iniciados",
-  },
-  "Café Fazenda Brasil": {
-    status: "quiet",
-    count: 660,
-    lastObservedAt: "2026-06-30T14:04:08.376456-03:00",
-    cardUrl: "",
-  },
-  DocSeg: {
-    status: "open",
-    count: 20,
-    lastObservedAt: "2026-06-30T14:04:08.596253-03:00",
-    cardUrl: "https://trello.com/c/TVMwVOe3/12-nova-lista-docseg-50-n%C3%A3o-iniciados",
-  },
-  Iamit: {
-    status: "quiet",
-    count: 287,
-    lastObservedAt: "2026-06-30T14:04:08.807474-03:00",
-    cardUrl: "",
-  },
   Incentiva: {
     status: "open",
-    count: 0,
-    lastObservedAt: "2026-06-30T14:04:09.143993-03:00",
-    cardUrl: "https://trello.com/c/jgAitx2U/89-nova-lista-incentiva-50-n%C3%A3o-iniciados",
+    count: 29,
+    lastObservedAt: "2026-06-29T10:10:45.328619-03:00",
+    lastMentionedAt: "2026-06-23T17:48:46.666740-03:00",
   },
-  "Lima Duarte Alimentos": {
-    status: "quiet",
-    count: 180,
-    lastObservedAt: "2026-06-30T14:04:09.397499-03:00",
-    cardUrl: "",
-  },
-  Nimbus: {
+  We9: {
     status: "open",
-    count: 0,
-    lastObservedAt: "2026-06-30T14:04:09.510734-03:00",
-    cardUrl: "https://trello.com/c/KucshyuO/11-nova-lista-nimbus-50-n%C3%A3o-iniciados",
-  },
-  "Plan Idiomas": {
-    status: "quiet",
-    count: 199,
-    lastObservedAt: "2026-06-30T14:04:09.693043-03:00",
-    cardUrl: "",
-  },
-  "Prime Action": {
-    status: "open",
-    count: 0,
-    lastObservedAt: "2026-06-30T14:04:11.012317-03:00",
-    cardUrl: "https://trello.com/c/7YF5nZpv/16-nova-lista-consultoria-brasil-50-n%C3%A3o-iniciados",
+    count: 22,
+    lastObservedAt: "2026-06-26T15:13:04.287233-03:00",
+    lastMentionedAt: "2026-06-26T15:13:04.287262-03:00",
   },
   "Trial Ambiental": {
     status: "quiet",
-    count: 61,
-    lastObservedAt: "2026-06-30T14:04:12.244483-03:00",
-    cardUrl: "",
+    count: 9,
+    lastObservedAt: "2026-06-24T17:57:51.010197-03:00",
+    lastMentionedAt: "",
   },
-  We9: {
+  "Prime Action": {
+    status: "open",
+    count: 222,
+    lastObservedAt: "2026-06-29T15:44:48.408259-03:00",
+    lastMentionedAt: "2026-06-24T12:09:33.761291-03:00",
+  },
+  DocSeg: {
+    status: "open",
+    count: 63,
+    lastObservedAt: "2026-06-26T15:11:27.280462-03:00",
+    lastMentionedAt: "2026-06-26T15:08:46.469323-03:00",
+  },
+  Acelerato: {
+    status: "open",
+    count: 189,
+    lastObservedAt: "2026-06-30T10:21:32.774248-03:00",
+    lastMentionedAt: "2026-06-30T10:21:32.774278-03:00",
+  },
+  "Plan Idiomas": {
     status: "quiet",
-    count: 211,
-    lastObservedAt: "2026-06-30T14:04:12.463796-03:00",
-    cardUrl: "",
+    count: 6,
+    lastObservedAt: "2026-06-26T15:21:26.902073-03:00",
+    lastMentionedAt: "",
   },
 };
 
@@ -2943,6 +3067,18 @@ export function buildPortalLiveSourceCards(
   operation: Operation,
   source: GlobalDashboardData["source"],
 ): PortalLiveSourceCard[] {
+  const trelloStates = trelloOperationalStateByOperationName[operation.name] ?? [];
+  const primaryTrelloState =
+    trelloStates.find((state) => state.status === "open") ??
+    [...trelloStates].sort(
+      (a, b) => new Date(b.lastObservedAt).getTime() - new Date(a.lastObservedAt).getTime(),
+    )[0];
+  const cadenceState = cadenceOperationalStateByOperationName[operation.name];
+  const openTrelloSegments = trelloStates.filter((state) => state.status === "open");
+  const trelloSegmentLabel = openTrelloSegments.length
+    ? openTrelloSegments.map((state) => state.segment).join(" + ")
+    : primaryTrelloState?.segment ?? "Sem segmento mapeado";
+
   const notionLive =
     source === "live" &&
     typeof operation.notionRecords === "number" &&
@@ -2971,12 +3107,41 @@ export function buildPortalLiveSourceCards(
     lastSync: toLabelDate(operation.refreshedAt),
     ctaLabel: notionLive ? "Notion only" : "Modo",
     ctaValue: notionLive ? String(operation.notionOnlyCount ?? 0) : "Snapshot governado",
+    facts: notionLive
+      ? [
+          { label: "Owner", value: operation.owner },
+          {
+            label: "Etapa",
+            value:
+              (operation.stageAlignmentPct ?? 0) >= 95
+                ? "Reconciliação forte"
+                : (operation.stageAlignmentPct ?? 0) >= 90
+                  ? "Reconciliação em ajuste"
+                  : "Divergência material",
+          },
+          {
+            label: "Alinhamento",
+            value: `${operation.stageAlignmentPct?.toFixed(2)}% canônico`,
+          },
+          {
+            label: "Divergência",
+            value: `${operation.statusMismatchCount ?? 0} status / ${operation.notionOnlyCount ?? 0} notion only`,
+          },
+        ]
+      : [
+          { label: "Owner", value: operation.owner },
+          { label: "Etapa", value: "Snapshot governado" },
+          { label: "Alinhamento", value: "Sem leitura viva suficiente" },
+          { label: "Divergência", value: "Drill-down pendente" },
+        ],
+    nextStep: notionLive
+      ? "Aprofundar owner, histórico e drill-down de divergência por operação."
+      : "Fechar a telemetria viva desta conta antes de expor reconciliação como verdade operacional.",
   };
 
-  const trelloState = trelloOperationalStateByOperationName[operation.name];
-  const trelloHealth: OperationStatus = !trelloState
+  const trelloHealth: OperationStatus = !primaryTrelloState
     ? "monitor"
-    : trelloState.status === "open"
+    : primaryTrelloState.status === "open"
       ? "monitor"
       : "healthy";
 
@@ -2985,23 +3150,52 @@ export function buildPortalLiveSourceCards(
     title: "Trello de execução",
     health: trelloHealth,
     mode: "operational",
-    headline: trelloState
-      ? trelloState.status === "open"
+    headline: primaryTrelloState
+      ? primaryTrelloState.status === "open"
         ? "Existe checkpoint operacional aberto para esta conta na camada de execução."
         : "A camada de execução não mostra alerta aberto para esta conta no recorte atual."
       : "A operação ainda não tem estado de execução amarrado ao recorte publicado.",
-    detail: trelloState
-      ? trelloState.cardUrl
-        ? `Última observação em ${new Date(trelloState.lastObservedAt).toLocaleString("pt-BR")}, com card já materializado no layer de execução.`
-        : `Última observação em ${new Date(trelloState.lastObservedAt).toLocaleString("pt-BR")}, sem card aberto no recorte atual.`
+    detail: primaryTrelloState
+      ? primaryTrelloState.cardUrl
+        ? `Última observação em ${new Date(primaryTrelloState.lastObservedAt).toLocaleString("pt-BR")}, com card já materializado no layer de execução para ${trelloSegmentLabel}.`
+        : `Última observação em ${new Date(primaryTrelloState.lastObservedAt).toLocaleString("pt-BR")}, sem card aberto no recorte atual para ${trelloSegmentLabel}.`
       : "Ainda falta trazer o board desta operação como estado operacional visível dentro do próprio portal.",
-    lastSync: trelloState
-      ? `Estado operacional · ${new Date(trelloState.lastObservedAt).toLocaleDateString("pt-BR")} ${new Date(
-          trelloState.lastObservedAt,
+    lastSync: primaryTrelloState
+      ? `Estado operacional · ${new Date(primaryTrelloState.lastObservedAt).toLocaleDateString("pt-BR")} ${new Date(
+          primaryTrelloState.lastObservedAt,
         ).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
       : "Sem estado integrado",
-    ctaLabel: trelloState?.cardUrl ? "Card" : "Status",
-    ctaValue: trelloState?.cardUrl ? "Abertura registrada" : trelloState ? "Sem card aberto" : "Pendente",
+    ctaLabel: primaryTrelloState?.cardUrl ? "Card" : "Status",
+    ctaValue: primaryTrelloState?.cardUrl
+      ? "Abertura registrada"
+      : primaryTrelloState
+        ? "Sem card aberto"
+        : "Pendente",
+    facts: [
+      { label: "Owner", value: "Ricardo + Sales Ops" },
+      {
+        label: "Etapa",
+        value:
+          openTrelloSegments.length > 0
+            ? `${openTrelloSegments.length} checkpoint(s) aberto(s)`
+            : "Sem checkpoint aberto",
+      },
+      { label: "Segmento", value: trelloSegmentLabel },
+      {
+        label: "Histórico",
+        value: cadenceState
+          ? cadenceState.lastMentionedAt
+            ? `base_hygiene ${cadenceState.count} · última menção ${new Date(cadenceState.lastMentionedAt).toLocaleDateString("pt-BR")}`
+            : `base_hygiene ${cadenceState.count} · sem menção recente`
+          : primaryTrelloState?.lastAlertAt
+            ? `último alerta ${new Date(primaryTrelloState.lastAlertAt).toLocaleDateString("pt-BR")}`
+            : "sem histórico adicional mapeado",
+      },
+    ],
+    nextStep:
+      openTrelloSegments.length > 0
+        ? "Trazer etapa, owner e follow-up do card para dentro do próprio produto."
+        : "Conectar etapa e owner do board antes de usar o portal como cockpit único de execução.",
   };
 
   return [notionCard, trelloCard];

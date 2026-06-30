@@ -5,8 +5,10 @@ import {
   CheckCircle2,
   Eye,
   GlobeLock,
+  GitBranch,
   LockKeyhole,
   MessageSquareShare,
+  NotebookPen,
   RadioTower,
   ShieldCheck,
   Sparkles,
@@ -599,6 +601,7 @@ function LiveSourceCard({
   card,
 }: {
   card: {
+    id: "notion" | "trello";
     title: string;
     health: "healthy" | "monitor" | "risk" | "critical";
     mode: "live" | "operational";
@@ -607,15 +610,21 @@ function LiveSourceCard({
     lastSync: string;
     ctaLabel: string;
     ctaValue: string;
+    facts: { label: string; value: string }[];
+    nextStep: string;
   };
 }) {
   const meta = statusMeta[card.health];
+  const Icon = card.id === "notion" ? NotebookPen : GitBranch;
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 flex-wrap">
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+              <Icon className="h-3.5 w-3.5" />
+            </div>
             <div className="text-sm font-medium">{card.title}</div>
             <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
               {card.mode === "live" ? "live" : "operational"}
@@ -632,11 +641,27 @@ function LiveSourceCard({
         <div className="rounded-xl border border-border bg-card px-3 py-3">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Leitura</div>
           <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.detail}</div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {card.facts.map((fact) => (
+              <div key={`${card.id}-${fact.label}`} className="rounded-lg border border-border bg-surface px-2.5 py-2">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  {fact.label}
+                </div>
+                <div className="mt-1 text-[11px] leading-relaxed text-foreground">{fact.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
         <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3 min-w-[150px]">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.ctaLabel}</div>
           <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
           <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{card.lastSync}</div>
+          <div className="mt-3 rounded-lg border border-primary/10 bg-background/70 px-2.5 py-2">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Próximo salto
+            </div>
+            <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.nextStep}</div>
+          </div>
         </div>
       </div>
     </div>
