@@ -87,12 +87,13 @@ export function AppSidebar() {
         <div className="px-2 py-2.5">
           <BrandMark compact={collapsed} />
           {!collapsed && (
-            <div className="mt-3 rounded-xl border border-sidebar-border bg-sidebar-accent/60 px-3 py-2.5">
+            <div className="mt-3 rounded-xl border border-sidebar-border bg-sidebar-accent/70 px-3 py-2.5">
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Revenue AI-First
+                Mapa do console
               </div>
               <div className="mt-1 text-[12px] leading-snug text-sidebar-foreground">
-                Governança operacional, automação e previsibilidade em uma só camada.
+                Admin Global consolida a carteira. Operações aprofunda a conta. As demais frentes
+                entram como camadas de leitura e execução.
               </div>
             </div>
           )}
@@ -106,15 +107,14 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="h-8 w-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold ring-1 ring-primary/25">
-            RM
-          </div>
+        <div className="px-2 py-2">
           {!collapsed && (
-            <div className="flex flex-col leading-tight overflow-hidden">
-              <span className="text-xs font-medium truncate">Rafael Moreira</span>
-              <span className="text-[10px] text-muted-foreground truncate">
-                Incentiva Ops
+            <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/60 px-3 py-2">
+              <span className="block text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Ambiente
+              </span>
+              <span className="mt-1 block text-xs text-sidebar-foreground">
+                Piloto Lovable + GitHub da Incentiva
               </span>
             </div>
           )}

@@ -11,7 +11,7 @@ interface TopbarProps {
 
 export function Topbar({ breadcrumb }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 backdrop-blur-xl px-4 topbar-glow">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/88 backdrop-blur-xl px-4 topbar-glow">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
       <div className="h-5 w-px bg-border" />
       <div className="hidden xl:flex">
@@ -58,14 +58,11 @@ export function Topbar({ breadcrumb }: TopbarProps) {
           variant="outline"
           className="hidden lg:inline-flex h-8 rounded-full border-primary/25 bg-primary/8 text-primary px-3 text-[10px] uppercase tracking-[0.18em]"
         >
-          AI-First Ops
+          Piloto operacional
         </Badge>
 
-        <Button variant="ghost" size="icon" className="h-9 w-9 relative">
+        <Button variant="ghost" size="icon" className="h-9 w-9">
           <Bell className="h-4 w-4" />
-          <Badge className="absolute -top-0.5 -right-0.5 h-4 w-4 p-0 flex items-center justify-center text-[9px] bg-primary text-primary-foreground border-2 border-background">
-            7
-          </Badge>
         </Button>
       </div>
     </header>

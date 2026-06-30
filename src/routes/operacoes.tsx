@@ -39,7 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/operacoes")({
-  head: () => ({ meta: [{ title: "Incentiva Ops — Cockpit Incentiva V1" }] }),
+  head: () => ({ meta: [{ title: "Console Incentiva — Cockpit de Operações" }] }),
   loader: async () => loadIncentivaCockpit(),
   component: Page,
 });
@@ -61,7 +61,7 @@ function Page() {
 
   return (
     <>
-      <Topbar breadcrumb={["Incentiva Ops", "Operações", "Cockpit Incentiva V1"]} />
+      <Topbar breadcrumb={["Console Incentiva", "Operações", "Cockpit Incentiva"]} />
 
       <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
@@ -90,11 +90,10 @@ function Page() {
               </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
-              Cockpit Incentiva V1
+              Cockpit Incentiva
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Primeira leitura profunda da operação piloto unindo base, funil, reativação e
-              telemetria real de automação.
+              Leitura executiva da operação piloto unindo base, funil, gargalos e telemetria de automação.
             </p>
           </div>
 
@@ -153,6 +152,88 @@ function Page() {
             tone="success"
             sub={`${cockpit.summary.error7d} erros · ${cockpit.summary.waiting7d} waiting`}
           />
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-4">
+          <div className="surface-card p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Como navegar no console</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                O menu da esquerda foi separado por camada de leitura, não por ordem de prioridade.
+              </p>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <SummaryPanel
+                title="Visão Geral"
+                icon={BarChart3}
+                points={[
+                  "Admin Global consolida a carteira inteira.",
+                  "Operações aprofunda uma conta específica.",
+                  "Performance e Governança entram como camadas transversais.",
+                ]}
+              />
+              <SummaryPanel
+                title="Operacional"
+                icon={Workflow}
+                points={[
+                  "Pipelines vai descer para workflow e canal.",
+                  "Clientes vai organizar leitura por conta e carteira.",
+                  "Faturamento vai conectar operação com receita.",
+                ]}
+              />
+              <SummaryPanel
+                title="Sistema"
+                icon={ShieldAlert}
+                points={[
+                  "Configurações concentra fontes, filtros e parâmetros.",
+                  "Suporte fica como camada de incidente e runbook.",
+                  "Nem tudo está pronto; o importante é a arquitetura já estar clara.",
+                ]}
+              />
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Como ler esta tela</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                A lógica do cockpit vai do diagnóstico para a ação.
+              </p>
+            </div>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-border bg-surface px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  1. Estado atual
+                </div>
+                <div className="mt-1 text-sm">
+                  Resumo executivo, alertas, funil e leitura da base.
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-surface px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  2. Gargalos prioritários
+                </div>
+                <div className="mt-1 text-sm">
+                  ICP, e-mail e WhatsApp mostram onde a operação trava primeiro.
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-surface px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  3. Próximas ações
+                </div>
+                <div className="mt-1 text-sm">
+                  A V2 transforma leitura em backlog executivo e fila de intervenção.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="space-y-1">
+          <h2 className="text-sm font-semibold text-display">Estado atual</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Primeiro, a tela mostra o retrato da operação como ela está agora.
+          </p>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4">
@@ -262,6 +343,13 @@ function Page() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="space-y-1">
+          <h2 className="text-sm font-semibold text-display">Gargalos prioritários</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Aqui entram as leituras que mais pressionam a operação neste momento.
+          </p>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
@@ -374,6 +462,13 @@ function Page() {
           </div>
         </section>
 
+        <section className="space-y-1">
+          <h2 className="text-sm font-semibold text-display">Próximas ações</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Depois do diagnóstico, a V2 organiza o que fazer primeiro.
+          </p>
+        </section>
+
         <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
@@ -427,6 +522,13 @@ function Page() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="space-y-1">
+          <h2 className="text-sm font-semibold text-display">Leitura avançada</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Estas camadas descem do canal para família, workflow e frente operacional.
+          </p>
         </section>
 
         <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">

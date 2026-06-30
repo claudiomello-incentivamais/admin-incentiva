@@ -80,10 +80,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Incentiva Ops — Governança Operacional AI-First" },
+      { title: "Console Incentiva — Governança Operacional" },
       {
         name: "description",
-        content: "Console da Incentiva para governança operacional, previsibilidade comercial e arquitetura AI-first.",
+        content: "Console da Incentiva para governança operacional, previsibilidade comercial e leitura executiva da operação.",
       },
       { property: "og:title", content: "Incentiva Ops — Governança Operacional AI-First" },
       { name: "twitter:title", content: "Incentiva Ops — Governança Operacional AI-First" },

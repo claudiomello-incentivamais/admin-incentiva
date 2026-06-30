@@ -1,19 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Construction } from "lucide-react";
-import { Topbar } from "@/components/admin/Topbar";
+import { RoutePlaceholder } from "@/components/admin/RoutePlaceholder";
 
 export const Route = createFileRoute("/faturamento")({
-  head: () => ({ meta: [{ title: "Faturamento — Console B2B" }] }),
+  head: () => ({ meta: [{ title: "Faturamento — Console Incentiva" }] }),
   component: () => (
-    <>
-      <Topbar breadcrumb={["Console", "Faturamento"]} />
-      <main className="flex-1 flex items-center justify-center p-10">
-        <div className="surface-card p-10 max-w-md text-center">
-          <Construction className="h-8 w-8 text-primary mx-auto mb-4" />
-          <h2 className="text-display text-xl font-semibold mb-2">Faturamento</h2>
-          <p className="text-sm text-muted-foreground">Em construção.</p>
-        </div>
-      </main>
-    </>
+    <RoutePlaceholder
+      breadcrumb={["Console Incentiva", "Faturamento"]}
+      title="Faturamento"
+      description="Esta frente vai ligar operação comercial e previsibilidade de receita, com leitura de carteira, contratos e conversão em valor."
+      scope={["Receita prevista", "Conversão em valor", "Carteira ativa", "Expansão e risco"]}
+    />
   ),
 });
