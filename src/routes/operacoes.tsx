@@ -28,6 +28,7 @@ import {
   statusMeta,
   type IncentivaCockpitAlert,
   type IncentivaCockpitData,
+  type IncentivaWhatsappHealthTrack,
   type IncentivaWorkflowFamily,
 } from "@/lib/admin-data";
 import { cn } from "@/lib/utils";
@@ -253,6 +254,61 @@ function Page() {
             <div className="space-y-3">
               {cockpit.baseMetrics.map((metric) => (
                 <BaseMetricCard key={metric.id} metric={metric} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1.05fr_0.95fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">WhatsApp Health</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Leitura executiva do canal que mais sente pressão de base e cadência
+                </p>
+              </div>
+              <MessageCircle className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cockpit.whatsappHealth.metrics.map((metric) => (
+                <ExecKpi
+                  key={metric.id}
+                  label={metric.label}
+                  value={metric.value}
+                  sub={metric.detail}
+                  icon={
+                    metric.id === "infra"
+                      ? Workflow
+                      : metric.id === "base-pressure"
+                        ? Target
+                        : metric.id === "lead-lanes-idle"
+                          ? AlertOctagon
+                          : Activity
+                  }
+                  tone={metric.tone ?? "monitor"}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Frentes do canal</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Onde o WhatsApp está rodando bem e onde já pede a próxima camada
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                Próxima leitura <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.whatsappHealth.tracks.map((track) => (
+                <WhatsappTrackCard key={track.id} track={track} />
               ))}
             </div>
           </div>
@@ -578,6 +634,35 @@ function WorkflowFamilyCard({ family }: { family: IncentivaWorkflowFamily }) {
           className={cn("h-full rounded-full", meta.bg)}
           style={{ width: `${(family.active / family.total) * 100}%` }}
         />
+      </div>
+    </div>
+  );
+}
+
+function WhatsappTrackCard({ track }: { track: IncentivaWhatsappHealthTrack }) {
+  const meta = statusMeta[track.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">{track.label}</span>
+            <Badge variant="outline" className={cn("text-[10px] h-5", meta.color)}>
+              {meta.label}
+            </Badge>
+          </div>
+          <p className="text-[12px] text-foreground mt-1">{track.headline}</p>
+          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+            {track.detail}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+            Sinal
+          </div>
+          <div className="text-[12px] font-medium text-display mt-1">{track.workflows}</div>
+        </div>
       </div>
     </div>
   );

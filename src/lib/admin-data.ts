@@ -102,6 +102,23 @@ export interface IncentivaWorkflowRun {
   lastRun: string;
 }
 
+export interface IncentivaWhatsappHealthMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IncentivaWhatsappHealthTrack {
+  id: string;
+  label: string;
+  health: OperationStatus;
+  headline: string;
+  detail: string;
+  workflows: string;
+}
+
 export interface IncentivaCockpitAlert {
   id: string;
   severity: "critical" | "risk" | "monitor" | "info";
@@ -116,6 +133,10 @@ export interface IncentivaCockpitData {
   summary: IncentivaCockpitSummary;
   funnel: IncentivaFunnelStage[];
   baseMetrics: IncentivaBaseMetric[];
+  whatsappHealth: {
+    metrics: IncentivaWhatsappHealthMetric[];
+    tracks: IncentivaWhatsappHealthTrack[];
+  };
   channels: IncentivaChannelStatus[];
   workflowFamilies: IncentivaWorkflowFamily[];
   topWorkflows: IncentivaWorkflowRun[];
@@ -387,6 +408,64 @@ const incentivaCockpit: IncentivaCockpitData = {
       detail: "Fila de retomada pequena, mas acionável em paralelo.",
     },
   ],
+  whatsappHealth: {
+    metrics: [
+      {
+        id: "infra",
+        label: "Infraestrutura ativa",
+        value: "8/8",
+        tone: "success",
+        detail: "Todos os workflows FUP de WhatsApp estão ativos na camada atual do n8n VPS.",
+      },
+      {
+        id: "base-pressure",
+        label: "Pressão de base",
+        value: "6",
+        tone: "critical",
+        detail: "Só 6 não iniciados canônicos sustentam hoje a cadência de WhatsApp.",
+      },
+      {
+        id: "outbound-runs",
+        label: "Outbound com corrida",
+        value: "4",
+        tone: "healthy",
+        detail: "Os FUPs outbound 1 a 4 rodaram no snapshot dos últimos 7 dias.",
+      },
+      {
+        id: "lead-lanes-idle",
+        label: "Leads sem giro",
+        value: "4",
+        tone: "risk",
+        detail: "Os FUPs de leads seguem ativos, mas sem execução recente no corte atual.",
+      },
+    ],
+    tracks: [
+      {
+        id: "outbound",
+        label: "Outbound WhatsApp",
+        health: "healthy",
+        headline: "FUP1 a FUP4 ativos e com execução recente.",
+        detail: "A cadência outbound está tecnicamente íntegra; o gargalo deixou de ser workflow e virou reposição de base.",
+        workflows: "4 workflows com corrida",
+      },
+      {
+        id: "leads",
+        label: "Leads WhatsApp",
+        health: "risk",
+        headline: "FUP1 a FUP4 ativos, mas sem tráfego recente.",
+        detail: "O bloco de leads não acusa quebra técnica, porém ficou sem giro no snapshot e pede leitura de entrada real da fila.",
+        workflows: "4 workflows ativos / 0 execuções",
+      },
+      {
+        id: "reativacao",
+        label: "Reativação / Retomada",
+        health: "monitor",
+        headline: "Canal apto para amortecer a falta de base nova.",
+        detail: "Retomada em WhatsApp já mostrou corrida recente e pode ganhar peso enquanto a reposição de lista é atacada.",
+        workflows: "1 workflow com corrida",
+      },
+    ],
+  },
   channels: [
     {
       id: "whatsapp",
@@ -779,6 +858,55 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
       base.alerts[2],
       base.alerts[3],
     ],
+    whatsappHealth: {
+      ...base.whatsappHealth,
+      metrics: base.whatsappHealth.metrics.map((metric) => {
+        if (metric.id === "base-pressure") {
+          return {
+            ...metric,
+            value: String(canonicalUnstarted),
+            tone:
+              canonicalUnstarted < dailyActivationTarget
+                ? "critical"
+                : canonicalUnstarted < dailyActivationTarget * 2
+                  ? "risk"
+                  : "success",
+            detail: `A leitura viva mostra ${canonicalUnstarted} não iniciados canônicos para uma meta de ${dailyActivationTarget} ativações diárias.`,
+          };
+        }
+
+        if (metric.id === "infra") {
+          return {
+            ...metric,
+            detail: `Camada WhatsApp preservada na leitura live, com ${base.summary.activeWorkflows}/${base.summary.totalWorkflows} workflows totais ativos na operação.`,
+          };
+        }
+
+        return metric;
+      }),
+      tracks: base.whatsappHealth.tracks.map((track) => {
+        if (track.id === "outbound") {
+          return {
+            ...track,
+            health:
+              canonicalUnstarted < dailyActivationTarget ? "monitor" : track.health,
+            detail:
+              canonicalUnstarted < dailyActivationTarget
+                ? "A cadência outbound continua íntegra, mas já opera sob pressão direta da falta de base nova."
+                : track.detail,
+          };
+        }
+
+        if (track.id === "leads") {
+          return {
+            ...track,
+            detail: `Sem nova telemetria viva por workflow nesta camada; mantido o último retrato do snapshot para o bloco de leads WhatsApp.`,
+          };
+        }
+
+        return track;
+      }),
+    },
   };
 }
 
