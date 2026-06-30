@@ -389,6 +389,20 @@ export interface OperationNotionViewAction {
   external?: boolean;
 }
 
+export interface OperationNotionViewFocusCard {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+}
+
+export interface OperationNotionViewGlossaryItem {
+  id: string;
+  term: string;
+  definition: string;
+}
+
 export interface OperationNotionView {
   health: OperationStatus;
   mode: "live" | "snapshot";
@@ -402,6 +416,8 @@ export interface OperationNotionView {
   metrics: OperationNotionViewMetric[];
   stageHighlights: OperationNotionViewStage[];
   actions: OperationNotionViewAction[];
+  focusCards: OperationNotionViewFocusCard[];
+  glossary: OperationNotionViewGlossaryItem[];
 }
 
 export interface OperationTrelloViewCard {
@@ -3598,6 +3614,7 @@ export function buildOperationNotionView(
         ? "monitor"
         : "healthy"
     : "monitor";
+  const divergencePressure = (operation.statusMismatchCount ?? 0) + (operation.notionOnlyCount ?? 0);
 
   const stageHighlights = cockpit.funnel
     .filter((stage) =>
@@ -3754,6 +3771,116 @@ export function buildOperationNotionView(
       ]),
   ];
 
+  const focusCards: OperationNotionViewFocusCard[] = notionLive
+    ? [
+        {
+          id: "owner-focus",
+          label: "Foco do owner",
+          value:
+            divergencePressure > 20
+              ? "Saneamento de reconciliação"
+              : (operation.stageAlignmentPct ?? 0) < 97 || (operation.matchRatePct ?? 0) < 98
+                ? "Ajuste fino de estágio"
+                : "Rotina de operação",
+          detail:
+            divergencePressure > 20
+              ? `${operation.owner} precisa reduzir primeiro os ${formatNumber(operation.statusMismatchCount ?? 0)} status divergentes e os ${formatNumber(operation.notionOnlyCount ?? 0)} registros fora do core.`
+              : (operation.stageAlignmentPct ?? 0) < 97 || (operation.matchRatePct ?? 0) < 98
+                ? `${operation.owner} já pode operar o pipeline daqui, mas ainda vale revisar etapa, handoff e nomenclatura antes de ampliar exposição.`
+                : `${operation.owner} já consegue usar esta visão como camada diária de acompanhamento sem ruído material.`,
+          tone:
+            divergencePressure > 20
+              ? "risk"
+              : (operation.stageAlignmentPct ?? 0) < 97 || (operation.matchRatePct ?? 0) < 98
+                ? "monitor"
+                : "healthy",
+        },
+        {
+          id: "usage-mode",
+          label: "Uso recomendado",
+          value:
+            exposureLabel === "Segurar exposição total"
+              ? "Uso interno restrito"
+              : exposureLabel === "Cliente-safe com monitoramento"
+                ? "Gestão diária com revisão"
+                : "Gestão diária + apoio externo",
+          detail:
+            exposureLabel === "Segurar exposição total"
+              ? "O time pode ler aqui, mas ainda não deve tratar este recorte como vitrine final sem revisão."
+              : exposureLabel === "Cliente-safe com monitoramento"
+                ? "A leitura já serve para acompanhamento recorrente, desde que divergência e sync continuem sob observação."
+                : "A operação já tem consistência suficiente para usar esta camada como cockpit central e apoio em contextos externos.",
+          tone:
+            exposureLabel === "Segurar exposição total"
+              ? "risk"
+              : exposureLabel === "Cliente-safe com monitoramento"
+                ? "monitor"
+                : "healthy",
+        },
+        {
+          id: "trust-level",
+          label: "Confiabilidade atual",
+          value:
+            health === "healthy"
+              ? "Leitura forte"
+              : health === "monitor"
+                ? "Leitura com monitoramento"
+                : "Leitura em saneamento",
+          detail: `Match rate em ${(operation.matchRatePct ?? 0).toFixed(2)}%, alinhamento canônico em ${(operation.stageAlignmentPct ?? 0).toFixed(2)}% e sync ${toLabelDate(operation.refreshedAt)}.`,
+          tone: health,
+        },
+      ]
+    : [
+        {
+          id: "owner-focus",
+          label: "Foco do owner",
+          value: "Homologar leitura viva",
+          detail: `${operation.owner} ainda precisa fechar a telemetria real desta conta antes de usar o painel como verdade do pipeline.`,
+          tone: "monitor",
+        },
+        {
+          id: "usage-mode",
+          label: "Uso recomendado",
+          value: "Apoio interno governado",
+          detail: "Use esta visão para orientar a operação, mas ainda não como substituta completa do pipeline bruto.",
+          tone: "info",
+        },
+        {
+          id: "trust-level",
+          label: "Confiabilidade atual",
+          value: "Leitura governada",
+          detail: "A camada já organiza o pipeline sem misturar operações, mas ainda depende de fallback curado para fechar a conta.",
+          tone: "monitor",
+        },
+      ];
+
+  const glossary: OperationNotionViewGlossaryItem[] = [
+    {
+      id: "match-rate",
+      term: "Match rate",
+      definition:
+        "Percentual de registros que o painel consegue reconciliar estruturalmente entre Supabase e Notion.",
+    },
+    {
+      id: "stage-alignment",
+      term: "Alinhamento canônico",
+      definition:
+        "Percentual de registros cujo estágio do Notion já conversa com a taxonomia canônica desta operação.",
+    },
+    {
+      id: "divergence",
+      term: "Divergência viva",
+      definition:
+        "Soma prática do que ainda exige saneamento agora, principalmente status divergente e registros que só existem no Notion.",
+    },
+    {
+      id: "exposure",
+      term: "Exposição",
+      definition:
+        "Nível de segurança para usar este recorte como leitura externa ou deixá-lo apenas como apoio governado interno.",
+    },
+  ];
+
   return {
     health,
     mode: notionLive ? "live" : "snapshot",
@@ -3775,6 +3902,8 @@ export function buildOperationNotionView(
     metrics,
     stageHighlights,
     actions,
+    focusCards,
+    glossary,
   };
 }
 

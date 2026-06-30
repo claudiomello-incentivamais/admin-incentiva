@@ -397,7 +397,7 @@ function Page() {
                         <TabsList className="grid w-full grid-cols-3">
                           <TabsTrigger value="resumo">Resumo</TabsTrigger>
                           <TabsTrigger value="etapas">Etapas</TabsTrigger>
-                          <TabsTrigger value="reconciliacao">Reconciliação</TabsTrigger>
+                          <TabsTrigger value="reconciliacao">Como ler</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="resumo" className="grid gap-3 sm:grid-cols-2">
@@ -441,10 +441,24 @@ function Page() {
                           </div>
                         </TabsContent>
 
-                        <TabsContent value="reconciliacao" className="space-y-3">
-                          {notionView.actions.map((action) => (
-                            <NotionActionCard key={action.id} action={action} />
-                          ))}
+                        <TabsContent value="reconciliacao" className="space-y-4">
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                            {notionView.focusCards.map((card) => (
+                              <NotionFocusCard key={card.id} card={card} />
+                            ))}
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {notionView.glossary.map((item) => (
+                              <NotionGlossaryCard key={item.id} item={item} />
+                            ))}
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {notionView.actions.map((action) => (
+                              <NotionActionCard key={action.id} action={action} />
+                            ))}
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </div>
@@ -460,10 +474,18 @@ function Page() {
                         {notionView.availabilityLabel}
                       </p>
 
-                      <div className="mt-4 space-y-3">
-                        {notionView.actions.map((action) => (
-                          <NotionActionCard key={action.id} action={action} />
+                      <div className="mt-4 grid gap-3">
+                        {notionView.focusCards.map((card) => (
+                          <NotionFocusCard key={card.id} card={card} />
                         ))}
+                      </div>
+
+                      <div className="mt-4 grid gap-3">
+                        {notionView.actions
+                          .filter((action) => action.id === "open-notion")
+                          .map((action) => (
+                            <NotionActionCard key={action.id} action={action} />
+                          ))}
                       </div>
                     </div>
                   </div>
@@ -1156,6 +1178,65 @@ function NotionActionCard({
           </a>
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+function NotionFocusCard({
+  card,
+}: {
+  card: {
+    id: string;
+    label: string;
+    value: string;
+    detail: string;
+    tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+  };
+}) {
+  const toneClass =
+    card.tone === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : card.tone === "risk" || card.tone === "critical"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : card.tone === "monitor"
+          ? "border-amber-500/20 bg-amber-500/5 text-amber-600"
+          : "border-primary/20 bg-primary/5 text-primary";
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.label}</div>
+        {card.tone ? (
+          <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+            {card.tone === "healthy"
+              ? "Forte"
+              : card.tone === "risk" || card.tone === "critical"
+                ? "Ajustar"
+                : card.tone === "monitor"
+                  ? "Monitorar"
+                  : "Camada"}
+          </Badge>
+        ) : null}
+      </div>
+      <div className="mt-2 text-sm font-medium text-foreground">{card.value}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{card.detail}</p>
+    </div>
+  );
+}
+
+function NotionGlossaryCard({
+  item,
+}: {
+  item: {
+    id: string;
+    term: string;
+    definition: string;
+  };
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="text-sm font-medium text-foreground">{item.term}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{item.definition}</p>
     </div>
   );
 }
