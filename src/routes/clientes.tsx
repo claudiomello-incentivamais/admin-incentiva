@@ -4,6 +4,7 @@ import {
   BriefcaseBusiness,
   Building2,
   ChevronRight,
+  GlobeLock,
   ShieldAlert,
   Target,
   TrendingUp,
@@ -52,6 +53,9 @@ function ClientsPage() {
   const avgConversion =
     operations.reduce((sum, operation) => sum + operation.monthlyConversion, 0) /
     Math.max(operations.length, 1);
+  const portalReady = operations.filter((operation) => operation.health === "healthy").length;
+  const portalNeedsGovernance = operations.filter((operation) => operation.health === "monitor").length;
+  const portalNotReady = operations.filter((operation) => operation.health === "risk" || operation.health === "critical").length;
 
   return (
     <>
@@ -217,6 +221,59 @@ function ClientsPage() {
           </div>
         </section>
 
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Prontidão para portal</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Corte inicial do Bloco 4 para separar o que pode virar visão cliente e o que ainda precisa maturar.
+                </p>
+              </div>
+              <GlobeLock className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <PortalReadinessCard
+                title="Prontas"
+                count={portalReady}
+                tone="healthy"
+                detail="Operações mais próximas de uma leitura externa controlada."
+              />
+              <PortalReadinessCard
+                title="Pedem governança"
+                count={portalNeedsGovernance}
+                tone="monitor"
+                detail="Já têm base boa, mas ainda exigem curadoria antes de abrir para cliente."
+              />
+              <PortalReadinessCard
+                title="Ainda não prontas"
+                count={portalNotReady}
+                tone="risk"
+                detail="Continuam em foco interno porque a camada operacional ainda está pressionada."
+              />
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Modelo de exposição por conta</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  A visão cliente não deve espelhar o admin inteiro; deve abrir só o recorte útil da própria operação.
+                </p>
+              </div>
+              <Users className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {operations.map((operation) => (
+                <PortalOperationCard key={operation.id} operation={operation} />
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="surface-card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
@@ -255,6 +312,27 @@ function ClientsPage() {
       </main>
     </>
   );
+}
+
+function portalExposureRule(health: OperationStatus) {
+  if (health === "healthy") {
+    return {
+      label: "Portal quase pronto",
+      detail: "Pode evoluir para leitura cliente controlada assim que publish privado e perfis forem fechados.",
+    };
+  }
+
+  if (health === "monitor") {
+    return {
+      label: "Portal com curadoria",
+      detail: "Já pode herdar alguns módulos, mas ainda precisa esconder ruído operacional interno.",
+    };
+  }
+
+  return {
+    label: "Só uso interno",
+    detail: "Ainda não deveria abrir visão externa porque a operação segue pressionada ou em ajuste.",
+  };
 }
 
 function countByPriority(items: Priority[]) {
@@ -364,6 +442,58 @@ function HealthBucket({
       <div className="mt-3 h-2 rounded-full bg-muted overflow-hidden">
         <div className={cn("h-full rounded-full", meta.bg)} style={{ width: `${Math.max(count * 12, count ? 20 : 6)}%` }} />
       </div>
+    </div>
+  );
+}
+
+function PortalReadinessCard({
+  title,
+  count,
+  tone,
+  detail,
+}: {
+  title: string;
+  count: number;
+  tone: OperationStatus;
+  detail: string;
+}) {
+  const meta = statusMeta[tone];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-medium">{title}</div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <div className="mt-4 text-[24px] leading-none font-semibold tracking-tight text-display">{count}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function PortalOperationCard({
+  operation,
+}: {
+  operation: (Awaited<ReturnType<typeof loadGlobalDashboard>>)["operations"][number];
+}) {
+  const meta = statusMeta[operation.health];
+  const exposure = portalExposureRule(operation.health);
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{operation.name}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">{operation.client}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <div className="mt-3 text-[12px] font-medium">{exposure.label}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{exposure.detail}</p>
     </div>
   );
 }

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import { ActionPacketCard } from "@/components/admin/action-packet-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -273,6 +274,8 @@ const support = {
 
 function SupportPage() {
   const cockpit = Route.useLoaderData();
+  const topAlert = cockpit.alerts[0];
+  const topWorkflow = cockpit.topWorkflows[0];
   const supportKpis = [
     {
       label: "Canais observados",
@@ -301,6 +304,42 @@ function SupportPage() {
       detail: "O suporte já enxerga alertas que saem de saúde genérica e entram em workflow intelligence.",
       tone: "risk" as const,
       icon: Siren,
+    },
+  ];
+  const practicalPackets = [
+    {
+      channel: "discord" as const,
+      title: "Acionamento de incidente / exceção",
+      detail: "Mensagem pronta para abrir o tema no Discord com sintoma, risco e próximo passo.",
+      content:
+        `Suporte ${cockpit.operationName}: alerta ${topAlert.title}. ` +
+        `${topAlert.detail} Próximo foco técnico: ${topWorkflow.name} (${topWorkflow.waiting7d} waiting / ${topWorkflow.error7d} errors).`,
+      owner: "Claw/main",
+    },
+    {
+      channel: "trello" as const,
+      title: "Card técnico de intervenção",
+      detail: "Pacote mínimo para transformar gargalo técnico em execução visível.",
+      content:
+        `${cockpit.operationName} · intervenção técnica em ${topWorkflow.family}\n\n` +
+        `Workflow foco: ${topWorkflow.name}\n` +
+        `Execuções 7d: ${topWorkflow.executions7d}\n` +
+        `Waiting 7d: ${topWorkflow.waiting7d}\n` +
+        `Error 7d: ${topWorkflow.error7d}\n` +
+        `Alerta associado: ${topAlert.title}`,
+      owner: "Claw/main",
+    },
+    {
+      channel: "admin" as const,
+      title: "Registro executivo do suporte",
+      detail: "Resumo pronto para registrar status, dono e critério de saída no admin.",
+      content:
+        `Operação: ${cockpit.operationName}\n` +
+        `Canal foco: ${cockpit.channels[0]?.label ?? "n/a"}\n` +
+        `Alerta principal: ${topAlert.title}\n` +
+        `Workflow foco: ${topWorkflow.name}\n` +
+        `Critério de saída: reduzir waiting/erro e confirmar corrida útil`,
+      owner: "Claw/main",
     },
   ];
 
@@ -496,6 +535,24 @@ function SupportPage() {
                 <CockpitAlertCard key={alert.id} alert={alert} />
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Camada de ação prática</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                O suporte agora também entrega o pacote pronto para virar execução, acionamento e registro.
+              </p>
+            </div>
+            <Send className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-3">
+            {practicalPackets.map((packet) => (
+              <ActionPacketCard key={packet.channel} {...packet} />
+            ))}
           </div>
         </section>
 

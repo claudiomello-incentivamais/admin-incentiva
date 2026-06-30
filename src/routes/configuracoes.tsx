@@ -4,11 +4,14 @@ import {
   Database,
   Eye,
   Filter,
+  GlobeLock,
   KeyRound,
   Layers3,
   Lock,
+  ShieldCheck,
   Settings2,
   SlidersHorizontal,
+  UserRoundCog,
   Workflow,
 } from "lucide-react";
 
@@ -88,6 +91,55 @@ const settings = {
     "n8n VPS é a fonte principal para a leitura técnica dos workflows.",
     "Planilha entra como apoio comercial/financeiro, não como verdade operacional absoluta.",
     "Qualquer publish precisa virar checkpoint explícito enquanto o deploy não estiver automático.",
+  ],
+  profiles: [
+    {
+      title: "Direção",
+      scope: "Carteira inteira + governança + suporte + faturamento",
+      publish: "Pode ver tudo",
+      portal: "Não usa portal; usa admin completo",
+    },
+    {
+      title: "Claw/main",
+      scope: "Leitura e edição estrutural do sistema",
+      publish: "Pode validar corte e publish",
+      portal: "Pode preparar e homologar o portal",
+    },
+    {
+      title: "Sales Ops",
+      scope: "Só operações atribuídas e suas frentes de execução",
+      publish: "Leitura autenticada por escopo",
+      portal: "Pode operar o portal da própria carteira",
+    },
+    {
+      title: "Cliente",
+      scope: "Só a própria operação e leitura externa homologada",
+      publish: "Leitura privada e limitada",
+      portal: "Consome o portal da própria conta",
+    },
+  ],
+  publishStages: [
+    {
+      title: "Atual · Pro / cloud",
+      detail: "Montagem rápida, publish ainda controlado e sem camada privada por papel.",
+      health: "monitor",
+    },
+    {
+      title: "Próximo · Business",
+      detail: "Entra quando a URL publicada precisar de privacidade real por pessoa, grupo ou workspace.",
+      health: "risk",
+    },
+    {
+      title: "Posterior · portal governado",
+      detail: "Cada operação passa a ter recorte privado, com leitura externa controlada e sem expor a operação inteira.",
+      health: "healthy",
+    },
+  ],
+  rolloutGates: [
+    "Definir perfis operacionais e regra de visibilidade por papel.",
+    "Separar claramente o que é leitura interna e o que é visão cliente.",
+    "Fechar quais módulos entram no portal externo e quais ficam só no admin.",
+    "Subir camada privada de publish antes de abrir uso real para terceiros.",
   ],
 };
 
@@ -224,6 +276,71 @@ function SettingsPage() {
           </div>
         </section>
 
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Perfis e visibilidade</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Base material do Bloco 4 para separar direção, operação e leitura cliente.
+                </p>
+              </div>
+              <UserRoundCog className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {settings.profiles.map((profile) => (
+                <div key={profile.title} className="rounded-xl border border-border bg-surface p-4">
+                  <div className="text-sm font-medium">{profile.title}</div>
+                  <div className="mt-2 space-y-2 text-[12px] text-muted-foreground">
+                    <p><span className="text-foreground font-medium">Escopo:</span> {profile.scope}</p>
+                    <p><span className="text-foreground font-medium">Publish:</span> {profile.publish}</p>
+                    <p><span className="text-foreground font-medium">Portal:</span> {profile.portal}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Privacidade de publish</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Evolução esperada da publicação até virar software governado por papel.
+                </p>
+              </div>
+              <GlobeLock className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {settings.publishStages.map((stage) => (
+                <PublishStageCard key={stage.title} stage={stage} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Gates do portal</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Checklist do que precisa estar pronto antes de abrir o software para leitura externa real.
+              </p>
+            </div>
+            <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {settings.rolloutGates.map((gate) => (
+              <div key={gate} className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
+                {gate}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <MiniCard
             icon={Workflow}
@@ -302,6 +419,31 @@ function MiniCard({
         {title}
       </div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function PublishStageCard({
+  stage,
+}: {
+  stage: { title: string; detail: string; health: "healthy" | "monitor" | "risk" | "critical" };
+}) {
+  const meta = {
+    healthy: "text-[color:var(--color-success)]",
+    monitor: "text-[color:var(--color-info)]",
+    risk: "text-[color:var(--color-warning)]",
+    critical: "text-destructive",
+  } as const;
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-medium">{stage.title}</div>
+        <Badge variant="outline" className={meta[stage.health]}>
+          {stage.health}
+        </Badge>
+      </div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{stage.detail}</p>
     </div>
   );
 }

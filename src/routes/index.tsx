@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import { ActionPacketCard } from "@/components/admin/action-packet-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAdminFilters, formatPeriodLabel } from "@/components/admin/admin-filters";
@@ -137,6 +138,41 @@ function AdminGlobal() {
     filteredDistribution.monitor +
     filteredDistribution.risk +
     filteredDistribution.critical;
+  const actionPackets =
+    activeOperation && activeActionPlan
+      ? [
+          {
+            channel: "discord" as const,
+            title: `${activeOperation.name} · acionamento no Discord`,
+            detail: "Texto pronto para acionar a operação sem reescrever o diagnóstico.",
+            content: activeActionPlan.discordMessage,
+            owner: "Sales Ops + Claw",
+          },
+          {
+            channel: "trello" as const,
+            title: `${activeOperation.name} · abertura de card`,
+            detail: "Título e escopo mínimo para abrir a execução no Trello.",
+            content:
+              `${activeActionPlan.trelloCardTitle}\n\n` +
+              `Contexto: ${activeActionPlan.headline}\n` +
+              `Causas:\n- ${activeActionPlan.causes.join("\n- ")}\n` +
+              `Próximos passos:\n- ${activeActionPlan.actions.join("\n- ")}`,
+            owner: "Ricardo / Claw",
+          },
+          {
+            channel: "admin" as const,
+            title: `${activeOperation.name} · registro executivo`,
+            detail: "Resumo pronto para registrar estado, dono e critério de saída no admin.",
+            content:
+              `Operação: ${activeOperation.name}\n` +
+              `Status: ${statusMeta[activeOperation.health].label}\n` +
+              `Foco: ${activeOperation.focus}\n` +
+              `Dono sugerido: ${activeOperation.owner}\n` +
+              `Próximo passo: ${activeActionPlan.actions[0]}`,
+            owner: "Claw/main",
+          },
+        ]
+      : [];
 
   return (
     <>
@@ -237,6 +273,26 @@ function AdminGlobal() {
           <ExecutiveCommandCenter queue={executiveQueue} />
           <ExecutiveFocusBoard areas={executiveFocusAreas} />
         </section>
+
+        {actionPackets.length > 0 ? (
+          <section className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Camada de ação prática</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Pacotes prontos para transformar leitura em ação sem perder contexto na transição.
+                </p>
+              </div>
+              <Target className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 xl:grid-cols-3">
+              {actionPackets.map((packet) => (
+                <ActionPacketCard key={packet.channel} {...packet} />
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {/* Ranking + insights */}
         <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
