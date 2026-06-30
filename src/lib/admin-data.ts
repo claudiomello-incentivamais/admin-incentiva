@@ -774,6 +774,19 @@ const trelloOperationalStateByOperationName: Record<string, TrelloOperationalSta
   ],
 };
 
+const trelloBoardUrlByOperationName: Record<string, string> = {
+  Acelerato: "https://trello.com/b/RqHXfb4u/acelerato",
+  "Café Fazenda Brasil": "https://trello.com/b/ZOtduUne/caf%C3%A9-fazenda-brasil",
+  DocSeg: "https://trello.com/b/q0vWbzYu/docseg",
+  Iamit: "https://trello.com/b/9eLRSxCy/iamit",
+  Incentiva: "https://trello.com/b/1iyCbgVE/incentiva",
+  "Lima Duarte Alimentos": "https://trello.com/b/gqjkIXn2/lima-duarte-alimentos",
+  Nimbus: "https://trello.com/b/ETKCUMNy/nimbus",
+  "Plan Idiomas": "https://trello.com/b/ItDFXdkc/plan-idiomas",
+  "Prime Action": "https://trello.com/b/GYpxDBiD/prime-action",
+  "Trial Ambiental": "https://trello.com/b/0OnYuhul/trial-ambiental",
+};
+
 const trelloCardRuntimeByShortLink: Record<
   string,
   {
@@ -3520,12 +3533,12 @@ export function buildPortalLiveSourceCards(
       openTrelloSegments.length > 0
         ? "Ligar agora o board real à camada central para puxar owner, etapa e follow-up sem snapshot intermediário."
         : "Conectar etapa e owner do board antes de usar o portal como cockpit único de execução.",
-    actionLabel: primaryTrelloState?.cardUrl ? "Abrir card da execução" : undefined,
-    actionHref: primaryTrelloState?.cardUrl || undefined,
+    actionLabel: trelloBoardUrlByOperationName[operation.name] ? "Abrir quadro da operação" : undefined,
+    actionHref: trelloBoardUrlByOperationName[operation.name] || undefined,
     actionExternal: true,
-    availabilityLabel: primaryTrelloState?.cardUrl
-      ? "Abertura externa pronta enquanto o embed interno não é homologado."
-      : "Esta conta ainda não tem card materializado para abertura direta.",
+    availabilityLabel: trelloBoardUrlByOperationName[operation.name]
+      ? "Abertura direta do quadro já pronta; a profundidade do board dentro do painel continua evoluindo."
+      : "O quadro desta operação ainda não está mapeado para abertura direta no portal.",
   };
 
   return [notionCard, trelloCard];
@@ -3736,6 +3749,7 @@ export function buildOperationTrelloView(
 ): OperationTrelloView {
   const trelloStates = trelloOperationalStateByOperationName[operation.name] ?? [];
   const cadenceState = cadenceOperationalStateByOperationName[operation.name];
+  const boardUrl = trelloBoardUrlByOperationName[operation.name];
 
   const openCards: OperationTrelloViewCard[] = trelloStates
     .filter((state) => state.status === "open")
@@ -3755,7 +3769,7 @@ export function buildOperationTrelloView(
         segmentLabel: state.segment,
         followUp: runtime?.followUpText ?? "Sem follow-up recente gravado no card.",
         sourceLabel: hasCard ? "Trello real" : "Governança sem card",
-        actionLabel: hasCard ? "Abrir card" : undefined,
+        actionLabel: hasCard ? "Abrir card específico" : undefined,
         actionHref: hasCard ? state.cardUrl : undefined,
       };
     });
@@ -3792,22 +3806,32 @@ export function buildOperationTrelloView(
     openCards.find((card) => card.sourceLabel === "Trello real")?.title.split(" · ")[0] ??
     operation.name;
 
-  const actions: OperationTrelloViewAction[] = [];
+  const actions: OperationTrelloViewAction[] = boardUrl
+    ? [
+        {
+          id: "open-board",
+          label: "Abrir quadro da operação",
+          href: boardUrl,
+        },
+      ]
+    : [];
+
   for (const card of openCards) {
     if (card.actionHref) {
       actions.push({
         id: `${card.id}-open`,
-        label: `${card.segmentLabel} · abrir card`,
+        label: `${card.segmentLabel} · abrir card específico`,
         href: card.actionHref,
       });
     }
   }
-  if (!actions.length) {
+
+  if (!boardUrl) {
     actions.push({
       id: "board-pending",
-      label: "Abertura direta do quadro",
+      label: "Quadro da operação",
       availabilityLabel:
-        "Esta operação ainda não tem board completo homologado para navegação direta dentro do painel.",
+        "Esta operação ainda não tem board mapeado para abertura direta; o próximo passo é homologar esse link no painel.",
     });
   }
 
@@ -3832,7 +3856,9 @@ export function buildOperationTrelloView(
         ).toLocaleDateString("pt-BR")}`
       : "Sem leitura recente do board",
     availabilityLabel:
-      "Onde já existe card real, ele é clicável. Onde ainda não existe, a tela assume a fila sugerida e deixa explícito o gap de board.",
+      boardUrl
+        ? "Abertura principal já leva para o quadro da operação. Cards específicos continuam como atalho secundário."
+        : "O quadro ainda não está mapeado nesta operação; por enquanto, a tela só mostra o estado e os cards específicos quando existirem.",
     metrics: [
       {
         id: "cards-open",
@@ -3856,13 +3882,14 @@ export function buildOperationTrelloView(
         tone: "info",
       },
       {
-        id: "cadence-watch",
-        label: "Pressão de cadência",
-        value: cadenceState ? formatNumber(cadenceState.count) : "0",
-        detail: cadenceState
-          ? "Fila de cobertura operacional ainda sob monitoramento."
-          : "Sem pressão adicional de cadência mapeada nesta operação.",
-        tone: cadenceState?.status === "open" ? "risk" : "healthy",
+        id: "segments-monitored",
+        label: "Frentes monitoradas",
+        value: formatNumber(monitorCards.length),
+        detail:
+          monitorCards.length > 0
+            ? "Segmentos já observados no board, mas sem card aberto no recorte atual."
+            : "Nenhuma frente ficou só em monitoramento neste recorte.",
+        tone: monitorCards.length > 0 ? "monitor" : "healthy",
       },
     ],
     columns: [
