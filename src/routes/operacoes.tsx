@@ -28,6 +28,7 @@ import {
   statusMeta,
   type IncentivaCockpitAlert,
   type IncentivaCockpitData,
+  type IncentivaProspectingLane,
   type IncentivaWhatsappHealthTrack,
   type IncentivaWorkflowFamily,
   type IncentivaWorkflowInsight,
@@ -260,6 +261,61 @@ function Page() {
           </div>
         </section>
 
+        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">ICP / Lista / Não Iniciados</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Cobertura de base nova e alavancas imediatas para sustentar a cadência
+                </p>
+              </div>
+              <Target className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cockpit.prospectingReadiness.metrics.map((metric) => (
+                <ExecKpi
+                  key={metric.id}
+                  label={metric.label}
+                  value={metric.value}
+                  sub={metric.detail}
+                  icon={
+                    metric.id === "icp-coverage"
+                      ? ListTodo
+                      : metric.id === "coverage-window"
+                        ? Gauge
+                        : metric.id === "reactivation-volume"
+                          ? RefreshCcw
+                          : ArrowUpRight
+                  }
+                  tone={metric.tone ?? "monitor"}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Alavancas imediatas</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Onde atacar primeiro para tirar a pressão da operação
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                Próxima camada <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.prospectingReadiness.lanes.map((lane) => (
+                <ProspectingLaneCard key={lane.id} lane={lane} />
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="grid grid-cols-1 xl:grid-cols-[1.05fr_0.95fr] gap-4">
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
@@ -440,7 +496,7 @@ function Page() {
           <div className="surface-card overflow-hidden">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
-                <h2 className="text-sm font-semibold text-display">Workflow Intelligence</h2>
+                <h2 className="text-sm font-semibold text-display">Famílias / Top Workflows</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Famílias ativas e fluxos com maior sinal operacional
                 </p>
@@ -743,6 +799,30 @@ function WorkflowInsightCard({ insight }: { insight: IncentivaWorkflowInsight })
           </p>
           <div className="mt-2 rounded-lg border border-border/80 bg-muted/20 px-3 py-2 text-[11px] leading-relaxed text-foreground">
             <span className="font-medium">Recomendação:</span> {insight.recommendation}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProspectingLaneCard({ lane }: { lane: IncentivaProspectingLane }) {
+  const meta = statusMeta[lane.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-medium">{lane.label}</span>
+            <Badge variant="outline" className={cn("text-[10px] h-5", meta.color)}>
+              {meta.label}
+            </Badge>
+          </div>
+          <p className="text-[12px] text-foreground">{lane.headline}</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{lane.detail}</p>
+          <div className="text-[11px] text-primary leading-relaxed">
+            {lane.recommendation}
           </div>
         </div>
       </div>

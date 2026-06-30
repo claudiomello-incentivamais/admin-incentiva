@@ -137,6 +137,23 @@ export interface IncentivaWorkflowInsight {
   recommendation: string;
 }
 
+export interface IncentivaProspectingMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IncentivaProspectingLane {
+  id: string;
+  label: string;
+  health: OperationStatus;
+  headline: string;
+  detail: string;
+  recommendation: string;
+}
+
 export interface IncentivaCockpitAlert {
   id: string;
   severity: "critical" | "risk" | "monitor" | "info";
@@ -151,6 +168,10 @@ export interface IncentivaCockpitData {
   summary: IncentivaCockpitSummary;
   funnel: IncentivaFunnelStage[];
   baseMetrics: IncentivaBaseMetric[];
+  prospectingReadiness: {
+    metrics: IncentivaProspectingMetric[];
+    lanes: IncentivaProspectingLane[];
+  };
   whatsappHealth: {
     metrics: IncentivaWhatsappHealthMetric[];
     tracks: IncentivaWhatsappHealthTrack[];
@@ -430,6 +451,72 @@ const incentivaCockpit: IncentivaCockpitData = {
       detail: "Fila de retomada pequena, mas acionável em paralelo.",
     },
   ],
+  prospectingReadiness: {
+    metrics: [
+      {
+        id: "icp-coverage",
+        label: "Cobertura vs meta diária",
+        value: "6 / 25",
+        tone: "critical",
+        detail: "A base nova cobre só uma fração da meta diária atual de ativações.",
+      },
+      {
+        id: "coverage-window",
+        label: "Janela de sustentação",
+        value: "0 d",
+        tone: "critical",
+        detail: "O funil novo não sustenta sequer um dia cheio de cadência com folga.",
+      },
+      {
+        id: "reactivation-volume",
+        label: "Pulmão de base",
+        value: "812",
+        tone: "warning",
+        detail: "O maior volume reaproveitável hoje está na camada de reativação.",
+      },
+      {
+        id: "recovery-lanes",
+        label: "Faixas acionáveis",
+        value: "16",
+        tone: "monitor",
+        detail: "Reprospecção e retomada somadas ainda são pequenas, mas já operáveis.",
+      },
+    ],
+    lanes: [
+      {
+        id: "new-list",
+        label: "Lista nova / ICP",
+        health: "critical",
+        headline: "Reposição de lista continua sendo o gargalo nº1 da Incentiva.",
+        detail: "Com apenas 6 não iniciados canônicos, o problema central já não é execução e sim abastecimento qualificado da cadência.",
+        recommendation: "Priorizar reposição de lista e cobertura de ICP antes de buscar ganho marginal em copy ou workflow.",
+      },
+      {
+        id: "reactivation",
+        label: "Reativação",
+        health: "monitor",
+        headline: "Reativação é a maior alavanca de amortecimento de curto prazo.",
+        detail: "O pool atual já é grande o suficiente para segurar parte da pressão enquanto a lista nova é refeita.",
+        recommendation: "Usar reativação como colchão tático, sem confundir isso com solução estrutural de base.",
+      },
+      {
+        id: "reprospeccao",
+        label: "Reprospecção",
+        health: "monitor",
+        headline: "Reprospecção existe, mas ainda não muda o jogo sozinha.",
+        detail: "O volume elegível imediato é baixo e serve mais como complemento do que como motor principal da operação.",
+        recommendation: "Acionar essa fila em paralelo, mas não contar com ela como cobertura central do mês.",
+      },
+      {
+        id: "retomada",
+        label: "Retomada",
+        health: "healthy",
+        headline: "Retomada já é uma faixa pequena e executável sem grande fricção.",
+        detail: "A fila é curta, porém com boa chance de virar tração rápida em cima de conversa já iniciada.",
+        recommendation: "Manter retomada rodando como camada tática enquanto a lista nova e a reativação ganham escala.",
+      },
+    ],
+  },
   whatsappHealth: {
     metrics: [
       {
@@ -931,6 +1018,94 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
         detail: "Leads prontos para retomada de conversa.",
       },
     ],
+    prospectingReadiness: {
+      metrics: base.prospectingReadiness.metrics.map((metric) => {
+        if (metric.id === "icp-coverage") {
+          return {
+            ...metric,
+            value: `${canonicalUnstarted} / ${dailyActivationTarget}`,
+            tone:
+              canonicalUnstarted < dailyActivationTarget
+                ? "critical"
+                : canonicalUnstarted < dailyActivationTarget * 2
+                  ? "risk"
+                  : "success",
+            detail: "Leitura viva da cobertura de não iniciados frente à meta diária atual.",
+          };
+        }
+
+        if (metric.id === "coverage-window") {
+          return {
+            ...metric,
+            value: `${coverageDays} d`,
+            tone:
+              coverageDays < 1 ? "critical" : coverageDays < 3 ? "risk" : "success",
+            detail: "Janela real de sustentação operacional da base nova.",
+          };
+        }
+
+        if (metric.id === "reactivation-volume") {
+          return {
+            ...metric,
+            value: String(reactivationCount),
+            tone: reactivationCount > 200 ? "warning" : "info",
+            detail: "Volume vivo hoje classificado para reativação no Supabase.",
+          };
+        }
+
+        if (metric.id === "recovery-lanes") {
+          const recoveryTotal = reprospeccaoEligible + retomadaEligible;
+
+          return {
+            ...metric,
+            value: String(recoveryTotal),
+            tone: recoveryTotal < 20 ? "monitor" : "info",
+            detail: "Soma viva de reprospecção e retomada já acionáveis na operação.",
+          };
+        }
+
+        return metric;
+      }),
+      lanes: base.prospectingReadiness.lanes.map((lane) => {
+        if (lane.id === "new-list") {
+          return {
+            ...lane,
+            health:
+              canonicalUnstarted < dailyActivationTarget ? "critical" : "monitor",
+            detail:
+              canonicalUnstarted < dailyActivationTarget
+                ? `A leitura viva confirma a pressão de lista: ${canonicalUnstarted} não iniciados para uma meta diária de ${dailyActivationTarget}.`
+                : `A cobertura viva já saiu da zona crítica e sustenta melhor a meta diária de ${dailyActivationTarget} ativações.`,
+          };
+        }
+
+        if (lane.id === "reactivation") {
+          return {
+            ...lane,
+            health: reactivationCount > 200 ? "monitor" : "healthy",
+            detail: `A leitura viva mostra ${reactivationCount} leads hoje classificados para reativação dentro da operação.`,
+          };
+        }
+
+        if (lane.id === "reprospeccao") {
+          return {
+            ...lane,
+            health: reprospeccaoEligible < 10 ? "monitor" : "healthy",
+            detail: `Há ${reprospeccaoEligible} leads em reprospecção elegível na leitura viva atual.`,
+          };
+        }
+
+        if (lane.id === "retomada") {
+          return {
+            ...lane,
+            health: retomadaEligible < 10 ? "monitor" : "healthy",
+            detail: `A fila viva de retomada traz ${retomadaEligible} leads hoje prontos para nova conversa.`,
+          };
+        }
+
+        return lane;
+      }),
+    },
     alerts: [
       {
         id: "base-risk",
