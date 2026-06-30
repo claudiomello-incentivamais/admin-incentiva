@@ -29,3 +29,34 @@ Transformar a última milha da publicação final em um checklist mínimo, com:
 - Dono: `Sales Ops + Claw`
 - Evidência: leitura real sustentada sem depender de interpretação manual do cockpit
 - Saída: software publicado de fato, não só homologado internamente
+
+## Roteiro direto de execução
+
+1. Disponibilizar a credencial no runtime
+
+```bash
+export CLOUDFLARE_API_TOKEN='<token>'
+```
+
+2. Rodar o deploy final
+
+```bash
+cd /root/.openclaw/workspace/admin-incentiva
+npx nitro deploy --prebuilt
+```
+
+3. Validar a URL publicada
+
+```bash
+curl -L -s https://incentivamais-admin.lovable.app/configuracoes | rg "Paridade da publicação final|90%"
+curl -L -s https://incentivamais-admin.lovable.app/portal | rg "Prontidão do corte externo|Blockers do fechamento externo"
+```
+
+## Critério objetivo de fechamento
+
+Considerar produção final fechada apenas quando:
+
+- o deploy terminar sem erro de autenticação
+- a URL pública refletir os marcadores novos do produto
+- não houver drift visível entre repositório e publicação
+- a homologação externa inicial tiver sido concluída

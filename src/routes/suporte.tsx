@@ -136,6 +136,16 @@ const support = {
   ],
   runbooks: [
     {
+      title: "Cutover final em 5 minutos",
+      steps: [
+        "Garantir `CLOUDFLARE_API_TOKEN` ativo no runtime que fará o deploy.",
+        "Rodar `npx nitro deploy --prebuilt` a partir do repositório já buildado.",
+        "Abrir `/configuracoes` e `/portal` na URL pública e validar os marcadores novos de paridade e corte externo.",
+        "Se a URL ainda servir assets antigos, tratar como drift de publicação e não como falha de produto.",
+        "Só declarar produção final fechada depois da validação visual e da homologação diária inicial.",
+      ],
+    },
+    {
       title: "Publish travado",
       steps: [
         "Validar se o build local passou no repositório.",
