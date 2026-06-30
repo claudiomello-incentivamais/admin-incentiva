@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import {
   Activity,
   AlertOctagon,
@@ -97,6 +97,12 @@ function Page() {
     ? buildOperationNotionView(effectiveOperation, cockpit, cockpit.source)
     : null;
   const trelloView = effectiveOperation ? buildOperationTrelloView(effectiveOperation, cockpit) : null;
+  const [selectedNotionStageId, setSelectedNotionStageId] = useState<string | null>(null);
+  const selectedNotionStage = notionView
+    ? notionView.stageDrilldown.find((stage) => stage.id === selectedNotionStageId) ??
+      notionView.stageDrilldown[0] ??
+      null
+    : null;
 
   return (
     <>
@@ -426,7 +432,17 @@ function Page() {
                         <TabsContent value="etapas">
                           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                             {notionView.stageHighlights.map((stage) => (
-                              <div key={stage.id} className="rounded-xl border border-border bg-card px-3 py-3">
+                              <button
+                                key={stage.id}
+                                type="button"
+                                onClick={() => setSelectedNotionStageId(stage.id)}
+                                className={cn(
+                                  "rounded-xl border bg-card px-3 py-3 text-left transition-colors",
+                                  selectedNotionStage?.id === stage.id
+                                    ? "border-primary/40 bg-primary/5"
+                                    : "border-border hover:border-primary/25 hover:bg-surface",
+                                )}
+                              >
                                 <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                                   {stage.label}
                                 </div>
@@ -436,9 +452,52 @@ function Page() {
                                 <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
                                   {stage.touchedLabel}
                                 </div>
-                              </div>
+                              </button>
                             ))}
                           </div>
+
+                          {selectedNotionStage ? (
+                            <div className="mt-4 rounded-2xl border border-border bg-card p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Etapa em foco
+                                  </div>
+                                  <div className="mt-1 text-sm font-medium text-foreground">
+                                    {selectedNotionStage.label}
+                                  </div>
+                                </div>
+                                <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+                                  {selectedNotionStage.priorityLabel}
+                                </Badge>
+                              </div>
+
+                              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                                <MiniStateCard label="Volume" value={formatNumber(selectedNotionStage.count)} />
+                                <MiniStateCard label="Owner" value={selectedNotionStage.owner} />
+                                <MiniStateCard label="Movimento" value={selectedNotionStage.touchedLabel} />
+                              </div>
+
+                              <div className="mt-4 grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+                                <div className="rounded-xl border border-border bg-surface px-3 py-3">
+                                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Leitura operacional
+                                  </div>
+                                  <p className="mt-2 text-[12px] leading-relaxed text-foreground">
+                                    {selectedNotionStage.detail}
+                                  </p>
+                                </div>
+                                <div className="rounded-xl border border-border bg-surface px-3 py-3">
+                                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Próximo passo sugerido
+                                  </div>
+                                  <p className="mt-2 text-[12px] leading-relaxed text-foreground">
+                                    {selectedNotionStage.nextStep}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                         </TabsContent>
 
                         <TabsContent value="reconciliacao" className="space-y-4">
@@ -475,7 +534,19 @@ function Page() {
                       </p>
 
                       <div className="mt-4 grid gap-3">
-                        {notionView.focusCards.map((card) => (
+                        {(selectedNotionStage
+                          ? [
+                              {
+                                id: `stage-${selectedNotionStage.id}`,
+                                label: "Etapa em foco agora",
+                                value: selectedNotionStage.label,
+                                detail: selectedNotionStage.nextStep,
+                                tone: selectedNotionStage.tone,
+                              },
+                              ...notionView.focusCards.slice(0, 2),
+                            ]
+                          : notionView.focusCards
+                        ).map((card) => (
                           <NotionFocusCard key={card.id} card={card} />
                         ))}
                       </div>

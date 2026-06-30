@@ -380,6 +380,18 @@ export interface OperationNotionViewStage {
   touchedLabel: string;
 }
 
+export interface OperationNotionViewStageDrilldown {
+  id: string;
+  label: string;
+  count: number;
+  touchedLabel: string;
+  owner: string;
+  priorityLabel: string;
+  nextStep: string;
+  detail: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+}
+
 export interface OperationNotionViewAction {
   id: string;
   title: string;
@@ -415,6 +427,7 @@ export interface OperationNotionView {
   nextStep: string;
   metrics: OperationNotionViewMetric[];
   stageHighlights: OperationNotionViewStage[];
+  stageDrilldown: OperationNotionViewStageDrilldown[];
   actions: OperationNotionViewAction[];
   focusCards: OperationNotionViewFocusCard[];
   glossary: OperationNotionViewGlossaryItem[];
@@ -3630,6 +3643,86 @@ export function buildOperationNotionView(
           : "Sem toque consolidado neste recorte",
     }));
 
+  const stageDrilldown: OperationNotionViewStageDrilldown[] = stageHighlights.map((stage) => {
+    if (stage.id === "prospecting") {
+      return {
+        id: stage.id,
+        label: stage.label,
+        count: stage.count,
+        touchedLabel: stage.touchedLabel,
+        owner: "Bruna + Sales Ops",
+        priorityLabel: stage.count > 0 ? "Abastecer e qualificar topo" : "Repor topo do funil",
+        nextStep:
+          stage.count > 0
+            ? "Refinar ICP, manter cobertura e garantir que a cadência continue recebendo base limpa."
+            : "Repor base não iniciada e validar se a cadência continua recebendo lista suficiente.",
+        detail:
+          stage.count > 0
+            ? `Existem ${formatNumber(stage.count)} registros no topo do funil; o foco aqui é qualidade de entrada, cobertura e ritmo de alimentação.`
+            : "O topo do funil está raso neste recorte e pode pressionar a cadência em seguida.",
+        tone: stage.count > 0 ? "monitor" : "risk",
+      };
+    }
+
+    if (stage.id === "lead-interessado") {
+      return {
+        id: stage.id,
+        label: stage.label,
+        count: stage.count,
+        touchedLabel: stage.touchedLabel,
+        owner: "Sales Ops",
+        priorityLabel: "Converter interesse em avanço real",
+        nextStep:
+          stage.count > 0
+            ? "Revisar follow-up, resposta e próximo marco para não deixar lead interessado esfriar no pipeline."
+            : "Monitorar esta etapa para garantir que o interesse novo não fique invisível na transição.",
+        detail:
+          stage.count > 0
+            ? `${formatNumber(stage.count)} leads já demonstraram interesse e pedem clareza de handoff e ritmo comercial.`
+            : "Sem volume material nesta etapa agora; o foco é manter a passagem visível quando ela acontecer.",
+        tone: stage.count > 0 ? "monitor" : "info",
+      };
+    }
+
+    if (stage.id === "mql-agendado") {
+      return {
+        id: stage.id,
+        label: stage.label,
+        count: stage.count,
+        touchedLabel: stage.touchedLabel,
+        owner: "Sales Ops",
+        priorityLabel: "Confirmar agenda e proteger avanço",
+        nextStep:
+          stage.count > 0
+            ? "Garantir confirmação, comparecimento e passagem limpa para a etapa seguinte."
+            : "Se esta etapa estiver vazia por muito tempo, revisar se o estágio anterior está travando o avanço.",
+        detail:
+          stage.count > 0
+            ? `${formatNumber(stage.count)} leads já estão mais próximos de reunião ou compromisso comercial; o risco aqui é perder avanço por fricção de processo.`
+            : "A etapa está vazia neste recorte e vale observar se o funil está conseguindo chegar até aqui.",
+        tone: stage.count > 0 ? "healthy" : "monitor",
+      };
+    }
+
+    return {
+      id: stage.id,
+      label: stage.label,
+      count: stage.count,
+      touchedLabel: stage.touchedLabel,
+      owner: "Sales Ops",
+      priorityLabel: stage.count > 0 ? "Proteger ganho e aprender com o fechamento" : "Manter ritmo de conversão",
+      nextStep:
+        stage.count > 0
+          ? "Usar os fechamentos para reforçar leitura de qualidade, mensagem e feedback loop da operação."
+          : "Se não houver ganho no período, revisar gargalo entre interesse, agenda e fechamento.",
+      detail:
+        stage.count > 0
+          ? `${formatNumber(stage.count)} registros já aparecem como ganho no recorte; isso ajuda a validar qualidade do pipeline e da passagem comercial.`
+          : "Sem ganho consolidado neste recorte; o painel deve ajudar a localizar onde a passagem está quebrando antes do fechamento.",
+      tone: stage.count > 0 ? "healthy" : "monitor",
+    };
+  });
+
   const metrics: OperationNotionViewMetric[] = notionLive
     ? [
         {
@@ -3901,6 +3994,7 @@ export function buildOperationNotionView(
       : "Homologar telemetria viva desta conta e depois replicar o mesmo padrão nas demais operações.",
     metrics,
     stageHighlights,
+    stageDrilldown,
     actions,
     focusCards,
     glossary,

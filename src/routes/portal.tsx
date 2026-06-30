@@ -617,6 +617,25 @@ function PortalPage() {
                   />
                 ))}
               </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+                <PortalNarrativeCard
+                  label="Etapa em foco"
+                  title={notionView.stageDrilldown[0]?.label ?? "Etapa não mapeada"}
+                  detail={
+                    notionView.stageDrilldown[0]?.detail ??
+                    "A leitura detalhada por etapa ainda não foi homologada neste recorte."
+                  }
+                />
+                <PortalNarrativeCard
+                  label="Próximo passo desta etapa"
+                  title={notionView.stageDrilldown[0]?.priorityLabel ?? "Próximo passo pendente"}
+                  detail={
+                    notionView.stageDrilldown[0]?.nextStep ??
+                    "Fechar telemetria viva antes de aprofundar a navegação nativa do pipeline."
+                  }
+                />
+              </div>
             </div>
 
             <div className="rounded-2xl border border-border bg-surface p-4">
@@ -628,15 +647,29 @@ function PortalPage() {
                 {notionView.availabilityLabel}
               </p>
 
-              <div className="mt-4 space-y-3">
-                {notionView.actions.slice(0, 3).map((action) => (
-                  <div key={action.id} className="rounded-xl border border-border bg-card p-4">
-                    <div className="text-sm font-medium text-foreground">{action.title}</div>
-                    <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                      {action.detail}
-                    </p>
-                  </div>
+              <div className="mt-4 grid gap-3">
+                {notionView.focusCards.slice(0, 3).map((card) => (
+                  <PortalNarrativeCard
+                    key={card.id}
+                    label={card.label}
+                    title={card.value}
+                    detail={card.detail}
+                  />
                 ))}
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                {notionView.actions
+                  .filter((action) => action.id === "open-notion")
+                  .map((action) => (
+                    <LiveActionCard
+                      key={action.id}
+                      title={action.title}
+                      detail={action.detail}
+                      href={action.href}
+                      external={action.external}
+                    />
+                  ))}
               </div>
             </div>
           </div>
@@ -696,6 +729,55 @@ function PortalMiniMetric({
       <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-medium text-foreground">{value}</div>
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function PortalNarrativeCard({
+  label,
+  title,
+  detail,
+}: {
+  label: string;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{title}</div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function LiveActionCard({
+  title,
+  detail,
+  href,
+  external,
+}: {
+  title: string;
+  detail: string;
+  href?: string;
+  external?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="text-sm font-medium text-foreground">{title}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+      {href ? (
+        <Button variant="outline" size="sm" className="mt-3 h-8 w-full gap-2" asChild>
+          <a
+            href={href}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noreferrer" : undefined}
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+            Abrir Notion da operação
+          </a>
+        </Button>
+      ) : null}
     </div>
   );
 }
