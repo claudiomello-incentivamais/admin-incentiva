@@ -43,6 +43,21 @@ export const Route = createFileRoute("/suporte")({
   component: SupportPage,
 });
 
+type SupportSeverity = OperationStatus | "info";
+
+function getSeverityMeta(severity: SupportSeverity) {
+  if (severity === "info") {
+    return {
+      label: "Info",
+      color: "text-[color:var(--color-info)]",
+      bg: "bg-[color:var(--color-info)]",
+      ring: "ring-[color:var(--color-info)]/30",
+    };
+  }
+
+  return statusMeta[severity];
+}
+
 const support = {
   snapshotLabel: "30 jun 2026 · 11:33 BRT",
   lanes: [
@@ -1101,7 +1116,7 @@ function CockpitAlertCard({
 }: {
   alert: IncentivaCockpitData["alerts"][number];
 }) {
-  const meta = statusMeta[alert.severity];
+  const meta = getSeverityMeta(alert.severity);
 
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
