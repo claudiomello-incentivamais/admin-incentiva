@@ -21,6 +21,7 @@ import {
 import { Topbar } from "@/components/admin/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   ACCESS_DIRECTORY,
   ACCESS_PROFILE_LABELS,

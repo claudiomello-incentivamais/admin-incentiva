@@ -702,16 +702,20 @@ function MetricCard({
     value: string;
     detail: string;
     tone: "success" | "info" | "monitor" | "risk" | "healthy" | "critical";
-    icon: React.ComponentType<{ className?: string }>;
+    icon?: React.ComponentType<{ className?: string }>;
   };
 }) {
+  const Icon = metric.icon;
+
   return (
     <div className="surface-card p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{metric.label}</div>
-        <div className={cn("rounded-lg p-2", toneIconClass[metric.tone])}>
-          <metric.icon className="h-3.5 w-3.5" />
-        </div>
+        {Icon ? (
+          <div className={cn("rounded-lg p-2", toneIconClass[metric.tone])}>
+            <Icon className="h-3.5 w-3.5" />
+          </div>
+        ) : null}
       </div>
       <div className="mt-4 text-[24px] leading-none font-semibold tracking-tight text-display">{metric.value}</div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{metric.detail}</p>
