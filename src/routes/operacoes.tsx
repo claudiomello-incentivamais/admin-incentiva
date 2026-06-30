@@ -46,6 +46,7 @@ import {
   type IncentivaWorkflowFamily,
   type IncentivaWorkflowInsight,
 } from "@/lib/admin-data";
+import { applyPeriodToCockpit } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/operacoes")({
@@ -75,20 +76,21 @@ function Page() {
   } = useAdminFilters();
   const fallbackOperation = fetchOperations()[0] ?? null;
   const effectiveOperation = selectedOperationRecord ?? fallbackOperation;
-  const cockpit =
+  const baseCockpit =
     effectiveOperation?.id === "incentiva"
       ? incentivaCockpit
       : effectiveOperation
         ? buildOperationCockpitFromOperation(effectiveOperation)
         : incentivaCockpit;
+  const cockpit = applyPeriodToCockpit(baseCockpit, selectedPeriod);
   const healthMeta = statusMeta[cockpit.summary.health];
   const isSpecificOperationSelected = selectedOperationId !== "all" && selectedOperationRecord;
   const headerTitle = isSpecificOperationSelected
     ? `Cockpit ${cockpit.operationName}`
     : "Cockpit Operacional";
   const headerDescription = isSpecificOperationSelected
-    ? `Leitura executiva de ${cockpit.operationName} unindo base, funil, gargalos e telemetria de automação.`
-    : `Nenhuma operação específica foi filtrada; mostrando a operação mais pressionada da carteira (${cockpit.operationName}).`;
+    ? `Leitura executiva de ${cockpit.operationName} unindo base, funil, gargalos e telemetria de automação no período selecionado.`
+    : `Nenhuma operação específica foi filtrada; mostrando a operação mais pressionada da carteira (${cockpit.operationName}) no período selecionado.`;
   const sourceCards = effectiveOperation
     ? buildPortalLiveSourceCards(effectiveOperation, cockpit.source)
     : [];
@@ -186,7 +188,8 @@ function Page() {
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
               {cockpit.source === "live"
                 ? "Score, cobertura, reconciliação e parte da leitura comercial já vieram do retrato atual da governança."
-                : "O cockpit continua navegável, mas este recorte ainda depende de snapshot para preservar consistência onde a telemetria viva não está completa."}
+                : "O cockpit continua navegável, mas este recorte ainda depende de snapshot para preservar consistência onde a telemetria viva não está completa."}{" "}
+              O filtro de período já governa esta leitura.
             </p>
           </div>
         </section>
@@ -226,7 +229,7 @@ function Page() {
             sub={`n8n VPS · ${cockpit.operationName}`}
           />
           <ExecKpi
-            label="Execuções 7d"
+            label={selectedPeriod === "mtd" ? "Execuções do mês" : "Execuções do recorte"}
             value={formatNumber(cockpit.summary.success7d)}
             icon={Activity}
             tone="success"
@@ -237,9 +240,9 @@ function Page() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Drill-down de reconciliação e execução</h2>
+              <h2 className="text-sm font-semibold text-display">Pontos de gestão conectados</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                A mesma operação agora mostra quem segura a leitura comercial e qual checkpoint já caiu na camada de execução.
+                Onde abrir pipeline comercial ou execução sem sair procurando contexto em outra tela.
               </p>
             </div>
             <Activity className="h-3.5 w-3.5 text-primary" />
@@ -252,75 +255,32 @@ function Page() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-4">
-          <div className="surface-card p-5">
+        <section className="surface-card p-5">
+          <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <h2 className="text-sm font-semibold text-display">Como navegar no console</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                O menu da esquerda foi separado por camada de leitura, não por ordem de prioridade.
+              <h2 className="text-sm font-semibold text-display">Recorte ativo desta operação</h2>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                Esta tela agora prioriza a operação filtrada e o período selecionado. A proposta é
+                tirar o excesso de contexto transversal e deixar só o que ajuda a operar a conta.
               </p>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <SummaryPanel
-                title="Visão Geral"
-                icon={BarChart3}
-                points={[
-                  "Admin Global consolida a carteira inteira.",
-                  "Operações aprofunda uma conta específica.",
-                  "Performance e Governança entram como camadas transversais.",
-                ]}
-              />
-              <SummaryPanel
-                title="Operacional"
-                icon={Workflow}
-                points={[
-                  "Pipelines vai descer para workflow e canal.",
-                  "Clientes vai organizar leitura por conta e carteira.",
-                  "Faturamento vai conectar operação com receita.",
-                ]}
-              />
-              <SummaryPanel
-                title="Sistema"
-                icon={ShieldAlert}
-                points={[
-                  "Configurações concentra fontes, filtros e parâmetros.",
-                  "Suporte fica como camada de incidente e runbook.",
-                  "Nem tudo está pronto; o importante é a arquitetura já estar clara.",
-                ]}
-              />
-            </div>
-          </div>
-
-          <div className="surface-card p-5">
-            <div>
-              <h2 className="text-sm font-semibold text-display">Como ler esta tela</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                A lógica do cockpit vai do diagnóstico para a ação.
-              </p>
-            </div>
-            <div className="mt-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-border bg-surface px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  1. Estado atual
+                  Recorte aplicado
                 </div>
                 <div className="mt-1 text-sm">
-                  Resumo executivo, alertas, funil e leitura da base.
+                  {isSpecificOperationSelected
+                    ? `${cockpit.operationName} · ${formatPeriodLabel(selectedPeriod)}`
+                    : `Operação prioritária · ${formatPeriodLabel(selectedPeriod)}`}
                 </div>
               </div>
               <div className="rounded-xl border border-border bg-surface px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  2. Gargalos prioritários
+                  Camadas úteis agora
                 </div>
                 <div className="mt-1 text-sm">
-                  ICP, e-mail e WhatsApp mostram onde a operação trava primeiro.
-                </div>
-              </div>
-              <div className="rounded-xl border border-border bg-surface px-4 py-3">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  3. Próximas ações
-                </div>
-                <div className="mt-1 text-sm">
-                  A V2 transforma leitura em backlog executivo e fila de intervenção.
+                  Resumo executivo, funil, backlog e pontos de gestão conectados.
                 </div>
               </div>
             </div>
@@ -372,7 +332,7 @@ function Page() {
                 icon={Bot}
                 points={[
                   `${cockpit.summary.activeWorkflows} workflows ativos de ${cockpit.summary.totalWorkflows} totais.`,
-                  `${formatNumber(cockpit.summary.success7d)} execuções com apenas ${cockpit.summary.error7d} erros em 7 dias.`,
+                  `${formatNumber(cockpit.summary.success7d)} execuções com apenas ${cockpit.summary.error7d} erros no recorte atual.`,
                   "A operação já tem densidade suficiente para workflow intelligence por família.",
                 ]}
               />
@@ -397,7 +357,7 @@ function Page() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Funil Comercial Canônico</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Contagem por estágio com toque mensal quando disponível
+                  Contagem por estágio já recortada pelo período ativo
                 </p>
               </div>
               <Badge variant="secondary" className="text-[10px] text-mono h-5">
@@ -881,7 +841,9 @@ function Page() {
             </div>
 
             <div className="border-t border-border px-5 py-4">
-              <h3 className="text-sm font-semibold text-display">Top workflows 7d</h3>
+              <h3 className="text-sm font-semibold text-display">
+                {selectedPeriod === "mtd" ? "Top workflows do mês" : "Top workflows do recorte"}
+              </h3>
               <div className="mt-3 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
@@ -943,6 +905,10 @@ function OperationSourceCard({
     ctaValue: string;
     facts: { label: string; value: string }[];
     nextStep: string;
+    actionLabel?: string;
+    actionHref?: string;
+    actionExternal?: boolean;
+    availabilityLabel?: string;
   };
 }) {
   const meta = statusMeta[card.health];
@@ -987,6 +953,23 @@ function OperationSourceCard({
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.ctaLabel}</div>
           <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
           <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{card.lastSync}</div>
+          {card.availabilityLabel ? (
+            <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+              {card.availabilityLabel}
+            </div>
+          ) : null}
+          {card.actionHref && card.actionLabel ? (
+            <Button variant="outline" size="sm" className="mt-3 h-8 w-full gap-2" asChild>
+              <a
+                href={card.actionHref}
+                target={card.actionExternal ? "_blank" : undefined}
+                rel={card.actionExternal ? "noreferrer" : undefined}
+              >
+                <ArrowUpRight className="h-3.5 w-3.5" />
+                {card.actionLabel}
+              </a>
+            </Button>
+          ) : null}
         </div>
         <div className="rounded-xl border border-border bg-surface px-3 py-3">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Próximo salto</div>

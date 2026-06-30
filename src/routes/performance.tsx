@@ -14,9 +14,14 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import {
+  formatPeriodLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { loadGlobalDashboard, statusMeta, type Operation, type OperationStatus } from "@/lib/admin-data";
+import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/performance")({
@@ -39,16 +44,37 @@ function formatPercent(value: number) {
 function PerformancePage() {
   const dashboard = Route.useLoaderData();
   const { operations, kpis } = dashboard;
+  const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
+  const scopedOperations = operations.map((operation) =>
+    applyPeriodToOperation(operation, selectedPeriod),
+  );
+  const filteredOperations =
+    selectedOperationId === "all"
+      ? scopedOperations
+      : scopedOperations.filter((operation) => operation.id === selectedOperationId);
+  const effectiveKpis = buildScopedKpis(kpis, filteredOperations, scopedOperations, selectedPeriod);
+  const isSingleOperationView = selectedOperationId !== "all";
 
-  const avgScore = operations.reduce((sum, operation) => sum + operation.score, 0) / Math.max(operations.length, 1);
+  const avgScore =
+    filteredOperations.reduce((sum, operation) => sum + operation.score, 0) /
+    Math.max(filteredOperations.length, 1);
   const avgReconciliation =
-    operations.reduce((sum, operation) => sum + operation.dataReconciliation, 0) /
-    Math.max(operations.length, 1);
-  const bestConversion = [...operations].sort((a, b) => b.monthlyConversion - a.monthlyConversion)[0];
-  const lowestCoverage = [...operations].sort((a, b) => a.baseCoverage - b.baseCoverage)[0];
-  const topConversions = [...operations].sort((a, b) => b.monthlyConversion - a.monthlyConversion).slice(0, 4);
-  const pressureByCoverage = [...operations].sort((a, b) => a.baseCoverage - b.baseCoverage).slice(0, 4);
-  const reconciliationWatch = [...operations]
+    filteredOperations.reduce((sum, operation) => sum + operation.dataReconciliation, 0) /
+    Math.max(filteredOperations.length, 1);
+  const fallbackOperation = filteredOperations[0] ?? scopedOperations[0];
+  const bestConversion =
+    [...filteredOperations].sort((a, b) => b.monthlyConversion - a.monthlyConversion)[0] ??
+    fallbackOperation;
+  const lowestCoverage =
+    [...filteredOperations].sort((a, b) => a.baseCoverage - b.baseCoverage)[0] ??
+    fallbackOperation;
+  const topConversions = [...filteredOperations]
+    .sort((a, b) => b.monthlyConversion - a.monthlyConversion)
+    .slice(0, 4);
+  const pressureByCoverage = [...filteredOperations]
+    .sort((a, b) => a.baseCoverage - b.baseCoverage)
+    .slice(0, 4);
+  const reconciliationWatch = [...filteredOperations]
     .sort((a, b) => a.dataReconciliation - b.dataReconciliation)
     .slice(0, 5);
 
@@ -72,14 +98,17 @@ function PerformancePage() {
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {dashboard.source === "live" ? "Supabase live" : "Snapshot fallback"}
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Performance
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Esta frente compara resultado, cobertura e eficiência entre as operações para deixar
-              claro onde há tração real, onde há gargalo de base e onde a leitura comercial ainda
-              depende de saneamento.
+              {isSingleOperationView
+                ? `Recorte exclusivo de ${selectedOperation?.label ?? "uma operação"} para comparar conversão, cobertura e qualidade sem vazamento das demais contas.`
+                : "Esta frente compara resultado, cobertura e eficiência entre as operações para deixar claro onde há tração real, onde há gargalo de base e onde a leitura comercial ainda depende de saneamento."}
             </p>
           </div>
 
@@ -90,13 +119,14 @@ function PerformancePage() {
         </section>
 
         <section className="surface-card p-5">
-          <div>
-            <h2 className="text-sm font-semibold text-display">Como ler esta frente</h2>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              A lógica aqui é comparar eficiência, não só volume. Primeiro a página mostra o nível
-              geral da carteira; depois abre benchmark, pressão de cobertura e qualidade de leitura.
-            </p>
-          </div>
+              <div>
+                <h2 className="text-sm font-semibold text-display">Como ler esta frente</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+              {isSingleOperationView
+                ? "Aqui a leitura deixa de ser benchmark de carteira e vira diagnóstico exclusivo da operação filtrada, já respeitando o período selecionado."
+                : "A lógica aqui é comparar eficiência, não só volume. Primeiro a página mostra o nível geral da carteira; depois abre benchmark, pressão de cobertura e qualidade de leitura."}
+                </p>
+              </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <GuideCard
@@ -116,16 +146,24 @@ function PerformancePage() {
 
         <section className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <PerformanceKpi
-            label="Conversões mensais"
-            value={formatNumber(kpis.monthlyConversions)}
-            detail="Volume consolidado de conversões no retrato atual."
+            label={selectedPeriod === "mtd" ? "Conversões do mês" : "Conversões do recorte"}
+            value={formatNumber(effectiveKpis.monthlyConversions)}
+            detail={
+              isSingleOperationView
+                ? "Volume estimado do recorte da operação filtrada."
+                : "Volume consolidado de conversões no retrato atual."
+            }
             icon={TrendingUp}
             tone="success"
           />
           <PerformanceKpi
             label="Conv. média"
-            value={`${formatPercent(average(operations.map((operation) => operation.monthlyConversion)))}%`}
-            detail="Média de conversão mensal entre as operações monitoradas."
+            value={`${formatPercent(average(filteredOperations.map((operation) => operation.monthlyConversion)))}%`}
+            detail={
+              isSingleOperationView
+                ? "Taxa média da operação no recorte atual."
+                : "Média de conversão mensal entre as operações monitoradas."
+            }
             icon={Target}
             tone="monitor"
           />
@@ -144,16 +182,24 @@ function PerformancePage() {
             tone="monitor"
           />
           <PerformanceKpi
-            label="Melhor conversão"
+            label={isSingleOperationView ? "Operação em foco" : "Melhor conversão"}
             value={`${bestConversion.name} · ${formatPercent(bestConversion.monthlyConversion)}%`}
-            detail="Benchmark operacional da carteira neste snapshot."
+            detail={
+              isSingleOperationView
+                ? "Resumo direto da operação filtrada no período."
+                : "Benchmark operacional da carteira neste snapshot."
+            }
             icon={Crosshair}
             tone="success"
           />
           <PerformanceKpi
-            label="Maior pressão"
+            label={isSingleOperationView ? "Pressão principal" : "Maior pressão"}
             value={`${lowestCoverage.name} · ${formatPercent(lowestCoverage.baseCoverage)}%`}
-            detail="Operação mais pressionada por falta de cobertura útil."
+            detail={
+              isSingleOperationView
+                ? "Gargalo de cobertura da operação filtrada."
+                : "Operação mais pressionada por falta de cobertura útil."
+            }
             icon={ShieldAlert}
             tone="risk"
           />
@@ -165,7 +211,9 @@ function PerformancePage() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Benchmark de conversão</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Operações que hoje puxam o benchmark de resultado na carteira.
+                  {isSingleOperationView
+                    ? "Sinal principal de conversão dentro da operação filtrada."
+                    : "Operações que hoje puxam o benchmark de resultado na carteira."}
                 </p>
               </div>
               <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -189,7 +237,9 @@ function PerformancePage() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Pressão por cobertura</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Operações em que o gargalo de base ameaça distorcer ou travar a performance.
+                  {isSingleOperationView
+                    ? "Onde a própria operação filtrada perde tração por cobertura."
+                    : "Operações em que o gargalo de base ameaça distorcer ou travar a performance."}
                 </p>
               </div>
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
@@ -211,7 +261,9 @@ function PerformancePage() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Watchlist de reconciliação</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Onde a performance ainda precisa ser lida com mais cuidado por conta da qualidade da camada semântica.
+                  {isSingleOperationView
+                    ? "Ponto de atenção da camada semântica na operação filtrada."
+                    : "Onde a performance ainda precisa ser lida com mais cuidado por conta da qualidade da camada semântica."}
                 </p>
               </div>
               <Filter className="h-3.5 w-3.5 text-primary" />
@@ -229,11 +281,13 @@ function PerformancePage() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Comparativo por operação</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Score, cobertura, reconciliação e conversão em uma tabela só.
+                  {isSingleOperationView
+                    ? "Resumo da operação filtrada em uma tabela só."
+                    : "Score, cobertura, reconciliação e conversão em uma tabela só."}
                 </p>
               </div>
               <Badge variant="secondary" className="text-[10px] text-mono h-5">
-                {operations.length} operações
+                {filteredOperations.length} operação{filteredOperations.length === 1 ? "" : "ões"}
               </Badge>
             </div>
 
@@ -250,7 +304,7 @@ function PerformancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[...operations]
+                  {[...filteredOperations]
                     .sort((a, b) => b.monthlyConversion - a.monthlyConversion)
                     .map((operation) => (
                       <PerformanceRow key={operation.id} operation={operation} />

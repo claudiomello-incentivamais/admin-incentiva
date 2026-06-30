@@ -31,7 +31,6 @@ import {
   buildExecutiveCommandQueue,
   buildExecutiveFocusAreas,
   buildOperationActionPlan,
-  buildOperationCockpitFromOperation,
   getScoreDrivers,
   loadGlobalDashboard,
   priorityMeta,
@@ -42,6 +41,7 @@ import {
   type Operation,
   type OperationStatus,
 } from "@/lib/admin-data";
+import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -67,12 +67,17 @@ function AdminGlobal() {
   const { kpis, operations, insights } = dashboard;
   const { selectedOperationId, selectedOperation, selectedPeriod, selectedVisibilityMode } =
     useAdminFilters();
+  const scopedOperations = useMemo(
+    () => operations.map((operation) => applyPeriodToOperation(operation, selectedPeriod)),
+    [operations, selectedPeriod],
+  );
+  const isSingleOperationView = selectedOperationId !== "all";
   const filteredOperations = useMemo(
     () =>
       selectedOperationId === "all"
-        ? operations
-        : operations.filter((operation) => operation.id === selectedOperationId),
-    [operations, selectedOperationId],
+        ? scopedOperations
+        : scopedOperations.filter((operation) => operation.id === selectedOperationId),
+    [scopedOperations, selectedOperationId],
   );
   const filteredDistribution = useMemo(
     () =>
@@ -89,7 +94,7 @@ function AdminGlobal() {
     () =>
       selectedOperationId === "all"
         ? insights
-        : insights.filter((insight) => !insight.operationId || insight.operationId === selectedOperationId),
+        : insights.filter((insight) => insight.operationId === selectedOperationId),
     [insights, selectedOperationId],
   );
   const executiveQueue = useMemo(
@@ -119,24 +124,9 @@ function AdminGlobal() {
     filteredOperations.find((operation) => operation.id === activeOperationId) ?? filteredOperations[0] ?? null;
   const activeDrivers = activeOperation ? getScoreDrivers(activeOperation) : [];
   const activeActionPlan = activeOperation ? buildOperationActionPlan(activeOperation) : null;
-  const activeCockpit = activeOperation ? buildOperationCockpitFromOperation(activeOperation) : null;
   const effectiveKpis = useMemo(() => {
-    if (selectedOperationId === "all") return kpis;
-    if (!activeOperation || !activeCockpit) return kpis;
-
-    return {
-      monitored: 1,
-      atRisk: activeOperation.health === "risk" ? 1 : 0,
-      critical: activeOperation.health === "critical" ? 1 : 0,
-      baseCoverage: activeOperation.baseCoverage,
-      totalLeads: activeCockpit.summary.supabaseRecords,
-      monthlyConversions: activeCockpit.funnel.find((stage) => stage.id === "won")?.count ?? 0,
-      conversionDelta: 0,
-      leadsDelta: 0,
-      coverageDelta: 0,
-      riskDelta: 0,
-    };
-  }, [activeCockpit, activeOperation, kpis, selectedOperationId]);
+    return buildScopedKpis(kpis, filteredOperations, scopedOperations, selectedPeriod);
+  }, [filteredOperations, kpis, scopedOperations, selectedPeriod]);
 
   const totalOps =
     filteredDistribution.healthy +
@@ -263,7 +253,8 @@ function AdminGlobal() {
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
               {dashboard.source === "live"
                 ? "O painel já conseguiu puxar a view ativa do Supabase para consolidar carteira, score, cobertura e reconciliação."
-                : "Quando a leitura viva não sobe, o painel mantém um retrato seguro para não te deixar cego, mas sem prometer tempo real onde ele ainda não existe."}
+                : "Quando a leitura viva não sobe, o painel mantém um retrato seguro para não te deixar cego, mas sem prometer tempo real onde ele ainda não existe."}{" "}
+              O período atual já recorta a leitura desta tela.
             </p>
           </div>
         </section>
@@ -301,19 +292,19 @@ function AdminGlobal() {
             sub="Média ponderada"
           />
           <ExecKpi
-            label="Leads totais"
+            label={selectedPeriod === "mtd" ? "Leads no recorte" : "Leads tocados no recorte"}
             value={formatNumber(effectiveKpis.totalLeads)}
             icon={Users}
-            delta={selectedOperationId === "all" ? effectiveKpis.leadsDelta : undefined}
-            sub={selectedOperationId === "all" ? "Base consolidada" : "Base da operação"}
+            delta={isSingleOperationView ? undefined : effectiveKpis.leadsDelta}
+            sub={isSingleOperationView ? "Leitura da operação filtrada" : "Carteira no período"}
           />
           <ExecKpi
-            label="Conversões do mês"
+            label={selectedPeriod === "mtd" ? "Conversões do mês" : "Conversões do recorte"}
             value={formatNumber(effectiveKpis.monthlyConversions)}
             icon={TrendingUp}
-            delta={selectedOperationId === "all" ? effectiveKpis.conversionDelta : undefined}
+            delta={isSingleOperationView ? undefined : effectiveKpis.conversionDelta}
             tone="success"
-            sub={selectedOperationId === "all" ? "MTD · todas operações" : "MTD · operação selecionada"}
+            sub={isSingleOperationView ? "Operação selecionada" : "Carteira consolidada"}
           />
         </section>
 
@@ -350,7 +341,9 @@ function AdminGlobal() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Ranking de Operações</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Ordenado por score crescente · pior performance primeiro
+                  {isSingleOperationView
+                    ? "Recorte exclusivo da operação filtrada"
+                    : "Ordenado por score crescente · pior performance primeiro"}
                 </p>
               </div>
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
@@ -933,6 +926,12 @@ function ExecutiveInsights({
       </div>
 
       <div className="space-y-3">
+        {insights.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-4 text-[12px] leading-relaxed text-muted-foreground">
+            Este recorte não tem insight próprio publicado ainda. A tela foi isolada para não puxar
+            sinal de outra operação por engano.
+          </div>
+        ) : null}
         {insights.map((ins) => {
           const meta = sevMeta[ins.severity];
           return (

@@ -359,6 +359,10 @@ export interface PortalLiveSourceCard {
   ctaValue: string;
   facts: { label: string; value: string }[];
   nextStep: string;
+  actionLabel?: string;
+  actionHref?: string;
+  actionExternal?: boolean;
+  availabilityLabel?: string;
 }
 
 export interface ScoreDriver {
@@ -3338,7 +3342,7 @@ export function buildPortalLiveSourceCards(
 
   const notionCard: PortalLiveSourceCard = {
     id: "notion",
-    title: "Notion comercial",
+    title: "Pipeline comercial (Notion)",
     health: notionHealth,
     mode: notionLive ? "live" : "operational",
     headline: notionLive
@@ -3348,8 +3352,8 @@ export function buildPortalLiveSourceCards(
       ? `${operation.notionRecords} registros no Notion, match rate de ${operation.matchRatePct?.toFixed(2)}% e ${operation.statusMismatchCount} divergências de status na leitura viva atual.`
       : "O portal continua com a camada comercial governada, mas sem telemetria viva suficiente para afirmar reconciliação em tempo real.",
     lastSync: toLabelDate(operation.refreshedAt),
-    ctaLabel: notionLive ? "Notion only" : "Modo",
-    ctaValue: notionLive ? String(operation.notionOnlyCount ?? 0) : "Snapshot governado",
+    ctaLabel: notionLive ? "Estado do pipeline" : "Modo",
+    ctaValue: notionLive ? notionStageLabel : "Snapshot governado",
     facts: notionLive
       ? [
           { label: "Owner", value: operation.owner },
@@ -3368,6 +3372,7 @@ export function buildPortalLiveSourceCards(
           { label: "Divergência", value: "Drill-down pendente" },
         ],
     nextStep: notionLive ? notionActionLabel : "Fechar a telemetria viva desta conta antes de expor reconciliação como verdade operacional.",
+    availabilityLabel: "Link direto do Notion ainda não homologado nesta conta.",
   };
 
   const trelloHealth: OperationStatus = !primaryTrelloState
@@ -3378,7 +3383,7 @@ export function buildPortalLiveSourceCards(
 
   const trelloCard: PortalLiveSourceCard = {
     id: "trello",
-    title: "Trello de execução",
+    title: "Execução no Trello",
     health: trelloHealth,
     mode: "operational",
     headline: primaryTrelloState
@@ -3435,6 +3440,12 @@ export function buildPortalLiveSourceCards(
       openTrelloSegments.length > 0
         ? "Ligar agora o board real à camada central para puxar owner, etapa e follow-up sem snapshot intermediário."
         : "Conectar etapa e owner do board antes de usar o portal como cockpit único de execução.",
+    actionLabel: primaryTrelloState?.cardUrl ? "Abrir card da execução" : undefined,
+    actionHref: primaryTrelloState?.cardUrl || undefined,
+    actionExternal: true,
+    availabilityLabel: primaryTrelloState?.cardUrl
+      ? "Abertura externa pronta enquanto o embed interno não é homologado."
+      : "Esta conta ainda não tem card materializado para abertura direta.",
   };
 
   return [notionCard, trelloCard];
