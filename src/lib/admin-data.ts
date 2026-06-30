@@ -690,6 +690,62 @@ const trelloOperationalStateByOperationName: Record<string, TrelloOperationalSta
   ],
 };
 
+const trelloCardRuntimeByShortLink: Record<
+  string,
+  {
+    boardName: string;
+    listName: string;
+    ownerLabel: string;
+    lastActivityAt: string;
+    followUpText: string;
+  }
+> = {
+  jgAitx2U: {
+    boardName: "Incentiva",
+    listName: "Em andamento",
+    ownerLabel: "Sem owner atribuído no card",
+    lastActivityAt: "2026-06-25T13:40:14.869Z",
+    followUpText:
+      "Validação: base confirmada como esgotada (0 não iniciados de 2.737 total). Prioridade alta para reposição da lista.",
+  },
+  KucshyuO: {
+    boardName: "Nimbus",
+    listName: "Em andamento",
+    ownerLabel: "Sem owner atribuído no card",
+    lastActivityAt: "2026-06-25T13:40:28.081Z",
+    followUpText: "Sem comentário recente no card.",
+  },
+  f4Q7tVgb: {
+    boardName: "Prime Action",
+    listName: "Em andamento",
+    ownerLabel: "Bruna",
+    lastActivityAt: "2026-06-25T13:44:35.145Z",
+    followUpText:
+      "Bruna, preciso de nova lista/enriquecimento para Agente IA Brasil hoje. Critério de saída: mínimo 50 prospects não iniciados no Supabase para manter a cadência FUP1 viva.",
+  },
+  "7YF5nZpv": {
+    boardName: "Prime Action",
+    listName: "Em andamento",
+    ownerLabel: "Sem owner atribuído no card",
+    lastActivityAt: "2026-06-25T13:40:55.559Z",
+    followUpText: "Sem comentário recente no card.",
+  },
+  a1pCP8D3: {
+    boardName: "Acelerato",
+    listName: "Em andamento",
+    ownerLabel: "Sem owner atribuído no card",
+    lastActivityAt: "2026-06-25T13:39:54.539Z",
+    followUpText: "Sem comentário recente no card.",
+  },
+  TVMwVOe3: {
+    boardName: "DocSeg",
+    listName: "Em andamento",
+    ownerLabel: "Sem owner atribuído no card",
+    lastActivityAt: "2026-06-25T13:19:47.894Z",
+    followUpText: "Sem comentário recente no card.",
+  },
+};
+
 const cadenceOperationalStateByOperationName: Record<
   string,
   { status: "open" | "quiet"; count: number; lastObservedAt: string; lastMentionedAt: string }
@@ -3078,6 +3134,12 @@ export function buildPortalLiveSourceCards(
   const trelloSegmentLabel = openTrelloSegments.length
     ? openTrelloSegments.map((state) => state.segment).join(" + ")
     : primaryTrelloState?.segment ?? "Sem segmento mapeado";
+  const primaryCardShortLink = primaryTrelloState?.cardUrl
+    ? primaryTrelloState.cardUrl.split("/c/")[1]?.split("/")[0] ?? ""
+    : "";
+  const primaryCardRuntime = primaryCardShortLink
+    ? trelloCardRuntimeByShortLink[primaryCardShortLink]
+    : undefined;
 
   const notionLive =
     source === "live" &&
@@ -3152,17 +3214,17 @@ export function buildPortalLiveSourceCards(
     mode: "operational",
     headline: primaryTrelloState
       ? primaryTrelloState.status === "open"
-        ? "Existe checkpoint operacional aberto para esta conta na camada de execução."
+        ? "Existe card operacional real aberto para esta conta na camada de execução."
         : "A camada de execução não mostra alerta aberto para esta conta no recorte atual."
       : "A operação ainda não tem estado de execução amarrado ao recorte publicado.",
     detail: primaryTrelloState
       ? primaryTrelloState.cardUrl
-        ? `Última observação em ${new Date(primaryTrelloState.lastObservedAt).toLocaleString("pt-BR")}, com card já materializado no layer de execução para ${trelloSegmentLabel}.`
+        ? `Última observação em ${new Date(primaryTrelloState.lastObservedAt).toLocaleString("pt-BR")}, com card já materializado no layer de execução para ${trelloSegmentLabel}${primaryCardRuntime ? ` na lista ${primaryCardRuntime.listName}` : ""}.`
         : `Última observação em ${new Date(primaryTrelloState.lastObservedAt).toLocaleString("pt-BR")}, sem card aberto no recorte atual para ${trelloSegmentLabel}.`
       : "Ainda falta trazer o board desta operação como estado operacional visível dentro do próprio portal.",
     lastSync: primaryTrelloState
-      ? `Estado operacional · ${new Date(primaryTrelloState.lastObservedAt).toLocaleDateString("pt-BR")} ${new Date(
-          primaryTrelloState.lastObservedAt,
+      ? `Estado operacional · ${new Date((primaryCardRuntime?.lastActivityAt ?? primaryTrelloState.lastObservedAt)).toLocaleDateString("pt-BR")} ${new Date(
+          primaryCardRuntime?.lastActivityAt ?? primaryTrelloState.lastObservedAt,
         ).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
       : "Sem estado integrado",
     ctaLabel: primaryTrelloState?.cardUrl ? "Card" : "Status",
@@ -3172,11 +3234,15 @@ export function buildPortalLiveSourceCards(
         ? "Sem card aberto"
         : "Pendente",
     facts: [
-      { label: "Owner", value: "Ricardo + Sales Ops" },
+      {
+        label: "Owner",
+        value: primaryCardRuntime?.ownerLabel ?? "Ricardo + Sales Ops",
+      },
       {
         label: "Etapa",
-        value:
-          openTrelloSegments.length > 0
+        value: primaryCardRuntime?.listName
+          ? `${primaryCardRuntime.listName} · ${openTrelloSegments.length > 0 ? `${openTrelloSegments.length} card(s) aberto(s)` : "sem card aberto"}`
+          : openTrelloSegments.length > 0
             ? `${openTrelloSegments.length} checkpoint(s) aberto(s)`
             : "Sem checkpoint aberto",
       },
@@ -3191,10 +3257,14 @@ export function buildPortalLiveSourceCards(
             ? `último alerta ${new Date(primaryTrelloState.lastAlertAt).toLocaleDateString("pt-BR")}`
             : "sem histórico adicional mapeado",
       },
+      {
+        label: "Follow-up",
+        value: primaryCardRuntime?.followUpText ?? "Sem follow-up materializado no card.",
+      },
     ],
     nextStep:
       openTrelloSegments.length > 0
-        ? "Trazer etapa, owner e follow-up do card para dentro do próprio produto."
+        ? "Ligar agora o board real à camada central para puxar owner, etapa e follow-up sem snapshot intermediário."
         : "Conectar etapa e owner do board antes de usar o portal como cockpit único de execução.",
   };
 

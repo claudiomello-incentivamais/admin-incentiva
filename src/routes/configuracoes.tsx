@@ -147,20 +147,20 @@ const settings = {
   ],
   finalPublishReadiness: {
     stage: "Pré-publicação final / homologação avançada",
-    percent: 80,
+    percent: 85,
     headline:
-      "A fundação do software já está de pé e o recorte publicado já existe; o fechamento agora é menos arquitetura e mais última milha de integração, governança e materialização pública final.",
+      "A fundação do software já está de pé, o recorte publicado já existe e a camada Trello agora já mostra owner, etapa e follow-up em cards reais mapeados; o fechamento agora é última milha de integração direta e materialização pública final.",
     completed: [
       "Auth real por cookie já no servidor",
       "RBAC e escopo por operação já ativos",
       "Portal privado por conta já estruturado",
       "Centro de integrações já materializado",
       "Notion já entra com leitura viva da governança",
-      "Trello já entra com checkpoint operacional no produto",
+      "Trello já entra com owner, etapa e follow-up em cards reais mapeados no produto",
       "Operações e Portal já mostram drill-down por conta",
     ],
     missing: [
-      "Trazer owner real, etapa real e follow-up do card do Trello",
+      "Eliminar a dependência de snapshot intermediário e ligar o board real do Trello de forma mais direta no painel",
       "Aprofundar o drill-down da divergência comercial do Notion",
       "Fechar o checkpoint final de publish para a URL pública refletir o último estado do produto",
       "Homologar a abertura externa final como software usável no dia a dia",
