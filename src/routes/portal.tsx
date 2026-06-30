@@ -26,6 +26,7 @@ import {
 import {
   buildOperationActionPlan,
   buildOperationCockpitFromOperation,
+  buildPortalLiveSourceCards,
   buildPortalPublishPacket,
   getScoreDrivers,
   loadGlobalDashboard,
@@ -89,6 +90,7 @@ function PortalPage() {
   const cockpit = buildOperationCockpitFromOperation(portalOperation);
   const actionPlan = buildOperationActionPlan(portalOperation);
   const publishPacket = buildPortalPublishPacket(portalOperation);
+  const liveSourceCards = buildPortalLiveSourceCards(portalOperation, dashboard.source);
   const drivers = getScoreDrivers(portalOperation).slice(0, 3);
   const exposedModules =
     selectedVisibilityMode === "client"
@@ -445,6 +447,25 @@ function PortalPage() {
             </div>
           </div>
         </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Fontes vivas no recorte publicado</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                O portal passa a mostrar o que já entrou com sinal real da operação e o que ainda
+                depende de maior amarração.
+              </p>
+            </div>
+            <GlobeLock className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            {liveSourceCards.map((card) => (
+              <LiveSourceCard key={card.id} card={card} />
+            ))}
+          </div>
+        </section>
       </main>
     </>
   );
@@ -570,6 +591,54 @@ function PublishCheckpointCard({
         </Badge>
       </div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{checkpoint.detail}</p>
+    </div>
+  );
+}
+
+function LiveSourceCard({
+  card,
+}: {
+  card: {
+    title: string;
+    health: "healthy" | "monitor" | "risk" | "critical";
+    mode: "live" | "operational";
+    headline: string;
+    detail: string;
+    lastSync: string;
+    ctaLabel: string;
+    ctaValue: string;
+  };
+}) {
+  const meta = statusMeta[card.health];
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-sm font-medium">{card.title}</div>
+            <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
+              {card.mode === "live" ? "live" : "operational"}
+            </Badge>
+          </div>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{card.headline}</p>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+        <div className="rounded-xl border border-border bg-card px-3 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Leitura</div>
+          <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.detail}</div>
+        </div>
+        <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3 min-w-[150px]">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.ctaLabel}</div>
+          <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
+          <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{card.lastSync}</div>
+        </div>
+      </div>
     </div>
   );
 }

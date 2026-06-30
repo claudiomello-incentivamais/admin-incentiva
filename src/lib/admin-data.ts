@@ -16,6 +16,12 @@ export interface Operation {
   monthlyConversion: number; // 0-100 %
   health: OperationStatus;
   owner: string;
+  notionRecords?: number;
+  matchRatePct?: number;
+  stageAlignmentPct?: number;
+  statusMismatchCount?: number;
+  notionOnlyCount?: number;
+  refreshedAt?: string | null;
 }
 
 export interface GlobalKpis {
@@ -337,6 +343,18 @@ export interface PortalPublishPacket {
   checkpoints: PortalPublishCheckpoint[];
 }
 
+export interface PortalLiveSourceCard {
+  id: "notion" | "trello";
+  title: string;
+  health: OperationStatus;
+  mode: "live" | "operational";
+  headline: string;
+  detail: string;
+  lastSync: string;
+  ctaLabel: string;
+  ctaValue: string;
+}
+
 export interface ScoreDriver {
   id: string;
   label: string;
@@ -523,6 +541,78 @@ const operations: Operation[] = [
     owner: "Sales Ops",
   },
 ];
+
+const trelloOperationalStateByOperationName: Record<
+  string,
+  { status: "open" | "quiet"; count: number; lastObservedAt: string; cardUrl: string }
+> = {
+  Acelerato: {
+    status: "open",
+    count: 0,
+    lastObservedAt: "2026-06-30T14:04:08.225275-03:00",
+    cardUrl: "https://trello.com/c/a1pCP8D3/16-nova-lista-tecnologia-50-n%C3%A3o-iniciados",
+  },
+  "Café Fazenda Brasil": {
+    status: "quiet",
+    count: 660,
+    lastObservedAt: "2026-06-30T14:04:08.376456-03:00",
+    cardUrl: "",
+  },
+  DocSeg: {
+    status: "open",
+    count: 20,
+    lastObservedAt: "2026-06-30T14:04:08.596253-03:00",
+    cardUrl: "https://trello.com/c/TVMwVOe3/12-nova-lista-docseg-50-n%C3%A3o-iniciados",
+  },
+  Iamit: {
+    status: "quiet",
+    count: 287,
+    lastObservedAt: "2026-06-30T14:04:08.807474-03:00",
+    cardUrl: "",
+  },
+  Incentiva: {
+    status: "open",
+    count: 0,
+    lastObservedAt: "2026-06-30T14:04:09.143993-03:00",
+    cardUrl: "https://trello.com/c/jgAitx2U/89-nova-lista-incentiva-50-n%C3%A3o-iniciados",
+  },
+  "Lima Duarte Alimentos": {
+    status: "quiet",
+    count: 180,
+    lastObservedAt: "2026-06-30T14:04:09.397499-03:00",
+    cardUrl: "",
+  },
+  Nimbus: {
+    status: "open",
+    count: 0,
+    lastObservedAt: "2026-06-30T14:04:09.510734-03:00",
+    cardUrl: "https://trello.com/c/KucshyuO/11-nova-lista-nimbus-50-n%C3%A3o-iniciados",
+  },
+  "Plan Idiomas": {
+    status: "quiet",
+    count: 199,
+    lastObservedAt: "2026-06-30T14:04:09.693043-03:00",
+    cardUrl: "",
+  },
+  "Prime Action": {
+    status: "open",
+    count: 0,
+    lastObservedAt: "2026-06-30T14:04:11.012317-03:00",
+    cardUrl: "https://trello.com/c/7YF5nZpv/16-nova-lista-consultoria-brasil-50-n%C3%A3o-iniciados",
+  },
+  "Trial Ambiental": {
+    status: "quiet",
+    count: 61,
+    lastObservedAt: "2026-06-30T14:04:12.244483-03:00",
+    cardUrl: "",
+  },
+  We9: {
+    status: "quiet",
+    count: 211,
+    lastObservedAt: "2026-06-30T14:04:12.463796-03:00",
+    cardUrl: "",
+  },
+};
 
 const insights: ExecutiveInsight[] = [
   {
@@ -2403,6 +2493,11 @@ function mapLiveRowsToOperations(rows: GovernanceAdminGlobalRow[]): Operation[] 
       const baseCoverage = coveragePctFromRow(row);
       const dataReconciliation = toNumber(row.canonical_stage_alignment_pct);
       const monthlyConversion = monthlyConversionPctFromRow(row);
+      const notionRecords = toNumber(row.notion_total_records);
+      const matchRatePct = toNumber(row.match_rate_pct);
+      const stageAlignmentPct = toNumber(row.canonical_stage_alignment_pct);
+      const statusMismatchCount = toNumber(row.status_mismatch_count);
+      const notionOnlyCount = toNumber(row.notion_only_count);
 
       return {
         id: name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
@@ -2416,6 +2511,12 @@ function mapLiveRowsToOperations(rows: GovernanceAdminGlobalRow[]): Operation[] 
         monthlyConversion,
         health: normalizeHealth(row.status_health),
         owner: "Sales Ops",
+        notionRecords,
+        matchRatePct,
+        stageAlignmentPct,
+        statusMismatchCount,
+        notionOnlyCount,
+        refreshedAt: row.refreshed_at,
       } satisfies Operation;
     })
     .sort((a, b) => a.score - b.score);
@@ -2700,8 +2801,8 @@ const integrationHub: IntegrationHubData = {
       health: "monitor",
       title: "Contexto SDR e pipeline humano",
       detail:
-        "O painel já reconhece Notion como camada comercial, mas ainda falta uma tela que mostre sync, divergência e estado dessa ponte com mais clareza.",
-      nextStep: "Subir leitura centralizada de sync Notion x Supabase no hub de integrações.",
+        "O portal já mostra reconciliação comercial vinda da governança viva, com match rate, divergência e leitura por operação no recorte publicado.",
+      nextStep: "Aprofundar a ponte com owner, histórico e drill-down direto da reconciliação sem sair da conta.",
     },
     {
       id: "trello-admin",
@@ -2710,8 +2811,8 @@ const integrationHub: IntegrationHubData = {
       health: "monitor",
       title: "Da recomendação para a execução",
       detail:
-        "O admin já prepara pacote de ação, mas ainda falta deixar mais explícito no produto quando a ação já foi aterrissada em card real.",
-      nextStep: "Expor status de card, etapa e owner diretamente no hub e nos action packets.",
+        "O produto já expõe checkpoint operacional e presença de card aberto dentro do portal, reduzindo a necessidade de abrir o board para entender o estado mínimo.",
+      nextStep: "Trazer etapa, owner e profundidade de execução do card para dentro do hub e dos action packets.",
     },
     {
       id: "github-publish",
@@ -2732,8 +2833,8 @@ const integrationHub: IntegrationHubData = {
       target: "Operações / Integrações",
       health: "monitor",
       detail:
-        "Precisamos expor no produto o estado de reconciliação entre Notion, Supabase e estágio canônico sem obrigar leitura distribuída.",
-      nextStep: "Adicionar visão de sync e divergência por operação dentro do hub central.",
+        "O produto já mostra reconciliação entre Notion, Supabase e estágio canônico no portal publicado; agora a evolução é ganhar mais profundidade operacional nessa leitura.",
+      nextStep: "Adicionar owner, histórico e drill-down de divergência por operação dentro do hub central.",
     },
     {
       id: "lane-trello",
@@ -2742,8 +2843,8 @@ const integrationHub: IntegrationHubData = {
       target: "Admin Global / Integrações",
       health: "monitor",
       detail:
-        "A execução ainda é mais clara no board do que dentro do produto; o admin precisa enxergar o estado do card e do follow-up sem sair da tela.",
-      nextStep: "Trazer status de execução e etapa do card para a camada centralizada.",
+        "O admin já enxerga se existe checkpoint operacional e card aberto no recorte publicado, mas ainda falta profundidade para ler a execução inteira sem sair da tela.",
+      nextStep: "Trazer status de execução, etapa, owner e follow-up do card para a camada centralizada.",
     },
     {
       id: "lane-auth",
@@ -2752,8 +2853,8 @@ const integrationHub: IntegrationHubData = {
       target: "Portal / Configurações",
       health: "monitor",
       detail:
-        "A sessão real já entrou no produto. Agora falta fechar o pacote de abertura por cliente, com URL/recorte/checkpoint explícitos.",
-      nextStep: "Subir camada de publish privado por operação e depois ligar Trello/Notion como fontes vivas.",
+        "Sessão real, recorte privado e pacote de abertura por operação já estão dentro do produto como fundação de exposição controlada.",
+      nextStep: "Fechar a governança final de abertura externa e aprofundar as fontes vivas por conta.",
     },
   ],
 };
@@ -2811,7 +2912,8 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
       id: "live-sync",
       title: "Fontes vivas de execução",
       status: "monitor",
-      detail: "Trello e Notion ainda precisam entrar como leitura viva dentro do mesmo recorte publicado.",
+      detail:
+        "Notion já entra com reconciliação viva e Trello já aparece com checkpoint operacional; o próximo salto é aprofundar etapa, owner e sync direto.",
     },
   ];
 
@@ -2835,6 +2937,74 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
           : "Ainda é melhor segurar a abertura externa até fechar melhor base e governança da conta.",
     checkpoints,
   };
+}
+
+export function buildPortalLiveSourceCards(
+  operation: Operation,
+  source: GlobalDashboardData["source"],
+): PortalLiveSourceCard[] {
+  const notionLive =
+    source === "live" &&
+    typeof operation.notionRecords === "number" &&
+    typeof operation.matchRatePct === "number" &&
+    typeof operation.stageAlignmentPct === "number";
+
+  const notionHealth: OperationStatus = notionLive
+    ? (operation.stageAlignmentPct ?? 0) < 90 || (operation.matchRatePct ?? 0) < 95
+      ? "risk"
+      : (operation.notionOnlyCount ?? 0) > 0 || (operation.statusMismatchCount ?? 0) > 0
+        ? "monitor"
+        : "healthy"
+    : "monitor";
+
+  const notionCard: PortalLiveSourceCard = {
+    id: "notion",
+    title: "Notion comercial",
+    health: notionHealth,
+    mode: notionLive ? "live" : "operational",
+    headline: notionLive
+      ? "Reconciliação viva entre pipeline humano e estágio canônico."
+      : "Camada comercial ainda não aterrissou com telemetria viva neste recorte.",
+    detail: notionLive
+      ? `${operation.notionRecords} registros no Notion, match rate de ${operation.matchRatePct?.toFixed(2)}% e ${operation.statusMismatchCount} divergências de status na leitura viva atual.`
+      : "O portal continua com a camada comercial governada, mas sem telemetria viva suficiente para afirmar reconciliação em tempo real.",
+    lastSync: toLabelDate(operation.refreshedAt),
+    ctaLabel: notionLive ? "Notion only" : "Modo",
+    ctaValue: notionLive ? String(operation.notionOnlyCount ?? 0) : "Snapshot governado",
+  };
+
+  const trelloState = trelloOperationalStateByOperationName[operation.name];
+  const trelloHealth: OperationStatus = !trelloState
+    ? "monitor"
+    : trelloState.status === "open"
+      ? "monitor"
+      : "healthy";
+
+  const trelloCard: PortalLiveSourceCard = {
+    id: "trello",
+    title: "Trello de execução",
+    health: trelloHealth,
+    mode: "operational",
+    headline: trelloState
+      ? trelloState.status === "open"
+        ? "Existe checkpoint operacional aberto para esta conta na camada de execução."
+        : "A camada de execução não mostra alerta aberto para esta conta no recorte atual."
+      : "A operação ainda não tem estado de execução amarrado ao recorte publicado.",
+    detail: trelloState
+      ? trelloState.cardUrl
+        ? `Última observação em ${new Date(trelloState.lastObservedAt).toLocaleString("pt-BR")}, com card já materializado no layer de execução.`
+        : `Última observação em ${new Date(trelloState.lastObservedAt).toLocaleString("pt-BR")}, sem card aberto no recorte atual.`
+      : "Ainda falta trazer o board desta operação como estado operacional visível dentro do próprio portal.",
+    lastSync: trelloState
+      ? `Estado operacional · ${new Date(trelloState.lastObservedAt).toLocaleDateString("pt-BR")} ${new Date(
+          trelloState.lastObservedAt,
+        ).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+      : "Sem estado integrado",
+    ctaLabel: trelloState?.cardUrl ? "Card" : "Status",
+    ctaValue: trelloState?.cardUrl ? "Abertura registrada" : trelloState ? "Sem card aberto" : "Pendente",
+  };
+
+  return [notionCard, trelloCard];
 }
 
 export const statusMeta: Record<

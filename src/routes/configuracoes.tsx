@@ -130,16 +130,17 @@ const settings = {
       health: "monitor",
     },
     {
-      title: "Posterior · fontes vivas na camada externa",
-      detail: "Trello e Notion entram no mesmo recorte publicado sem obrigar leitura distribuída fora do produto.",
-      health: "risk",
+      title: "Atual · fontes vivas no recorte publicado",
+      detail:
+        "Notion já entra com reconciliação viva da governança e Trello já aparece com checkpoint operacional dentro do mesmo recorte publicado.",
+      health: "monitor",
     },
   ],
   rolloutGates: [
     "Sessão real por papel já fechada no servidor.",
     "Recorte cliente-safe por operação já definido no portal.",
     "Pacote privado por conta precisa virar checkpoint padrão de abertura externa.",
-    "Trello e Notion ainda precisam entrar como leitura viva dentro da visão publicada.",
+    "Trello e Notion já aparecem na visão publicada; agora falta aprofundar sync direto, owner e etapa de execução sem sair do produto.",
   ],
 };
 
