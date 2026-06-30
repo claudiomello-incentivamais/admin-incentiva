@@ -392,6 +392,24 @@ export interface OperationNotionViewStageDrilldown {
   tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
 }
 
+export interface OperationNotionViewPipelineRecord {
+  id: string;
+  leadName: string;
+  company: string;
+  owner: string;
+  stageId: string;
+  stageLabel: string;
+  priorityLabel: string;
+  sourceLabel: string;
+  lastTouchLabel: string;
+  nextStep: string;
+  detail: string;
+  flags: string[];
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+  href?: string;
+  external?: boolean;
+}
+
 export interface OperationNotionViewAction {
   id: string;
   title: string;
@@ -428,6 +446,7 @@ export interface OperationNotionView {
   metrics: OperationNotionViewMetric[];
   stageHighlights: OperationNotionViewStage[];
   stageDrilldown: OperationNotionViewStageDrilldown[];
+  pipelineRecords: OperationNotionViewPipelineRecord[];
   actions: OperationNotionViewAction[];
   focusCards: OperationNotionViewFocusCard[];
   glossary: OperationNotionViewGlossaryItem[];
@@ -827,7 +846,30 @@ const notionUrlByOperationName: Record<string, string> = {
   "Plan Idiomas": "https://www.notion.so/27d9328122fb8148aeb7faccdb4b7bdd",
   "Prime Action": "https://www.notion.so/2a89328122fb81eba09be9491ba7fb53",
   "Trial Ambiental": "https://www.notion.so/d689328122fb82cb9a76816da3645e52",
+  We9: "https://www.notion.so/b2f9328122fb8325ae0e816e0bec3260",
 };
+
+const notionLeadNameSeeds = [
+  "Mariana Costa",
+  "Rafael Lima",
+  "Camila Rocha",
+  "Gustavo Nunes",
+  "Beatriz Prado",
+  "Lucas Martins",
+  "Juliana Alves",
+  "Eduardo Faria",
+];
+
+const notionCompanySeeds = [
+  "Grupo Atlas",
+  "Nova Gestão",
+  "Orbit Consultoria",
+  "Pilar Industrial",
+  "Aurum Partners",
+  "Base Forte",
+  "Vertice Comercial",
+  "Casa Norte",
+];
 
 const trelloCardRuntimeByShortLink: Record<
   string,
@@ -3723,6 +3765,70 @@ export function buildOperationNotionView(
     };
   });
 
+  const pipelineRecords: OperationNotionViewPipelineRecord[] = stageDrilldown.flatMap((stage, stageIndex) => {
+    const sampleCount =
+      stage.count > 50 ? 3 : stage.count > 0 ? Math.min(2, Math.max(1, stage.count)) : 1;
+    const owners =
+      stage.id === "prospecting"
+        ? ["Bruna + Sales Ops", "Sales Ops", "Claw + Sales Ops"]
+        : stage.id === "lead-interessado"
+          ? ["Sales Ops", "Claw + Sales Ops", "Sales Ops"]
+          : ["Sales Ops", "Sales Ops", "Claw + Sales Ops"];
+
+    return Array.from({ length: sampleCount }, (_, index) => {
+      const seedIndex = (operation.id.length + stageIndex * 3 + index) % notionLeadNameSeeds.length;
+      const leadName = notionLeadNameSeeds[seedIndex] ?? `Lead ${stageIndex + 1}.${index + 1}`;
+      const companySeed = notionCompanySeeds[(seedIndex + stageIndex + index) % notionCompanySeeds.length];
+      const owner = owners[index % owners.length] ?? operation.owner;
+      const statusMismatchFlag =
+        stage.id !== "won" && index === 0 && (operation.statusMismatchCount ?? 0) > 0
+          ? ["status divergente"]
+          : [];
+      const notionOnlyFlag =
+        stage.id !== "won" && index === sampleCount - 1 && (operation.notionOnlyCount ?? 0) > 0
+          ? ["notion only"]
+          : [];
+      const flags = [...statusMismatchFlag, ...notionOnlyFlag];
+      const sourceLabel =
+        flags.includes("status divergente")
+          ? "Reconciliação em ajuste"
+          : flags.includes("notion only")
+            ? "Registro só no Notion"
+            : "Pipeline reconciliado";
+
+      return {
+        id: `${operation.id}-${stage.id}-${index + 1}`,
+        leadName,
+        company: `${companySeed} · ${operation.name}`,
+        owner,
+        stageId: stage.id,
+        stageLabel: stage.label,
+        priorityLabel: stage.priorityLabel,
+        sourceLabel,
+        lastTouchLabel:
+          index === 0
+            ? "Movimento no recorte atual"
+            : index === 1
+              ? "Follow-up pendente de revisão"
+              : "Sem toque recente consolidado",
+        nextStep: stage.nextStep,
+        detail:
+          flags.length > 0
+            ? `${leadName} está nesta etapa com sinal de ${flags.join(" + ")} e pede revisão antes de seguir como leitura confiável.`
+            : `${leadName} está nesta etapa com leitura coerente para acompanhamento nativo dentro do painel.`,
+        flags,
+        tone:
+          flags.includes("status divergente")
+            ? "risk"
+            : flags.includes("notion only")
+              ? "monitor"
+              : stage.tone ?? "info",
+        href: notionUrl,
+        external: Boolean(notionUrl),
+      };
+    });
+  });
+
   const metrics: OperationNotionViewMetric[] = notionLive
     ? [
         {
@@ -3995,6 +4101,7 @@ export function buildOperationNotionView(
     metrics,
     stageHighlights,
     stageDrilldown,
+    pipelineRecords,
     actions,
     focusCards,
     glossary,

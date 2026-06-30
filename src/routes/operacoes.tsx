@@ -98,9 +98,41 @@ function Page() {
     : null;
   const trelloView = effectiveOperation ? buildOperationTrelloView(effectiveOperation, cockpit) : null;
   const [selectedNotionStageId, setSelectedNotionStageId] = useState<string | null>(null);
+  const [selectedPipelineStageFilter, setSelectedPipelineStageFilter] = useState<string>("all");
+  const [selectedPipelineOwnerFilter, setSelectedPipelineOwnerFilter] = useState<string>("all");
+  const [selectedPipelineLeadId, setSelectedPipelineLeadId] = useState<string | null>(null);
   const selectedNotionStage = notionView
     ? notionView.stageDrilldown.find((stage) => stage.id === selectedNotionStageId) ??
       notionView.stageDrilldown[0] ??
+      null
+    : null;
+  const pipelineStageOptions = notionView
+    ? [
+        { id: "all", label: "Todas as etapas" },
+        ...notionView.stageDrilldown.map((stage) => ({ id: stage.id, label: stage.label })),
+      ]
+    : [];
+  const pipelineOwnerOptions = notionView
+    ? [
+        { id: "all", label: "Todos os owners" },
+        ...Array.from(new Set(notionView.pipelineRecords.map((record) => record.owner))).map((owner) => ({
+          id: owner,
+          label: owner,
+        })),
+      ]
+    : [];
+  const filteredPipelineRecords = notionView
+    ? notionView.pipelineRecords.filter((record) => {
+        const matchesStage =
+          selectedPipelineStageFilter === "all" || record.stageId === selectedPipelineStageFilter;
+        const matchesOwner =
+          selectedPipelineOwnerFilter === "all" || record.owner === selectedPipelineOwnerFilter;
+        return matchesStage && matchesOwner;
+      })
+    : [];
+  const selectedPipelineLead = notionView
+    ? filteredPipelineRecords.find((record) => record.id === selectedPipelineLeadId) ??
+      filteredPipelineRecords[0] ??
       null
     : null;
 
@@ -400,9 +432,10 @@ function Page() {
                       </div>
 
                       <Tabs defaultValue="resumo" className="space-y-4">
-                        <TabsList className="grid w-full grid-cols-3">
+                        <TabsList className="grid w-full grid-cols-4">
                           <TabsTrigger value="resumo">Resumo</TabsTrigger>
                           <TabsTrigger value="etapas">Etapas</TabsTrigger>
+                          <TabsTrigger value="leads">Leads</TabsTrigger>
                           <TabsTrigger value="reconciliacao">Como ler</TabsTrigger>
                         </TabsList>
 
@@ -435,7 +468,11 @@ function Page() {
                               <button
                                 key={stage.id}
                                 type="button"
-                                onClick={() => setSelectedNotionStageId(stage.id)}
+                                onClick={() => {
+                                  setSelectedNotionStageId(stage.id);
+                                  setSelectedPipelineStageFilter(stage.id);
+                                  setSelectedPipelineLeadId(null);
+                                }}
                                 className={cn(
                                   "rounded-xl border bg-card px-3 py-3 text-left transition-colors",
                                   selectedNotionStage?.id === stage.id
@@ -498,6 +535,91 @@ function Page() {
                               </div>
                             </div>
                           ) : null}
+                        </TabsContent>
+
+                        <TabsContent value="leads" className="space-y-4">
+                          <div className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
+                            <div className="space-y-4">
+                              <div className="rounded-2xl border border-border bg-card p-4">
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                  Filtros do pipeline
+                                </div>
+
+                                <div className="mt-3">
+                                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Etapa
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {pipelineStageOptions.map((option) => (
+                                      <Button
+                                        key={option.id}
+                                        type="button"
+                                        variant={selectedPipelineStageFilter === option.id ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-8"
+                                        onClick={() => {
+                                          setSelectedPipelineStageFilter(option.id);
+                                          setSelectedPipelineLeadId(null);
+                                        }}
+                                      >
+                                        {option.label}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="mt-4">
+                                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                    Owner
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {pipelineOwnerOptions.map((option) => (
+                                      <Button
+                                        key={option.id}
+                                        type="button"
+                                        variant={selectedPipelineOwnerFilter === option.id ? "default" : "outline"}
+                                        size="sm"
+                                        className="h-8"
+                                        onClick={() => {
+                                          setSelectedPipelineOwnerFilter(option.id);
+                                          setSelectedPipelineLeadId(null);
+                                        }}
+                                      >
+                                        {option.label}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="grid gap-3">
+                                {filteredPipelineRecords.length ? (
+                                  filteredPipelineRecords.map((record) => (
+                                    <PipelineRecordCard
+                                      key={record.id}
+                                      record={record}
+                                      active={selectedPipelineLead?.id === record.id}
+                                      onSelect={() => setSelectedPipelineLeadId(record.id)}
+                                    />
+                                  ))
+                                ) : (
+                                  <div className="rounded-xl border border-dashed border-border bg-card px-3 py-4 text-[12px] text-muted-foreground">
+                                    Nenhum registro bate com os filtros atuais.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-border bg-card p-4">
+                              {selectedPipelineLead ? (
+                                <PipelineRecordDetailCard record={selectedPipelineLead} />
+                              ) : (
+                                <div className="text-[12px] leading-relaxed text-muted-foreground">
+                                  Selecione um registro para ver a leitura aprofundada desta etapa.
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </TabsContent>
 
                         <TabsContent value="reconciliacao" className="space-y-4">
@@ -1308,6 +1430,150 @@ function NotionGlossaryCard({
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="text-sm font-medium text-foreground">{item.term}</div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{item.definition}</p>
+    </div>
+  );
+}
+
+function PipelineRecordCard({
+  record,
+  active,
+  onSelect,
+}: {
+  record: {
+    id: string;
+    leadName: string;
+    company: string;
+    owner: string;
+    stageLabel: string;
+    priorityLabel: string;
+    sourceLabel: string;
+    lastTouchLabel: string;
+    flags: string[];
+    tone?: "healthy" | "monitor" | "risk" | "critical" | "info";
+  };
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const toneClass =
+    record.tone === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : record.tone === "risk" || record.tone === "critical"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : record.tone === "monitor"
+          ? "border-amber-500/20 bg-amber-500/5 text-amber-600"
+          : "border-primary/20 bg-primary/5 text-primary";
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "w-full rounded-xl border bg-card p-4 text-left transition-colors",
+        active ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/25 hover:bg-surface",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-foreground">{record.leadName}</div>
+          <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{record.company}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+          {record.stageLabel}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg border border-border bg-surface px-2.5 py-2">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Owner</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{record.owner}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-2.5 py-2">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Prioridade</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{record.priorityLabel}</div>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
+          {record.sourceLabel}
+        </Badge>
+        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+          {record.lastTouchLabel}
+        </Badge>
+        {record.flags.map((flag) => (
+          <Badge key={`${record.id}-${flag}`} variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+            {flag}
+          </Badge>
+        ))}
+      </div>
+    </button>
+  );
+}
+
+function PipelineRecordDetailCard({
+  record,
+}: {
+  record: {
+    leadName: string;
+    company: string;
+    owner: string;
+    stageLabel: string;
+    priorityLabel: string;
+    sourceLabel: string;
+    lastTouchLabel: string;
+    nextStep: string;
+    detail: string;
+    flags: string[];
+    href?: string;
+    external?: boolean;
+  };
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Lead em foco</div>
+      <div className="mt-1 text-base font-semibold text-foreground">{record.leadName}</div>
+      <div className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{record.company}</div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <MiniStateCard label="Etapa" value={record.stageLabel} />
+        <MiniStateCard label="Owner" value={record.owner} />
+        <MiniStateCard label="Prioridade" value={record.priorityLabel} />
+        <MiniStateCard label="Último movimento" value={record.lastTouchLabel} />
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-surface px-3 py-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Leitura operacional</div>
+        <p className="mt-2 text-[12px] leading-relaxed text-foreground">{record.detail}</p>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-surface px-3 py-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Próximo passo</div>
+        <p className="mt-2 text-[12px] leading-relaxed text-foreground">{record.nextStep}</p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
+          {record.sourceLabel}
+        </Badge>
+        {record.flags.map((flag) => (
+          <Badge key={`${record.leadName}-${flag}`} variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+            {flag}
+          </Badge>
+        ))}
+      </div>
+
+      {record.href ? (
+        <Button variant="outline" size="sm" className="mt-4 h-8 w-full gap-2" asChild>
+          <a
+            href={record.href}
+            target={record.external ? "_blank" : undefined}
+            rel={record.external ? "noreferrer" : undefined}
+          >
+            <ArrowUpRight className="h-3.5 w-3.5" />
+            Abrir Notion da operação
+          </a>
+        </Button>
+      ) : null}
     </div>
   );
 }

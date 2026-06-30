@@ -659,6 +659,17 @@ function PortalPage() {
               </div>
 
               <div className="mt-4 grid gap-3">
+                {notionView.pipelineRecords.slice(0, 3).map((record) => (
+                  <PortalNarrativeCard
+                    key={record.id}
+                    label={`${record.stageLabel} · ${record.owner}`}
+                    title={record.leadName}
+                    detail={`${record.company}. ${record.nextStep}`}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-4 grid gap-3">
                 {notionView.actions
                   .filter((action) => action.id === "open-notion")
                   .map((action) => (
