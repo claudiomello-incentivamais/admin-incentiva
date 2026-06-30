@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
+  CheckCircle2,
   Database,
   Eye,
   Filter,
@@ -11,6 +12,8 @@ import {
   ShieldCheck,
   Settings2,
   SlidersHorizontal,
+  TimerReset,
+  TriangleAlert,
   UserRoundCog,
   Workflow,
 } from "lucide-react";
@@ -142,6 +145,31 @@ const settings = {
     "Pacote privado por conta precisa virar checkpoint padrão de abertura externa.",
     "Trello e Notion já aparecem na visão publicada; agora falta aprofundar sync direto, owner e etapa de execução sem sair do produto.",
   ],
+  finalPublishReadiness: {
+    stage: "Pré-publicação final / homologação avançada",
+    percent: 80,
+    headline:
+      "A fundação do software já está de pé e o recorte publicado já existe; o fechamento agora é menos arquitetura e mais última milha de integração, governança e materialização pública final.",
+    completed: [
+      "Auth real por cookie já no servidor",
+      "RBAC e escopo por operação já ativos",
+      "Portal privado por conta já estruturado",
+      "Centro de integrações já materializado",
+      "Notion já entra com leitura viva da governança",
+      "Trello já entra com checkpoint operacional no produto",
+      "Operações e Portal já mostram drill-down por conta",
+    ],
+    missing: [
+      "Trazer owner real, etapa real e follow-up do card do Trello",
+      "Aprofundar o drill-down da divergência comercial do Notion",
+      "Fechar o checkpoint final de publish para a URL pública refletir o último estado do produto",
+      "Homologar a abertura externa final como software usável no dia a dia",
+    ],
+    risks: [
+      "Hoje o produto está mais avançado no código do que na publicação pública final",
+      "Ainda existe dependência de sinais operacionais intermediários em parte da camada Trello",
+    ],
+  },
 };
 
 function SettingsPage() {
@@ -327,6 +355,70 @@ function SettingsPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
+              <h2 className="text-sm font-semibold text-display">Prontidão para publicação final</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Régua executiva do quanto já fechamos do rollout final em relação ao que foi alinhado.
+              </p>
+            </div>
+            <TimerReset className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="space-y-1">
+                <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5 border-primary/30 text-primary">
+                  {settings.finalPublishReadiness.stage}
+                </Badge>
+                <div className="text-3xl font-semibold text-display">
+                  {settings.finalPublishReadiness.percent}%
+                </div>
+                <p className="text-[12px] leading-relaxed text-muted-foreground max-w-3xl">
+                  {settings.finalPublishReadiness.headline}
+                </p>
+              </div>
+
+              <div className="min-w-[220px] rounded-xl border border-border bg-background/80 px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Etapa atual
+                </div>
+                <div className="mt-1 text-sm font-medium text-foreground">
+                  Homologação avançada com última milha pendente
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-border overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${settings.finalPublishReadiness.percent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <ReadinessColumn
+              title="Já fechado"
+              icon={CheckCircle2}
+              items={settings.finalPublishReadiness.completed}
+              tone="healthy"
+            />
+            <ReadinessColumn
+              title="Falta fechar"
+              icon={Workflow}
+              items={settings.finalPublishReadiness.missing}
+              tone="monitor"
+            />
+            <ReadinessColumn
+              title="Risco material"
+              icon={TriangleAlert}
+              items={settings.finalPublishReadiness.risks}
+              tone="risk"
+            />
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
               <h2 className="text-sm font-semibold text-display">Gates do portal</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Checklist do que precisa estar pronto antes de abrir o software para leitura externa real.
@@ -447,6 +539,44 @@ function PublishStageCard({
         </Badge>
       </div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{stage.detail}</p>
+    </div>
+  );
+}
+
+function ReadinessColumn({
+  title,
+  icon: Icon,
+  items,
+  tone,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: string[];
+  tone: "healthy" | "monitor" | "risk";
+}) {
+  const toneClass =
+    tone === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : tone === "risk"
+        ? "border-amber-500/20 bg-amber-500/5 text-amber-700"
+        : "border-primary/20 bg-primary/5 text-primary";
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <div className={toneClass + " rounded-xl border p-2"}>
+          <Icon className="h-4 w-4" />
+        </div>
+        {title}
+      </div>
+      <div className="mt-3 space-y-2">
+        {items.map((item) => (
+          <div key={item} className="flex items-start gap-2 text-[12px] leading-relaxed text-muted-foreground">
+            <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+            <span>{item}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
