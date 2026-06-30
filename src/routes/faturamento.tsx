@@ -137,6 +137,18 @@ const billingSnapshot = {
       risk: "monitor",
     },
     {
+      client: "InMeta",
+      vertical: "A confirmar",
+      ticket: 3000,
+      delivery: "Outbound",
+      sdr: "-",
+      cycleMonths: null,
+      contractSignal: "Cliente novo no recorte atual",
+      loyaltySignal: "A confirmar",
+      reading: "Conta nova adicionada à carteira real depois do snapshot local anterior; entra para corrigir a leitura de receita.",
+      risk: "info",
+    },
+    {
       client: "DocSeg",
       vertical: "Jurídico",
       ticket: 2500,
