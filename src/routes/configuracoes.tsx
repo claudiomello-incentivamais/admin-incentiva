@@ -164,11 +164,13 @@ const settings = {
       "Eliminar a dependência de snapshot intermediário e ligar o board real do Trello de forma mais direta no painel",
       "Aprofundar o drill-down da divergência comercial do Notion",
       "Materializar a URL publicada final para refletir exatamente o corte atual do produto",
+      "Disponibilizar a credencial de Cloudflare no runtime para executar o deploy final",
       "Homologar a abertura externa final como software usável no dia a dia",
     ],
     risks: [
       "Hoje o produto está mais avançado no código do que na publicação pública final",
       "Ainda existe dependência de sinais operacionais intermediários em parte da camada Trello",
+      "O deploy final está bloqueado no runtime atual por ausência de `CLOUDFLARE_API_TOKEN`",
     ],
   },
   publicCutover: {

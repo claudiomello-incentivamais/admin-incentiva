@@ -135,10 +135,10 @@ const governance = {
       id: "publish-sync",
       health: "critical" as OperationStatus,
       lane: "Publish",
-      title: "Deploy ainda depende de publish autenticado fora do código.",
+      title: "Deploy final ainda bloqueado por credencial ausente no runtime.",
       detail:
-        "O branch sobe e build passa, mas a URL publicada não reflete automaticamente sem publish autenticado do lado do Lovable/Cloudflare.",
-      action: "Formalizar o publish como checkpoint operacional explícito dessa frente.",
+        "O branch sobe, o build passa e o comando de deploy existe, mas a publicação final não materializa porque o runtime atual não tem `CLOUDFLARE_API_TOKEN` para o cutover externo.",
+      action: "Tratar a credencial de Cloudflare como blocker explícito da última milha e manter a paridade de publish visível no produto até o cutover real.",
     },
   ],
   checkpoints: [
@@ -150,7 +150,7 @@ const governance = {
     {
       title: "Deploy e URL pública",
       status: "critical" as OperationStatus,
-      detail: "Ainda depende de publish autenticado para a URL materializar o corte novo.",
+      detail: "Ainda depende de credencial ativa de Cloudflare para a URL materializar o corte novo.",
     },
     {
       title: "Workflows produtivos",

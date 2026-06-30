@@ -108,12 +108,12 @@ const support = {
   incidents: [
     {
       id: "lovable-publish",
-      title: "Lovable com falha temporária de publish",
+      title: "Publicação final bloqueada por credencial de Cloudflare ausente",
       health: "critical" as OperationStatus,
       summary:
-        "O código sobe, o build passa, mas a publicação está falhando do lado da infraestrutura do Lovable.",
-      action: "Aguardar estabilidade do fornecedor e seguir evoluindo o admin no código em paralelo.",
-      status: "Infra externa / publish travado",
+        "O código sobe, o build passa e o deploy pré-build existe, mas o runtime atual não possui `CLOUDFLARE_API_TOKEN` para materializar o corte final na URL pública.",
+      action: "Fechar o blocker de credencial do deploy e então rodar o cutover final para a URL publicada.",
+      status: "Credencial de deploy pendente",
     },
     {
       id: "retry-legacy",
@@ -139,9 +139,10 @@ const support = {
       title: "Publish travado",
       steps: [
         "Validar se o build local passou no repositório.",
-        "Tentar Update/Publish 2 ou 3 vezes com intervalo curto.",
-        "Se o erro falar em infraestrutura temporária, tratar como incidente do fornecedor.",
-        "Enquanto isso, continuar fechando telas no código e publicar depois.",
+        "Confirmar se o runtime tem `CLOUDFLARE_API_TOKEN` ativo para o `nitro deploy --prebuilt`.",
+        "Se a credencial estiver ausente, tratar isso como blocker real de cutover, não como erro genérico do fornecedor.",
+        "Só depois rodar o deploy final e validar a URL pública contra o corte atual.",
+        "Enquanto isso, continuar fechando telas no código e mantendo a régua de paridade no produto.",
       ],
     },
     {
@@ -214,9 +215,9 @@ const support = {
       id: "publish",
       title: "Publish / Lovable",
       health: "risk" as OperationStatus,
-      headline: "Código validado e publish ainda dependente da estabilidade do fornecedor.",
+      headline: "Código validado e publicação final ainda dependente da credencial de deploy.",
       detail:
-        "O risco atual não está no repositório, mas na materialização da URL publicada e no controle de quando o corte virou tela ao vivo.",
+        "O risco atual não está no repositório, mas na materialização da URL publicada porque o runtime atual não tem a credencial exigida para o deploy final.",
       owner: "Claudio + Claw",
       icon: RadioTower,
     },
