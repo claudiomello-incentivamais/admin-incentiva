@@ -31,6 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  buildOperationNotionView,
   buildOperationCockpitFromOperation,
   buildPortalLiveSourceCards,
   fetchOperations,
@@ -94,6 +95,9 @@ function Page() {
   const sourceCards = effectiveOperation
     ? buildPortalLiveSourceCards(effectiveOperation, cockpit.source)
     : [];
+  const notionView = effectiveOperation
+    ? buildOperationNotionView(effectiveOperation, cockpit, cockpit.source)
+    : null;
 
   return (
     <>
@@ -254,6 +258,149 @@ function Page() {
             ))}
           </div>
         </section>
+
+        {notionView ? (
+          <section className="surface-card p-5">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Visão Notion da operação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Primeira camada nativa de gestão do pipeline comercial dentro do admin, começando
+                  por {cockpit.operationName}.
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] uppercase tracking-[0.16em] h-5",
+                  statusMeta[notionView.health].color,
+                )}
+              >
+                {notionView.mode === "live" ? "Notion live" : "Notion governado"}
+              </Badge>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-border bg-surface p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                      <NotebookPen className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-display">{notionView.headline}</div>
+                      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                        {notionView.detail}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-xl border border-border bg-card px-3 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Estado do pipeline
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-foreground">
+                        {notionView.stageLabel}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-card px-3 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Exposição
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-foreground">
+                        {notionView.exposureLabel}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-card px-3 py-3">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Sync
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-foreground">
+                        {notionView.syncLabel}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {notionView.metrics.map((metric) => (
+                    <ExecKpi
+                      key={metric.id}
+                      label={metric.label}
+                      value={metric.value}
+                      sub={metric.detail}
+                      icon={
+                        metric.id === "notion-records"
+                          ? NotebookPen
+                          : metric.id === "match-rate"
+                            ? Database
+                            : metric.id === "stage-alignment"
+                              ? Target
+                              : metric.id === "divergence"
+                                ? AlertOctagon
+                                : Sparkles
+                      }
+                      tone={metric.tone ?? "monitor"}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-border bg-surface p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-display">Funil útil para gestão</h3>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        O objetivo aqui é enxergar o pipeline comercial da operação sem abrir o
+                        board bruto do Notion.
+                      </p>
+                    </div>
+                    <Target className="h-3.5 w-3.5 text-primary" />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {notionView.stageHighlights.map((stage) => (
+                      <div
+                        key={stage.id}
+                        className="rounded-xl border border-border bg-card px-3 py-3"
+                      >
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                          {stage.label}
+                        </div>
+                        <div className="mt-1 text-2xl font-semibold text-display tabular-nums">
+                          {formatNumber(stage.count)}
+                        </div>
+                        <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                          {stage.touchedLabel}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-border bg-surface p-4">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Próximo salto desta camada
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-foreground">
+                    {notionView.nextStep}
+                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                    {notionView.availabilityLabel}
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+                    {notionView.actions.map((action) => (
+                      <NotionActionCard key={action.id} action={action} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="surface-card p-5">
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -887,6 +1034,44 @@ function Page() {
         </section>
       </main>
     </>
+  );
+}
+
+function NotionActionCard({
+  action,
+}: {
+  action: {
+    id: string;
+    title: string;
+    detail: string;
+    tone: "healthy" | "monitor" | "risk" | "critical" | "info";
+  };
+}) {
+  const toneClass =
+    action.tone === "healthy"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : action.tone === "risk" || action.tone === "critical"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : action.tone === "monitor"
+          ? "border-amber-500/20 bg-amber-500/5 text-amber-600"
+          : "border-primary/20 bg-primary/5 text-primary";
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-medium text-foreground">{action.title}</div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+          {action.tone === "healthy"
+            ? "Saudável"
+            : action.tone === "risk" || action.tone === "critical"
+              ? "Prioridade"
+              : action.tone === "monitor"
+                ? "Monitorar"
+                : "Camada"}
+        </Badge>
+      </div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{action.detail}</p>
+    </div>
   );
 }
 

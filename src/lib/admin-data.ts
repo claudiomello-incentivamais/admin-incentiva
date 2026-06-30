@@ -365,6 +365,43 @@ export interface PortalLiveSourceCard {
   availabilityLabel?: string;
 }
 
+export interface OperationNotionViewMetric {
+  id: string;
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+}
+
+export interface OperationNotionViewStage {
+  id: string;
+  label: string;
+  count: number;
+  touchedLabel: string;
+}
+
+export interface OperationNotionViewAction {
+  id: string;
+  title: string;
+  detail: string;
+  tone: OperationStatus | "info";
+}
+
+export interface OperationNotionView {
+  health: OperationStatus;
+  mode: "live" | "snapshot";
+  headline: string;
+  detail: string;
+  syncLabel: string;
+  stageLabel: string;
+  exposureLabel: string;
+  availabilityLabel: string;
+  nextStep: string;
+  metrics: OperationNotionViewMetric[];
+  stageHighlights: OperationNotionViewStage[];
+  actions: OperationNotionViewAction[];
+}
+
 export interface ScoreDriver {
   id: string;
   label: string;
@@ -3449,6 +3486,205 @@ export function buildPortalLiveSourceCards(
   };
 
   return [notionCard, trelloCard];
+}
+
+export function buildOperationNotionView(
+  operation: Operation,
+  cockpit: IncentivaCockpitData,
+  source: GlobalDashboardData["source"],
+): OperationNotionView {
+  const notionLive =
+    source === "live" &&
+    typeof operation.notionRecords === "number" &&
+    typeof operation.matchRatePct === "number" &&
+    typeof operation.stageAlignmentPct === "number";
+
+  const stageLabel = notionLive
+    ? (operation.stageAlignmentPct ?? 0) >= 97 && (operation.matchRatePct ?? 0) >= 98
+      ? "Reconciliação forte"
+      : (operation.stageAlignmentPct ?? 0) >= 92 && (operation.matchRatePct ?? 0) >= 96
+        ? "Reconciliação em ajuste"
+        : "Divergência material"
+    : "Snapshot governado";
+
+  const exposureLabel = notionLive
+    ? (operation.statusMismatchCount ?? 0) <= 5 && (operation.notionOnlyCount ?? 0) <= 3
+      ? "Cliente-safe forte"
+      : (operation.statusMismatchCount ?? 0) <= 20 && (operation.notionOnlyCount ?? 0) <= 10
+        ? "Cliente-safe com monitoramento"
+        : "Segurar exposição total"
+    : "Recorte ainda governado";
+
+  const health: OperationStatus = notionLive
+    ? (operation.stageAlignmentPct ?? 0) < 90 || (operation.matchRatePct ?? 0) < 95
+      ? "risk"
+      : (operation.notionOnlyCount ?? 0) > 0 || (operation.statusMismatchCount ?? 0) > 0
+        ? "monitor"
+        : "healthy"
+    : "monitor";
+
+  const stageHighlights = cockpit.funnel
+    .filter((stage) =>
+      ["prospecting", "lead-interessado", "mql-agendado", "won"].includes(stage.id),
+    )
+    .map((stage) => ({
+      id: stage.id,
+      label: stage.label,
+      count: stage.count,
+      touchedLabel:
+        typeof stage.touchedThisMonth === "number"
+          ? `${formatNumber(stage.touchedThisMonth)} tocados no recorte`
+          : "Sem toque consolidado neste recorte",
+    }));
+
+  const metrics: OperationNotionViewMetric[] = notionLive
+    ? [
+        {
+          id: "notion-records",
+          label: "Registros no Notion",
+          value: formatNumber(operation.notionRecords ?? 0),
+          detail: "Base humana do pipeline disponível para leitura nesta conta.",
+          tone: "info",
+        },
+        {
+          id: "match-rate",
+          label: "Match rate",
+          value: `${(operation.matchRatePct ?? 0).toFixed(2)}%`,
+          detail: "Conciliação estrutural entre Supabase e pipeline humano.",
+          tone: (operation.matchRatePct ?? 0) >= 98 ? "success" : (operation.matchRatePct ?? 0) >= 95 ? "monitor" : "risk",
+        },
+        {
+          id: "stage-alignment",
+          label: "Alinhamento canônico",
+          value: `${(operation.stageAlignmentPct ?? 0).toFixed(2)}%`,
+          detail: "Quanto o estágio do Notion já conversa com o estágio canônico da operação.",
+          tone:
+            (operation.stageAlignmentPct ?? 0) >= 97
+              ? "success"
+              : (operation.stageAlignmentPct ?? 0) >= 92
+                ? "monitor"
+                : "risk",
+        },
+        {
+          id: "divergence",
+          label: "Divergência viva",
+          value: `${formatNumber(operation.statusMismatchCount ?? 0)} status · ${formatNumber(operation.notionOnlyCount ?? 0)} only`,
+          detail: "Volume que ainda exige saneamento antes de vender leitura total como verdade operacional.",
+          tone:
+            (operation.statusMismatchCount ?? 0) > 20 || (operation.notionOnlyCount ?? 0) > 10
+              ? "risk"
+              : (operation.statusMismatchCount ?? 0) > 0 || (operation.notionOnlyCount ?? 0) > 0
+                ? "monitor"
+                : "success",
+        },
+      ]
+    : [
+        {
+          id: "mode",
+          label: "Modo atual",
+          value: "Snapshot governado",
+          detail: "Ainda não há telemetria viva suficiente para vender reconciliação como leitura em tempo real.",
+          tone: "monitor",
+        },
+        {
+          id: "funnel",
+          label: "Funil espelhado",
+          value: formatNumber(cockpit.summary.notionRecords),
+          detail: "Estimativa segura da camada comercial enquanto a leitura viva não fecha a conta.",
+          tone: "info",
+        },
+        {
+          id: "alignment",
+          label: "Alinhamento sintético",
+          value: `${cockpit.summary.stageAlignmentPct.toFixed(2)}%`,
+          detail: "Base de reconciliação ainda sustentada por fallback curado.",
+          tone: "monitor",
+        },
+        {
+          id: "next-step",
+          label: "Próximo passo",
+          value: "Fechar telemetria",
+          detail: "A operação ainda precisa homologar o sinal vivo do pipeline humano.",
+          tone: "info",
+        },
+      ];
+
+  const actions: OperationNotionViewAction[] = notionLive
+    ? [
+        {
+          id: "status",
+          title:
+            (operation.statusMismatchCount ?? 0) > 20
+              ? "Priorizar saneamento de status"
+              : "Status sob controle operacional",
+          detail:
+            (operation.statusMismatchCount ?? 0) > 20
+              ? `Existem ${formatNumber(operation.statusMismatchCount ?? 0)} divergências de status entre Supabase e Notion; esse é o primeiro ponto para limpar antes de ampliar exposição externa.`
+              : `As divergências de status estão em ${formatNumber(operation.statusMismatchCount ?? 0)} e já permitem usar esta visão como apoio de gestão sem ruído material.`,
+          tone: (operation.statusMismatchCount ?? 0) > 20 ? "risk" : (operation.statusMismatchCount ?? 0) > 0 ? "monitor" : "healthy",
+        },
+        {
+          id: "notion-only",
+          title:
+            (operation.notionOnlyCount ?? 0) > 10
+              ? "Trazer registros notion-only para o core"
+              : "Registros notion-only monitorados",
+          detail:
+            (operation.notionOnlyCount ?? 0) > 10
+              ? `${formatNumber(operation.notionOnlyCount ?? 0)} registros só aparecem no Notion neste momento; isso reduz confiança para operar o pipeline como cockpit único.`
+              : `O volume notion-only está em ${formatNumber(operation.notionOnlyCount ?? 0)} e já cabe em monitoramento fino com Sales Ops.`,
+          tone: (operation.notionOnlyCount ?? 0) > 10 ? "risk" : (operation.notionOnlyCount ?? 0) > 0 ? "monitor" : "healthy",
+        },
+        {
+          id: "exposure",
+          title:
+            exposureLabel === "Segurar exposição total"
+              ? "Segurar portal como visão completa"
+              : "Usar esta visão como camada de gestão",
+          detail:
+            exposureLabel === "Segurar exposição total"
+              ? "Ainda não é hora de vender o Notion como visão central completa para esta conta; primeiro saneia, depois expõe."
+              : "A operação já consegue usar esta visão nativa do Notion como camada central de acompanhamento sem depender do board bruto.",
+          tone: exposureLabel === "Segurar exposição total" ? "risk" : exposureLabel === "Cliente-safe com monitoramento" ? "monitor" : "healthy",
+        },
+      ]
+    : [
+        {
+          id: "telemetry",
+          title: "Homologar leitura viva da conta",
+          detail: "Fechar o sinal vivo do pipeline humano é o próximo passo para sair do cartão semântico e virar gestão centralizada de verdade.",
+          tone: "monitor",
+        },
+        {
+          id: "governed",
+          title: "Manter visão governada até a homologação",
+          detail: "Enquanto isso, a visão nativa já organiza estágio, volume e próximos passos sem misturar outras operações.",
+          tone: "info",
+        },
+      ];
+
+  return {
+    health,
+    mode: notionLive ? "live" : "snapshot",
+    headline: notionLive
+      ? "Visão nativa do pipeline comercial desta operação, já ancorada na reconciliação entre Notion, Supabase e estágio canônico."
+      : "Primeira camada nativa do pipeline comercial desta operação, ainda sustentada por fallback governado.",
+    detail: notionLive
+      ? `${operation.name} já mostra ${formatNumber(operation.notionRecords ?? 0)} registros no Notion e leitura viva suficiente para transformar o pipeline em camada real de gestão dentro do painel.`
+      : `${operation.name} já ganha uma visão nativa do pipeline comercial, mas a leitura viva da conta ainda não está homologada para exposição como verdade operacional completa.`,
+    syncLabel: notionLive ? toLabelDate(operation.refreshedAt) : cockpit.snapshotLabel,
+    stageLabel,
+    exposureLabel,
+    availabilityLabel: "Embed direto do Notion continua pendente; a gestão aqui prioriza visão nativa e não iframe bruto.",
+    nextStep: notionLive
+      ? exposureLabel === "Segurar exposição total"
+        ? "Saneiar divergência material antes de abrir esta visão como camada externa completa."
+        : "Aprofundar owner, próximo passo e sync do pipeline para esta operação virar o blueprint replicável."
+      : "Homologar telemetria viva desta conta e depois replicar o mesmo padrão nas demais operações.",
+    metrics,
+    stageHighlights,
+    actions,
+  };
 }
 
 export const statusMeta: Record<

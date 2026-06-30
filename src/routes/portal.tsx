@@ -29,6 +29,7 @@ import {
 import {
   buildOperationActionPlan,
   buildOperationCockpitFromOperation,
+  buildOperationNotionView,
   buildPortalLiveSourceCards,
   buildPortalPublishPacket,
   getScoreDrivers,
@@ -100,6 +101,7 @@ function PortalPage() {
   const actionPlan = buildOperationActionPlan(scopedPortalOperation);
   const publishPacket = buildPortalPublishPacket(scopedPortalOperation);
   const liveSourceCards = buildPortalLiveSourceCards(scopedPortalOperation, dashboard.source);
+  const notionView = buildOperationNotionView(scopedPortalOperation, cockpit, dashboard.source);
   const drivers = getScoreDrivers(scopedPortalOperation).slice(0, 3);
   const exposedModules =
     selectedVisibilityMode === "client"
@@ -552,6 +554,93 @@ function PortalPage() {
             ))}
           </div>
         </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4 gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Visão nativa do Notion</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Primeira camada de gestão centralizada do pipeline comercial desta conta, sem
+                depender só de link externo.
+              </p>
+            </div>
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[10px] uppercase tracking-[0.16em] h-5",
+                statusMeta[notionView.health].color,
+              )}
+            >
+              {notionView.mode === "live" ? "Notion live" : "Notion governado"}
+            </Badge>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                  <NotebookPen className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-display">{notionView.headline}</div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                    {notionView.detail}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <PortalMiniMetric
+                  label="Pipeline"
+                  value={notionView.stageLabel}
+                  detail="Estado da reconciliação comercial."
+                />
+                <PortalMiniMetric
+                  label="Exposição"
+                  value={notionView.exposureLabel}
+                  detail="Quão seguro está o recorte para leitura externa."
+                />
+                <PortalMiniMetric
+                  label="Sync"
+                  value={notionView.syncLabel}
+                  detail="Última leitura útil desta camada."
+                />
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {notionView.metrics.slice(0, 4).map((metric) => (
+                  <PortalMiniMetric
+                    key={metric.id}
+                    label={metric.label}
+                    value={metric.value}
+                    detail={metric.detail}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Próximo passo desta conta
+              </div>
+              <div className="mt-1 text-base font-semibold text-display">{notionView.nextStep}</div>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                {notionView.availabilityLabel}
+              </p>
+
+              <div className="mt-4 space-y-3">
+                {notionView.actions.slice(0, 3).map((action) => (
+                  <div key={action.id} className="rounded-xl border border-border bg-card p-4">
+                    <div className="text-sm font-medium text-foreground">{action.title}</div>
+                    <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                      {action.detail}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
     </>
   );
@@ -589,6 +678,24 @@ function PortalKpi({
         </div>
       </div>
       <p className="mt-2 text-[12px] text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function PortalMiniMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{value}</div>
+      <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{detail}</p>
     </div>
   );
 }
