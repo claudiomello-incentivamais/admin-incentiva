@@ -314,6 +314,29 @@ export interface IntegrationHubData {
   actionLanes: IntegrationActionLane[];
 }
 
+export interface PortalPublishCheckpoint {
+  id: string;
+  title: string;
+  status: "ready" | "monitor" | "blocked";
+  detail: string;
+}
+
+export interface PortalPublishPacket {
+  operationId: string;
+  operationName: string;
+  clientLabel: string;
+  privateSlug: string;
+  privatePath: string;
+  audience: string;
+  authLayer: string;
+  visibility: string;
+  owner: string;
+  publishHealth: OperationStatus;
+  publishStage: string;
+  headline: string;
+  checkpoints: PortalPublishCheckpoint[];
+}
+
 export interface ScoreDriver {
   id: string;
   label: string;
@@ -2637,15 +2660,15 @@ const integrationHub: IntegrationHubData = {
       id: "publish",
       title: "Lovable / Publish",
       category: "Materialização externa",
-      health: "risk",
+      health: "monitor",
       owner: "Claw/main + Claudio",
       syncStatus: "manual",
       visibility: "client-safe",
       sourceOfTruth: "URL publicada, corte externo, portal visível",
-      lastSync: "Checkpoint autenticado",
-      headline: "A URL publicada ainda é o elo mais manual da cadeia.",
+      lastSync: "Checkpoint privado em evolução",
+      headline: "A publicação externa já tem sessão real, mas ainda pede governança por conta.",
       detail:
-        "O código já sobe forte, mas o publish ainda depende de checkpoint autenticado e de uma camada privada real para clientes.",
+        "O código já sobe forte e a sessão agora nasce no servidor, mas a abertura por cliente ainda precisa de pacote privado por conta e checkpoint final de exposição.",
       powers: ["Portal privado", "Camada externa do produto", "Homologação final"],
     },
   ],
@@ -2694,11 +2717,11 @@ const integrationHub: IntegrationHubData = {
       id: "github-publish",
       from: "GitHub",
       to: "Lovable / Publish",
-      health: "risk",
+      health: "monitor",
       title: "Do código pronto para a tela viva",
       detail:
-        "Hoje existe versionamento forte, build validado e push, mas a materialização externa ainda pede checkpoint manual.",
-      nextStep: "Fechar auth, perfis e governança de publish para transformar isso em cadeia de produção mais previsível.",
+        "Hoje existe versionamento forte, build validado, push e sessão real. O elo restante é fechar publish privado por conta e a governança da abertura externa.",
+      nextStep: "Amarrar pacote de publish por operação antes de abrir uso real externo.",
     },
   ],
   actionLanes: [
@@ -2724,19 +2747,94 @@ const integrationHub: IntegrationHubData = {
     },
     {
       id: "lane-auth",
-      title: "Auth, perfil e publicação privada",
+      title: "Publish privado por conta",
       owner: "Claw/main",
       target: "Portal / Configurações",
-      health: "risk",
+      health: "monitor",
       detail:
-        "Sem auth real, a visão de portal continua sendo experiência pronta, mas não produto multiusuário fechado.",
-      nextStep: "Entrar na base de autenticação e permissão por papel como próxima etapa estrutural.",
+        "A sessão real já entrou no produto. Agora falta fechar o pacote de abertura por cliente, com URL/recorte/checkpoint explícitos.",
+      nextStep: "Subir camada de publish privado por operação e depois ligar Trello/Notion como fontes vivas.",
     },
   ],
 };
 
 export async function loadIntegrationHub(): Promise<IntegrationHubData> {
   return integrationHub;
+}
+
+export function buildPortalPublishPacket(operation: Operation): PortalPublishPacket {
+  const privateSlug = operation.id;
+  const privatePath = `/portal?operationId=${operation.id}`;
+  const publishHealth: OperationStatus =
+    operation.dataReconciliation >= 90 && operation.baseCoverage >= 50
+      ? "healthy"
+      : operation.dataReconciliation >= 84
+        ? "monitor"
+        : "risk";
+
+  const publishStage =
+    publishHealth === "healthy"
+      ? "Pronto para homologação privada"
+      : publishHealth === "monitor"
+        ? "Quase pronto para abertura privada"
+        : "Segurar abertura até fechar a base";
+
+  const checkpoints: PortalPublishCheckpoint[] = [
+    {
+      id: "session",
+      title: "Sessão real do produto",
+      status: "ready",
+      detail: "Auth por cookie já protege entrada, refresh e leitura por papel.",
+    },
+    {
+      id: "scope",
+      title: "Escopo por operação",
+      status: "ready",
+      detail: `A conta ${operation.client} já pode nascer com recorte próprio dentro do portal.`,
+    },
+    {
+      id: "client-cut",
+      title: "Recorte cliente-safe",
+      status: "ready",
+      detail: "A visão externa já separa módulos públicos do que continua interno ao cockpit.",
+    },
+    {
+      id: "publish",
+      title: "Abertura privada por conta",
+      status: publishHealth === "risk" ? "blocked" : "monitor",
+      detail:
+        publishHealth === "risk"
+          ? "Ainda falta blindar melhor a abertura externa antes de transformar a conta em portal ativo."
+          : "A fundação está pronta; falta só o checkpoint final de materialização privada por conta.",
+    },
+    {
+      id: "live-sync",
+      title: "Fontes vivas de execução",
+      status: "monitor",
+      detail: "Trello e Notion ainda precisam entrar como leitura viva dentro do mesmo recorte publicado.",
+    },
+  ];
+
+  return {
+    operationId: operation.id,
+    operationName: operation.name,
+    clientLabel: operation.client,
+    privateSlug,
+    privatePath,
+    audience: "Cliente da conta + operação homologada",
+    authLayer: "Sessão real por cookie + RBAC + escopo por operação",
+    visibility: "Portal privado cliente-safe",
+    owner: operation.owner,
+    publishHealth,
+    publishStage,
+    headline:
+      publishHealth === "healthy"
+        ? "A operação já tem base suficiente para ensaiar abertura privada controlada."
+        : publishHealth === "monitor"
+          ? "A operação já cabe num portal privado, mas ainda pede checkpoint final antes de abrir uso real."
+          : "Ainda é melhor segurar a abertura externa até fechar melhor base e governança da conta.",
+    checkpoints,
+  };
 }
 
 export const statusMeta: Record<

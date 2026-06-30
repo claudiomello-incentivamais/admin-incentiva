@@ -120,26 +120,26 @@ const settings = {
   ],
   publishStages: [
     {
-      title: "Atual · Pro / cloud",
-      detail: "Montagem rápida, publish ainda controlado e sem camada privada por papel.",
+      title: "Atual · sessão real por cookie",
+      detail: "A entrada já nasce no servidor e sustenta RBAC e escopo por operação no produto.",
+      health: "healthy",
+    },
+    {
+      title: "Próximo · publish privado por conta",
+      detail: "Cada operação passa a sair com recorte próprio, checkpoint explícito e abertura externa controlada.",
       health: "monitor",
     },
     {
-      title: "Próximo · Business",
-      detail: "Entra quando a URL publicada precisar de privacidade real por pessoa, grupo ou workspace.",
+      title: "Posterior · fontes vivas na camada externa",
+      detail: "Trello e Notion entram no mesmo recorte publicado sem obrigar leitura distribuída fora do produto.",
       health: "risk",
-    },
-    {
-      title: "Posterior · portal governado",
-      detail: "Cada operação passa a ter recorte privado, com leitura externa controlada e sem expor a operação inteira.",
-      health: "healthy",
     },
   ],
   rolloutGates: [
-    "Definir perfis operacionais e regra de visibilidade por papel.",
-    "Separar claramente o que é leitura interna e o que é visão cliente.",
-    "Fechar quais módulos entram no portal externo e quais ficam só no admin.",
-    "Subir camada privada de publish antes de abrir uso real para terceiros.",
+    "Sessão real por papel já fechada no servidor.",
+    "Recorte cliente-safe por operação já definido no portal.",
+    "Pacote privado por conta precisa virar checkpoint padrão de abertura externa.",
+    "Trello e Notion ainda precisam entrar como leitura viva dentro da visão publicada.",
   ],
 };
 

@@ -67,7 +67,7 @@ function IntegrationsPage() {
           <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
             <Link to="/configuracoes">
               <ArrowRight className="h-3.5 w-3.5" />
-              Próximo passo: Auth e publish
+              Próximo passo: Publish privado
             </Link>
           </Button>
         </section>

@@ -2,16 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   Building2,
+  CheckCircle2,
   Eye,
   GlobeLock,
   LockKeyhole,
   MessageSquareShare,
+  RadioTower,
   ShieldCheck,
   Sparkles,
   Target,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { z } from "zod";
 
 import { Topbar } from "@/components/admin/Topbar";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +26,7 @@ import {
 import {
   buildOperationActionPlan,
   buildOperationCockpitFromOperation,
+  buildPortalPublishPacket,
   getScoreDrivers,
   loadGlobalDashboard,
   statusMeta,
@@ -31,6 +35,9 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal")({
   head: () => ({ meta: [{ title: "Portal — Console Incentiva" }] }),
+  validateSearch: z.object({
+    operationId: z.string().optional(),
+  }),
   loader: async () => loadGlobalDashboard(),
   component: PortalPage,
 });
@@ -48,19 +55,23 @@ function formatPercent(value: number) {
 
 function PortalPage() {
   const dashboard = Route.useLoaderData();
+  const search = Route.useSearch();
   const {
     selectedOperationId,
-    selectedOperation,
     selectedAccessProfile,
     selectedVisibilityMode,
   } = useAdminFilters();
+  const requestedOperationId = search.operationId;
 
   const portalOperation =
-    (selectedOperationId === "all"
+    ((requestedOperationId
+      ? dashboard.operations.find((operation) => operation.id === requestedOperationId)
+      : null) ??
+      (selectedOperationId === "all"
       ? dashboard.operations.find((operation) => operation.health === "healthy") ??
         dashboard.operations.find((operation) => operation.health === "monitor") ??
         dashboard.operations[0]
-      : dashboard.operations.find((operation) => operation.id === selectedOperationId)) ?? null;
+      : dashboard.operations.find((operation) => operation.id === selectedOperationId))) ?? null;
 
   if (!portalOperation) {
     return (
@@ -77,6 +88,7 @@ function PortalPage() {
 
   const cockpit = buildOperationCockpitFromOperation(portalOperation);
   const actionPlan = buildOperationActionPlan(portalOperation);
+  const publishPacket = buildPortalPublishPacket(portalOperation);
   const drivers = getScoreDrivers(portalOperation).slice(0, 3);
   const exposedModules =
     selectedVisibilityMode === "client"
@@ -337,18 +349,28 @@ function PortalPage() {
             <div className="space-y-3">
               <ActivationRow
                 title="Conta alvo"
-                detail={selectedOperation?.client ?? portalOperation.client}
+                detail={publishPacket.clientLabel}
                 icon={Building2}
               />
               <ActivationRow
                 title="Visão liberada"
-                detail={formatVisibilityModeLabel(selectedVisibilityMode)}
+                detail={publishPacket.visibility}
                 icon={Eye}
               />
               <ActivationRow
+                title="Autenticação"
+                detail={publishPacket.authLayer}
+                icon={LockKeyhole}
+              />
+              <ActivationRow
                 title="Owner sugerido"
-                detail={portalOperation.owner}
+                detail={publishPacket.owner}
                 icon={ShieldCheck}
+              />
+              <ActivationRow
+                title="Rota alvo"
+                detail={publishPacket.privatePath}
+                icon={GlobeLock}
               />
               <ActivationRow
                 title="Mensagem base"
@@ -356,6 +378,70 @@ function PortalPage() {
                 icon={MessageSquareShare}
                 multiline
               />
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[0.9fr_1.1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Pacote de publish por conta</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Artefato objetivo para sair de preview interno e abrir portal privado desta conta.
+                </p>
+              </div>
+              <RadioTower className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "text-[10px] uppercase tracking-[0.16em] h-5",
+                    statusMeta[publishPacket.publishHealth].color,
+                  )}
+                >
+                  {publishPacket.publishStage}
+                </Badge>
+                <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
+                  slug {publishPacket.privateSlug}
+                </Badge>
+              </div>
+              <div className="mt-2 text-base font-semibold text-display">
+                {publishPacket.headline}
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                Audiência: {publishPacket.audience}
+              </p>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {publishPacket.checkpoints.map((checkpoint) => (
+                <PublishCheckpointCard key={checkpoint.id} checkpoint={checkpoint} />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Recorte privado desta operação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  O que sai junto quando esta conta virar portal ativo governado.
+                </p>
+              </div>
+              <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <VisibilityCard title="Resumo executivo da conta" tone="healthy" />
+              <VisibilityCard title="Cobertura, score e conversão da própria operação" tone="healthy" />
+              <VisibilityCard title="Próximo marco e mensagem base acordada" tone="healthy" />
+              <VisibilityCard title="Leitura externa sem fila interna cross-operação" tone="healthy" />
+              <VisibilityCard title="Governança sensível, backlog interno e comparativos" tone="risk" />
+              <VisibilityCard title="Execução crua de Trello / Discord / workflow técnico" tone="risk" />
             </div>
           </div>
         </section>
@@ -448,6 +534,42 @@ function ActivationRow({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PublishCheckpointCard({
+  checkpoint,
+}: {
+  checkpoint: {
+    title: string;
+    status: "ready" | "monitor" | "blocked";
+    detail: string;
+  };
+}) {
+  const toneClass =
+    checkpoint.status === "ready"
+      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+      : checkpoint.status === "blocked"
+        ? "border-rose-500/20 bg-rose-500/5 text-rose-600"
+        : "border-amber-500/20 bg-amber-500/5 text-amber-600";
+
+  const label =
+    checkpoint.status === "ready"
+      ? "Pronto"
+      : checkpoint.status === "blocked"
+        ? "Bloqueado"
+        : "Monitorar";
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="text-sm font-medium">{checkpoint.title}</div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", toneClass)}>
+          {label}
+        </Badge>
+      </div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{checkpoint.detail}</p>
     </div>
   );
 }
