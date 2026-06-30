@@ -79,7 +79,7 @@ const support = {
     {
       label: "Incidentes abertos",
       value: "2",
-      detail: "Hoje o foco principal ficou em publish do Lovable e resíduo técnico de retry histórico.",
+      detail: "Hoje o foco principal ficou em credencial de deploy da publicação final e resíduo técnico de retry histórico.",
       tone: "risk" as const,
       icon: AlertTriangle,
     },
@@ -227,9 +227,9 @@ const support = {
       id: "publish-lock",
       severity: "critical" as OperationStatus,
       title: "URL publicada ainda não acompanha o corte novo automaticamente",
-      trigger: "Build validado + publish externo instável",
+      trigger: "Build validado + credencial de deploy ausente no runtime",
       owner: "Claw/main",
-      nextStep: "Seguir avançando no código e republishar assim que a camada do fornecedor normalizar.",
+      nextStep: "Disponibilizar a credencial de Cloudflare, executar o cutover final e validar a paridade da URL pública.",
     },
     {
       id: "email-drilldown",

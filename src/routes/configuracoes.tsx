@@ -202,6 +202,36 @@ const settings = {
       },
     ],
   },
+  finalCutoverChecklist: [
+    {
+      title: "Credencial de deploy ativa",
+      owner: "Claudio + Claw",
+      status: "blocked" as const,
+      evidence: "`CLOUDFLARE_API_TOKEN` disponível no runtime de deploy.",
+      exit: "O `nitro deploy --prebuilt` roda sem erro de autenticação.",
+    },
+    {
+      title: "Cutover da URL pública",
+      owner: "Claw/main",
+      status: "blocked" as const,
+      evidence: "A URL publicada responde com o corte novo em `Configurações` e `Portal`.",
+      exit: "Os marcadores de paridade e prontidão do corte externo aparecem ao vivo.",
+    },
+    {
+      title: "Paridade produto x URL",
+      owner: "Claw/main",
+      status: "monitor" as const,
+      evidence: "Os textos e estados críticos da URL pública batem com o repositório atual.",
+      exit: "Não existe mais drift visível entre o produto local e a URL publicada.",
+    },
+    {
+      title: "Homologação diária real",
+      owner: "Sales Ops + Claw",
+      status: "monitor" as const,
+      evidence: "A conta é usada em leitura real sem depender de interpretação manual do cockpit.",
+      exit: "A operação sustenta uso diário e o portal vira software publicado de fato.",
+    },
+  ],
 };
 
 function SettingsPage() {
@@ -474,6 +504,31 @@ function SettingsPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
+              <h2 className="text-sm font-semibold text-display">Checklist mínimo de cutover final</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Dono, evidência e critério de saída para fechar a última milha sem ambiguidade.
+              </p>
+            </div>
+            <Workflow className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-2">
+            {settings.finalCutoverChecklist.map((item) => (
+              <CutoverChecklistCard
+                key={item.title}
+                title={item.title}
+                owner={item.owner}
+                status={item.status}
+                evidence={item.evidence}
+                exit={item.exit}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
               <h2 className="text-sm font-semibold text-display">Gates do portal</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Checklist do que precisa estar pronto antes de abrir o software para leitura externa real.
@@ -668,6 +723,60 @@ function PublishParityCard({
       </Badge>
       <div className="mt-3 text-sm font-medium text-foreground">{title}</div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function CutoverChecklistCard({
+  title,
+  owner,
+  status,
+  evidence,
+  exit,
+}: {
+  title: string;
+  owner: string;
+  status: "ready" | "monitor" | "blocked";
+  evidence: string;
+  exit: string;
+}) {
+  const meta =
+    status === "ready"
+      ? {
+          label: "Fechado",
+          className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700",
+        }
+      : status === "monitor"
+        ? {
+            label: "Em fechamento",
+            className: "border-amber-500/20 bg-amber-500/10 text-amber-700",
+          }
+        : {
+            label: "Bloqueado",
+            className: "border-rose-500/20 bg-rose-500/10 text-rose-700",
+          };
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium text-foreground">{title}</div>
+          <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+            {owner}
+          </div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", meta.className)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <div className="mt-3 space-y-2 text-[12px] leading-relaxed text-muted-foreground">
+        <p>
+          <span className="font-medium text-foreground">Evidência:</span> {evidence}
+        </p>
+        <p>
+          <span className="font-medium text-foreground">Critério de saída:</span> {exit}
+        </p>
+      </div>
     </div>
   );
 }
