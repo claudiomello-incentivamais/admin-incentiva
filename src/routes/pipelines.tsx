@@ -39,7 +39,7 @@ function PipelinesPage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Pipelines"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">

@@ -69,7 +69,7 @@ const governance = {
     {
       label: "Checkpoints críticos",
       value: "4",
-      detail: "Dados, n8n, ownership e publish são os quatro checkpoints que mais importam agora.",
+      detail: "Dados, n8n, ownership e clareza de leitura são os quatro checkpoints que mais importam agora.",
       tone: "monitor" as const,
       icon: Layers3,
     },
@@ -133,12 +133,13 @@ const governance = {
     },
     {
       id: "publish-sync",
-      health: "critical" as OperationStatus,
-      lane: "Publish",
-      title: "Deploy final ainda bloqueado por credencial ausente no runtime.",
+      health: "monitor" as OperationStatus,
+      lane: "Experiência publicada",
+      title: "Publicação externa já fechada; a frente agora pede paridade visual e clareza operacional.",
       detail:
-        "O branch sobe, o build passa e o comando de deploy existe, mas a publicação final não materializa porque o runtime atual não tem `CLOUDFLARE_API_TOKEN` para o cutover externo.",
-      action: "Tratar a credencial de Cloudflare como blocker explícito da última milha e manter a paridade de publish visível no produto até o cutover real.",
+        "O cutover externo já materializou `workers.dev` e `lovable.app`. O ponto pendente agora é reduzir ruído visual, separar o que é leitura viva do que é snapshot e preparar a navegação para operação e cliente.",
+      action:
+        "Fechar a rodada de UX responsiva, clarificar os estados do produto e continuar o hub de integrações para que a visão publicada fique confiável no uso diário.",
     },
   ],
   checkpoints: [
@@ -149,8 +150,8 @@ const governance = {
     },
     {
       title: "Deploy e URL pública",
-      status: "critical" as OperationStatus,
-      detail: "Ainda depende de credencial ativa de Cloudflare para a URL materializar o corte novo.",
+      status: "healthy" as OperationStatus,
+      detail: "O corte novo já foi materializado externamente; agora o foco é manter paridade visual e semântica com o produto em evolução.",
     },
     {
       title: "Workflows produtivos",
@@ -307,7 +308,7 @@ function GovernancePage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Governança"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">

@@ -1,13 +1,14 @@
 import { parse, serialize } from "cookie-es";
 
 import {
+  ACCESS_DIRECTORY,
   AUTH_IDENTITIES_PUBLIC,
   type AuthIdentityPublic,
   type AuthSession,
 } from "./admin-auth.shared";
 
 type AuthIdentityRecord = AuthIdentityPublic & {
-  passcode: string;
+  passcode?: string;
 };
 
 type SessionCookiePayload = {
@@ -20,7 +21,7 @@ type SessionCookiePayload = {
 const AUTH_COOKIE_NAME = "admin_incentiva_session";
 const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12;
 
-const authIdentityRecords: AuthIdentityRecord[] = [
+const authIdentitySeedRecords: AuthIdentityRecord[] = [
   {
     ...AUTH_IDENTITIES_PUBLIC[0],
     passcode: "5501",
@@ -38,6 +39,37 @@ const authIdentityRecords: AuthIdentityRecord[] = [
     passcode: "5200",
   },
 ];
+
+function readPasscodeOverrides() {
+  const envValue =
+    (typeof process !== "undefined" && process.env.ADMIN_INCENTIVA_PASSCODES_JSON) ||
+    (import.meta.env.ADMIN_INCENTIVA_PASSCODES_JSON as string | undefined);
+
+  if (!envValue) return {} as Record<string, string>;
+
+  try {
+    const parsed = JSON.parse(envValue) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+const passcodeOverrides = readPasscodeOverrides();
+
+const authIdentityRecords: AuthIdentityRecord[] = ACCESS_DIRECTORY.map((entry) => {
+  const seed = authIdentitySeedRecords.find((record) => record.id === entry.id);
+
+  return {
+    id: entry.id,
+    name: entry.name,
+    email: entry.email,
+    profileId: entry.profileId,
+    operationIds: entry.operationIds,
+    defaultVisibility: entry.defaultVisibility,
+    passcode: passcodeOverrides[entry.id] ?? seed?.passcode,
+  };
+});
 
 let secretKeyPromise: Promise<CryptoKey> | null = null;
 
@@ -162,6 +194,10 @@ export async function signInIdentity(params: {
   const identity = getIdentityById(params.identityId);
   if (!identity) {
     return { ok: false as const, error: "Perfil não encontrado." };
+  }
+
+  if (!identity.passcode) {
+    return { ok: false as const, error: "Perfil ainda não habilitado para login." };
   }
 
   if (identity.passcode !== params.passcode.trim()) {

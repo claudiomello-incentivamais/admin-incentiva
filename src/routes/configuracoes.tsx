@@ -21,6 +21,12 @@ import {
 import { Topbar } from "@/components/admin/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  ACCESS_DIRECTORY,
+  ACCESS_PROFILE_LABELS,
+  formatAccessStatusLabel,
+  formatOperationScope,
+} from "@/lib/admin-auth.shared";
 
 export const Route = createFileRoute("/configuracoes")({
   head: () => ({ meta: [{ title: "Configurações — Console Incentiva" }] }),
@@ -93,7 +99,7 @@ const settings = {
     "Supabase é a fonte principal para a saúde operacional da carteira.",
     "n8n VPS é a fonte principal para a leitura técnica dos workflows.",
     "Planilha entra como apoio comercial/financeiro, não como verdade operacional absoluta.",
-    "Qualquer publish precisa virar checkpoint explícito enquanto o deploy não estiver automático.",
+    "Qualquer corte publicado precisa deixar claro o que está live, o que está guarded e o que ainda está em snapshot.",
   ],
   profiles: [
     {
@@ -146,10 +152,10 @@ const settings = {
     "Trello e Notion já aparecem na visão publicada; agora falta aprofundar sync direto, owner e etapa de execução sem sair do produto.",
   ],
   finalPublishReadiness: {
-    stage: "Pré-publicação final / homologação avançada",
-    percent: 90,
+    stage: "Publicação validada / consolidação operacional",
+    percent: 100,
     headline:
-      "A fundação do software já está de pé, o recorte publicado já existe, o Trello já mostra estado real de card, o Notion já orienta reconciliação e a frente agora já explicita a régua de corte externo por conta; o fechamento agora é materializar a publicação pública final com paridade do produto.",
+      "A publicação externa já foi materializada e validada. O foco desta frente saiu de deploy/cutover e entrou em consolidação do produto: responsividade, clareza entre fontes vivas e snapshots, além da preparação da camada de acesso por conta.",
     completed: [
       "Auth real por cookie já no servidor",
       "RBAC e escopo por operação já ativos",
@@ -159,23 +165,24 @@ const settings = {
       "Trello já entra com owner, etapa e follow-up em cards reais mapeados no produto",
       "Operações e Portal já mostram drill-down por conta",
       "Portal já mostra régua de prontidão e blockers do corte externo por operação",
+      "workers.dev e lovable.app já refletem o corte publicado validado",
     ],
     missing: [
       "Eliminar a dependência de snapshot intermediário e ligar o board real do Trello de forma mais direta no painel",
       "Aprofundar o drill-down da divergência comercial do Notion",
-      "Materializar a URL publicada final para refletir exatamente o corte atual do produto",
-      "Disponibilizar a credencial de Cloudflare no runtime para executar o deploy final",
-      "Homologar a abertura externa final como software usável no dia a dia",
+      "Fechar a responsividade do console logado para desktop, tablet e celular",
+      "Subir Integrações V2 com Evolution API, Drive/Sheets e demais fontes faltantes",
+      "Preparar a camada de acesso real por usuário, convite e escopo por conta",
     ],
     risks: [
-      "Hoje o produto está mais avançado no código do que na publicação pública final",
+      "Hoje o produto está mais avançado em governança interna do que em UX final de uso diário",
       "Ainda existe dependência de sinais operacionais intermediários em parte da camada Trello",
-      "O deploy final está bloqueado no runtime atual por ausência de `CLOUDFLARE_API_TOKEN`",
+      "Nem todas as fontes ainda estão expostas como leitura centralizada no hub de integrações",
     ],
   },
   publicCutover: {
     detail:
-      "A frente agora separa claramente o que já está pronto no código do que ainda falta materializar na URL pública final. Isso evita chamar de publicado algo que ainda está só homologado internamente.",
+      "O cutover externo já foi concluído. Esta régua agora serve para manter a paridade entre o produto publicado e as próximas rodadas de evolução, sem voltar a confundir deploy concluído com console pronto para escala.",
     steps: [
       {
         title: "Corte interno validado",
@@ -184,9 +191,9 @@ const settings = {
       },
       {
         title: "Paridade do recorte publicado",
-        status: "monitor" as const,
+        status: "ready" as const,
         detail:
-          "O produto já mostra a régua por conta, mas a publicação pública final ainda precisa refletir exatamente este último corte.",
+          "A publicação externa já reflete o corte homologado desta etapa.",
       },
       {
         title: "Homologação externa diária",
@@ -195,41 +202,41 @@ const settings = {
           "Antes do fechamento final, a conta precisa provar leitura útil no uso real, sem depender de interpretação manual do cockpit.",
       },
       {
-        title: "Abertura final",
-        status: "blocked" as const,
+        title: "Abertura escalável",
+        status: "monitor" as const,
         detail:
-          "Só deve virar publicação final quando a URL pública estiver no mesmo estado do produto e a operação estiver homologada no dia a dia.",
+          "O próximo salto é sair de publicação validada para produto confortável, responsivo e pronto para usuários com perfis distintos.",
       },
     ],
   },
   finalCutoverChecklist: [
     {
-      title: "Credencial de deploy ativa",
-      owner: "Claudio + Claw",
-      status: "blocked" as const,
-      evidence: "`CLOUDFLARE_API_TOKEN` disponível no runtime de deploy.",
-      exit: "O `nitro deploy --prebuilt` roda sem erro de autenticação.",
-    },
-    {
-      title: "Cutover da URL pública",
+      title: "Publicação externa validada",
       owner: "Claw/main",
-      status: "blocked" as const,
-      evidence: "A URL publicada responde com o corte novo em `Configurações` e `Portal`.",
-      exit: "Os marcadores de paridade e prontidão do corte externo aparecem ao vivo.",
+      status: "ready" as const,
+      evidence: "`workers.dev` e `lovable.app` já respondem com o corte novo.",
+      exit: "O deploy deixa de ser assunto da etapa e vira base estável para as próximas evoluções.",
     },
     {
       title: "Paridade produto x URL",
       owner: "Claw/main",
       status: "monitor" as const,
-      evidence: "Os textos e estados críticos da URL pública batem com o repositório atual.",
-      exit: "Não existe mais drift visível entre o produto local e a URL publicada.",
+      evidence: "Os textos e estados críticos da URL pública acompanham o repositório atual sem drift relevante.",
+      exit: "Não existe mais narrativa antiga de blocker técnico no produto publicado.",
     },
     {
-      title: "Homologação diária real",
-      owner: "Sales Ops + Claw",
+      title: "Responsividade do console",
+      owner: "Claw/main",
       status: "monitor" as const,
-      evidence: "A conta é usada em leitura real sem depender de interpretação manual do cockpit.",
-      exit: "A operação sustenta uso diário e o portal vira software publicado de fato.",
+      evidence: "Topbar, shell, cards e telas principais ficam usáveis sem estouro lateral em desktop, tablet e celular.",
+      exit: "A navegação do console logado fica confortável para apresentação e operação em múltiplas telas.",
+    },
+    {
+      title: "Acesso por perfil e conta",
+      owner: "Claw/main + Sales Ops",
+      status: "monitor" as const,
+      evidence: "A camada de usuário, convite e escopo por operação fica pronta para Lucas, SDRs e clientes.",
+      exit: "Cada perfil entra com seu acesso e vê só o que deve ver, sem depender de chave compartilhada.",
     },
   ],
 };
@@ -239,7 +246,7 @@ function SettingsPage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Configurações"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
@@ -398,6 +405,82 @@ function SettingsPage() {
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
+                <h2 className="text-sm font-semibold text-display">Diretório de acessos</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Primeira camada concreta para sair de chave compartilhada e evoluir para acesso por pessoa e por conta.
+                </p>
+              </div>
+              <KeyRound className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {ACCESS_DIRECTORY.map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-border bg-surface p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium">{entry.name}</div>
+                      <div className="mt-1 text-[12px] text-muted-foreground">{entry.email}</div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
+                        {ACCESS_PROFILE_LABELS[entry.profileId]}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className="h-5 text-[10px] uppercase tracking-[0.16em] border-primary/30 text-primary"
+                      >
+                        {formatAccessStatusLabel(entry.status)}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Escopo
+                      </div>
+                      <div className="mt-1 text-[12px] text-foreground">{entry.scopeLabel}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Operações
+                      </div>
+                      <div className="mt-1 text-[12px] text-foreground">
+                        {formatOperationScope(entry.operationIds)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Audiência
+                      </div>
+                      <div className="mt-1 text-[12px] text-foreground">{entry.audienceLabel}</div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Modo padrão
+                      </div>
+                      <div className="mt-1 text-[12px] text-foreground">
+                        {entry.defaultVisibility === "internal" ? "Interno completo" : "Cliente-safe"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                    {entry.notes}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
                 <h2 className="text-sm font-semibold text-display">Privacidade de publish</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   Evolução esperada da publicação até virar software governado por papel.
@@ -410,6 +493,33 @@ function SettingsPage() {
               {settings.publishStages.map((stage) => (
                 <PublishStageCard key={stage.title} stage={stage} />
               ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Modelo de ativação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Como esta frente deve evoluir até chegar em convite, senha própria e gestão por conta.
+                </p>
+              </div>
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
+                1. Sair de chaves compartilhadas e ativar identidades nominadas por papel relevante.
+              </div>
+              <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
+                2. Consolidar escopo por operação para Lucas, SDRs e clientes sem abrir a carteira inteira.
+              </div>
+              <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
+                3. Trocar passcode estático por senha própria, reset e convite governado.
+              </div>
+              <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
+                4. Permitir módulos customizados por conta no portal, preservando um shell único de produto.
+              </div>
             </div>
           </div>
         </section>
@@ -504,9 +614,9 @@ function SettingsPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Checklist mínimo de cutover final</h2>
+              <h2 className="text-sm font-semibold text-display">Checklist mínimo da próxima rodada</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Dono, evidência e critério de saída para fechar a última milha sem ambiguidade.
+                Dono, evidência e critério de saída para fechar a próxima etapa sem ambiguidade.
               </p>
             </div>
             <Workflow className="h-3.5 w-3.5 text-primary" />
@@ -550,7 +660,7 @@ function SettingsPage() {
           <MiniCard
             icon={Workflow}
             title="Deploy / publish"
-            detail="Enquanto a publicação não refletir automaticamente o branch, esse checkpoint continua sendo parte da configuração do ambiente."
+            detail="O deploy já saiu do caminho crítico; agora esse checkpoint serve para manter paridade entre a URL publicada e a evolução rápida do produto."
           />
           <MiniCard
             icon={Layers3}

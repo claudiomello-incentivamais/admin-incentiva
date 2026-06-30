@@ -80,7 +80,7 @@ function PortalPage() {
     return (
       <>
         <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
-        <main className="flex-1 px-6 py-6 max-w-[1600px] w-full mx-auto">
+        <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 py-4 md:px-6 md:py-6">
           <div className="surface-card p-6 text-sm text-muted-foreground">
             Nenhuma operação disponível para montar a visão de portal.
           </div>
@@ -127,7 +127,7 @@ function PortalPage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
@@ -206,6 +206,34 @@ function PortalPage() {
               </div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
                 {selectedAccessProfile.description}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">
+                Visão ativa
+              </div>
+              <div className="mt-1 text-sm font-medium text-display">
+                {formatVisibilityModeLabel(selectedVisibilityMode)}
+              </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                {selectedVisibilityMode === "client"
+                  ? "Este recorte foi pensado para leitura externa controlada, sem bastidor interno e sem comparativos sensíveis."
+                  : "Este recorte preserva contexto operacional extra para calibrar o que ainda deve ou não sair para cliente."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Fonte principal
+              </div>
+              <div className="mt-1 text-sm font-medium text-display">
+                {dashboard.source === "live" ? "Leitura viva" : "Snapshot governado"}
+              </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                O portal já mostra de forma mais clara se a leitura desta operação vem de fonte
+                ativa ou de fallback curado.
               </p>
             </div>
           </div>

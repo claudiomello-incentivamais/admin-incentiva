@@ -48,7 +48,8 @@ check_marker() {
 echo "Validando publicação em: $BASE_URL"
 
 check_marker "$BASE_URL/configuracoes" "Paridade da publicação final"
-check_marker "$BASE_URL/configuracoes" "Checklist mínimo de cutover final"
+check_marker "$BASE_URL/configuracoes" "Checklist mínimo da próxima rodada"
+check_marker "$BASE_URL/configuracoes" "Diretório de acessos"
 check_marker "$BASE_URL/portal" "Prontidão do corte externo"
 check_marker "$BASE_URL/portal" "Blockers do fechamento externo"
 

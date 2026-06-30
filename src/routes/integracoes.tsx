@@ -41,7 +41,7 @@ function IntegrationsPage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Integrações"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
@@ -87,11 +87,15 @@ function IntegrationsPage() {
               detail="Cada sistema aparece com owner, sync, visibilidade e qual parte do produto ele abastece."
             />
             <GuideCard
-              title="2. Ponte"
-              detail="As pontes mostram se a informação já entrou de verdade no admin ou se ainda depende de leitura distribuída."
+              title="2. Estado"
+              detail="Live = leitura viva; Guarded = entrada já governada, mas ainda parcial; Snapshot = retrato seguro quando a fonte ainda não sobe por inteiro."
             />
             <GuideCard
-              title="3. Fila"
+              title="3. Ponte"
+              detail="As pontes mostram se a informação já aterrissou no admin ou se ainda depende de leitura distribuída entre ferramentas."
+            />
+            <GuideCard
+              title="4. Fila"
               detail="O hub deixa explícito o que ainda falta integrar para a gestão ficar concentrada numa tela só."
             />
           </div>

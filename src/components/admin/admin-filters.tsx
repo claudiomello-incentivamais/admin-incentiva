@@ -52,7 +52,7 @@ const ACCESS_PROFILE_STORAGE_KEY = "admin-incentiva-access-profile";
 const VISIBILITY_MODE_STORAGE_KEY = "admin-incentiva-visibility-mode";
 
 const periodOptions: Record<PeriodPreset, string> = {
-  mtd: "Month to date",
+  mtd: "Mês atual",
   "7d": "Últimos 7 dias",
   "30d": "Últimos 30 dias",
   "90d": "Últimos 90 dias",

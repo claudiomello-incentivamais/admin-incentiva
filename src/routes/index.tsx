@@ -20,7 +20,11 @@ import { Topbar } from "@/components/admin/Topbar";
 import { ActionPacketCard } from "@/components/admin/action-packet-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAdminFilters, formatPeriodLabel } from "@/components/admin/admin-filters";
+import {
+  useAdminFilters,
+  formatPeriodLabel,
+  formatVisibilityModeLabel,
+} from "@/components/admin/admin-filters";
 import { cn } from "@/lib/utils";
 
 import {
@@ -61,7 +65,8 @@ function formatNumber(n: number) {
 function AdminGlobal() {
   const dashboard = Route.useLoaderData();
   const { kpis, operations, insights } = dashboard;
-  const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
+  const { selectedOperationId, selectedOperation, selectedPeriod, selectedVisibilityMode } =
+    useAdminFilters();
   const filteredOperations = useMemo(
     () =>
       selectedOperationId === "all"
@@ -178,7 +183,7 @@ function AdminGlobal() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Admin Global"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         {/* Executive header */}
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
@@ -217,6 +222,49 @@ function AdminGlobal() {
                 ? "Painel consolidado"
                 : "Painel filtrado por operação"}
             </Badge>
+          </div>
+        </section>
+
+        <section className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="surface-card p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className="h-5 text-[10px] uppercase tracking-[0.16em]"
+              >
+                {formatVisibilityModeLabel(selectedVisibilityMode)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-5 text-[10px] uppercase tracking-[0.16em]"
+              >
+                {dashboard.source === "live" ? "Live" : "Snapshot"}
+              </Badge>
+            </div>
+            <h2 className="mt-3 text-sm font-semibold text-display">
+              Leitura ativa deste cockpit
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {selectedVisibilityMode === "internal"
+                ? "Interno completo mantém contexto executivo, checkpoints sensíveis, gargalos e ação prática da operação."
+                : "Cliente-safe preserva o recorte apresentável para leitura externa, sem abrir governança interna e bastidor de execução."}
+            </p>
+          </div>
+
+          <div className="surface-card p-4">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Fonte de leitura
+            </div>
+            <h2 className="mt-3 text-sm font-semibold text-display">
+              {dashboard.source === "live"
+                ? "Esta visão já está apoiada em leitura viva da governança."
+                : "Esta visão ainda está em snapshot fallback governado."}
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {dashboard.source === "live"
+                ? "O painel já conseguiu puxar a view ativa do Supabase para consolidar carteira, score, cobertura e reconciliação."
+                : "Quando a leitura viva não sobe, o painel mantém um retrato seguro para não te deixar cego, mas sem prometer tempo real onde ele ainda não existe."}
+            </p>
           </div>
         </section>
 

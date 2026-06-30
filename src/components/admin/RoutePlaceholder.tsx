@@ -17,7 +17,7 @@ export function RoutePlaceholder({
   return (
     <>
       <Topbar breadcrumb={breadcrumb} />
-      <main className="flex-1 px-6 py-6 max-w-5xl w-full mx-auto">
+      <main className="flex-1 w-full max-w-5xl mx-auto px-4 py-4 md:px-6 md:py-6">
         <div className="surface-card p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-2">

@@ -61,7 +61,7 @@ function ClientsPage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Clientes"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
@@ -96,6 +96,31 @@ function ClientsPage() {
         </section>
 
         <section className="surface-card p-5">
+          <div className="mb-4 grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">
+                Fonte ativa
+              </div>
+              <div className="mt-1 text-sm font-medium text-display">
+                {dashboard.source === "live" ? "Supabase live" : "Snapshot fallback"}
+              </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                Esta carteira já deixa claro quando a leitura vem de fonte viva e quando ainda está
+                apoiada em fallback local.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Leitura desta camada
+              </div>
+              <div className="mt-1 text-sm font-medium text-display">Prioridade + saúde + prontidão</div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                Esta frente serve para decidir quais contas precisam de atenção primeiro e quais já
+                estão mais próximas de virar portal apresentável.
+              </p>
+            </div>
+          </div>
+
           <div>
             <h2 className="text-sm font-semibold text-display">Como ler esta frente</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">

@@ -282,7 +282,7 @@ export interface IntegrationSource {
   category: string;
   health: OperationStatus;
   owner: string;
-  syncStatus: "live" | "guarded" | "manual" | "planned";
+  syncStatus: "live" | "guarded" | "manual" | "planned" | "snapshot";
   visibility: "internal" | "client-safe" | "restricted";
   sourceOfTruth: string;
   lastSync: string;
@@ -2824,30 +2824,34 @@ const integrationHub: IntegrationHubData = {
     {
       id: "connected-layers",
       label: "Camadas conectadas",
-      value: "7",
+      value: "10",
       tone: "success",
-      detail: "Supabase, n8n, Notion, Trello, Discord, GitHub e publish já estão dentro do mapa único.",
+      detail:
+        "Supabase, n8n, Evolution API, Notion, Trello, Discord, Google Drive, Apify, GitHub e publish já entram no mapa central.",
     },
     {
       id: "live-reads",
       label: "Leituras vivas",
       value: "3",
       tone: "monitor",
-      detail: "Supabase, n8n VPS e parte da carteira já podem virar leitura viva no admin.",
+      detail:
+        "Supabase, n8n VPS e GitHub já sobem com leitura viva; as demais camadas seguem em guarded, snapshot ou integração planejada.",
     },
     {
       id: "manual-checkpoints",
       label: "Checkpoints manuais",
-      value: "3",
+      value: "4",
       tone: "risk",
-      detail: "Publish, autorização e alguns handoffs ainda dependem de etapa manual controlada.",
+      detail:
+        "Publish, parte da camada comercial, alguns handoffs e o consumo de planilhas ainda pedem intervenção controlada.",
     },
     {
       id: "action-targets",
       label: "Destinos de ação",
-      value: "3",
+      value: "5",
       tone: "info",
-      detail: "Trello, Notion e Discord formam hoje a camada principal de aterrissagem das ações.",
+      detail:
+        "Trello, Notion, Discord, Portal e Suporte já formam a camada principal de aterrissagem das ações do cockpit.",
     },
   ],
   sources: [
@@ -2882,6 +2886,22 @@ const integrationHub: IntegrationHubData = {
       powers: ["Suporte", "Pipelines", "Workflow intelligence", "Alertas vivos"],
     },
     {
+      id: "evolution",
+      title: "Evolution API",
+      category: "WhatsApp runtime",
+      health: "healthy",
+      owner: "Claw/main",
+      syncStatus: "guarded",
+      visibility: "restricted",
+      sourceOfTruth: "Instâncias, webhook, fila de WhatsApp e saúde do canal",
+      lastSync: "Telemetria de health em expansão",
+      headline:
+        "Evolution é a camada que precisa materializar a saúde do WhatsApp como integração de primeira classe.",
+      detail:
+        "Hoje o painel já lê saúde de WhatsApp por efeito operacional, mas ainda falta expor a Evolution API como fonte técnica explícita dentro do hub.",
+      powers: ["Operações", "Suporte", "Health de WhatsApp", "Diagnóstico de instância"],
+    },
+    {
       id: "notion",
       title: "Notion",
       category: "Operação SDR",
@@ -2912,6 +2932,22 @@ const integrationHub: IntegrationHubData = {
       powers: ["Fila executiva", "Camada de ação prática", "Follow-up operacional"],
     },
     {
+      id: "google-drive",
+      title: "Google Drive / Sheets",
+      category: "Apoio comercial",
+      health: "monitor",
+      owner: "Claw/main + Sales Ops",
+      syncStatus: "snapshot",
+      visibility: "internal",
+      sourceOfTruth: "Planilhas auxiliares, cortes financeiros e apoio de performance",
+      lastSync: "Leitura assistida",
+      headline:
+        "Drive e planilhas ainda funcionam como apoio, não como verdade operacional principal.",
+      detail:
+        "Essa camada ainda não está aterrissada como leitura viva no admin; hoje entra como apoio para cortes específicos de performance e conferência operacional.",
+      powers: ["Performance", "Faturamento", "Conferência comercial"],
+    },
+    {
       id: "discord",
       title: "Discord operacional",
       category: "Acionamento e exceção",
@@ -2925,6 +2961,22 @@ const integrationHub: IntegrationHubData = {
       detail:
         "Serve para alertar, destravar e coordenar. O papel dele no admin é mostrar quando a exceção saiu da fila e virou conversa com dono certo.",
       powers: ["Suporte", "Ação prática", "Escalada operacional"],
+    },
+    {
+      id: "apify",
+      title: "Apify / coleta externa",
+      category: "Enriquecimento",
+      health: "monitor",
+      owner: "Claw/main",
+      syncStatus: "planned",
+      visibility: "restricted",
+      sourceOfTruth: "Coleta complementar, enrichment e fontes externas específicas",
+      lastSync: "Planejado para hub V2",
+      headline:
+        "Apify entra como camada de coleta complementar quando a operação depender de enriquecimento externo.",
+      detail:
+        "A ferramenta já faz parte da arquitetura possível, mas ainda não está exposta no painel como fonte navegável e audível por operação.",
+      powers: ["Listas", "Enriquecimento", "Coletas auxiliares por operação"],
     },
     {
       id: "github",
@@ -2945,15 +2997,15 @@ const integrationHub: IntegrationHubData = {
       id: "publish",
       title: "Lovable / Publish",
       category: "Materialização externa",
-      health: "monitor",
+      health: "healthy",
       owner: "Claw/main + Claudio",
-      syncStatus: "manual",
+      syncStatus: "guarded",
       visibility: "client-safe",
       sourceOfTruth: "URL publicada, corte externo, portal visível",
-      lastSync: "Checkpoint privado em evolução",
-      headline: "A publicação externa já tem sessão real, mas ainda pede governança por conta.",
+      lastSync: "Publicação já materializada",
+      headline: "A publicação externa já está no ar e agora entra em fase de governança por conta.",
       detail:
-        "O código já sobe forte e a sessão agora nasce no servidor, mas a abertura por cliente ainda precisa de pacote privado por conta e checkpoint final de exposição.",
+        "O deploy final já foi materializado. O próximo salto deixa de ser cutover técnico e passa a ser abertura privada por conta, com governança de audiência e leitura viva por operação.",
       powers: ["Portal privado", "Camada externa do produto", "Homologação final"],
     },
   ],
@@ -2979,6 +3031,16 @@ const integrationHub: IntegrationHubData = {
       nextStep: "Aprofundar leitura viva por workflow e cruzar com backlog de ação.",
     },
     {
+      id: "evolution-admin",
+      from: "Evolution API",
+      to: "Operações + Suporte",
+      health: "monitor",
+      title: "Saúde explícita do WhatsApp",
+      detail:
+        "O cockpit já enxerga efeitos do canal, mas ainda precisa trazer instância, fila, webhook e disponibilidade da Evolution para a tela principal.",
+      nextStep: "Subir health técnico do WhatsApp como ponte explícita do hub, sem depender só da leitura derivada por workflow.",
+    },
+    {
       id: "notion-admin",
       from: "Notion",
       to: "Operações",
@@ -2999,14 +3061,34 @@ const integrationHub: IntegrationHubData = {
       nextStep: "Trazer etapa, owner e profundidade de execução do card para dentro do hub e dos action packets.",
     },
     {
+      id: "drive-performance",
+      from: "Google Drive / Sheets",
+      to: "Performance + Faturamento",
+      health: "monitor",
+      title: "Apoio comercial ainda não consolidado",
+      detail:
+        "Planilhas ainda ajudam em recortes comerciais e financeiros, mas seguem fora da malha viva do cockpit central.",
+      nextStep: "Definir o que realmente continua em planilha e o que deve subir para leitura central governada.",
+    },
+    {
+      id: "apify-admin",
+      from: "Apify / coleta externa",
+      to: "Listas + Integrações",
+      health: "monitor",
+      title: "Coleta externa ainda fora do mapa vivo",
+      detail:
+        "A camada de enriquecimento complementar ainda não conversa com o hub de forma auditável, mesmo já sendo relevante para evolução da operação.",
+      nextStep: "Modelar fontes externas e jobs de enrichment como bloco próprio, com owner e status de sincronização.",
+    },
+    {
       id: "github-publish",
       from: "GitHub",
       to: "Lovable / Publish",
-      health: "monitor",
+      health: "healthy",
       title: "Do código pronto para a tela viva",
       detail:
-        "Hoje existe versionamento forte, build validado, push e sessão real. O elo restante é fechar publish privado por conta e a governança da abertura externa.",
-      nextStep: "Amarrar pacote de publish por operação antes de abrir uso real externo.",
+        "Versionamento, build, deploy e URL publicada já estão em paridade. O elo restante agora é abertura privada por conta e leitura viva mais profunda por operação.",
+      nextStep: "Amarrar pacote de acesso por operação e evoluir a camada client-safe para uso real de clientes.",
     },
   ],
   actionLanes: [
@@ -3031,14 +3113,44 @@ const integrationHub: IntegrationHubData = {
       nextStep: "Trazer status de execução, etapa, owner e follow-up do card para a camada centralizada.",
     },
     {
+      id: "lane-evolution",
+      title: "Evolution API como health técnico do WhatsApp",
+      owner: "Claw/main",
+      target: "Operações / Suporte / Integrações",
+      health: "monitor",
+      detail:
+        "A operação já depende de WhatsApp em produção, mas a fonte técnica do canal ainda não aparece como integração explícita no hub.",
+      nextStep: "Expor instância, webhook, fila e disponibilidade da Evolution na camada visual central.",
+    },
+    {
+      id: "lane-drive",
+      title: "Planilhas e Drive com papel claramente limitado",
+      owner: "Claw/main + Sales Ops",
+      target: "Performance / Faturamento",
+      health: "monitor",
+      detail:
+        "Hoje a planilha ainda serve como apoio em alguns recortes, mas precisa ficar claro onde ela termina e onde o cockpit vira fonte principal.",
+      nextStep: "Separar apoio comercial de verdade operacional, reduzindo dependência de leitura distribuída.",
+    },
+    {
+      id: "lane-apify",
+      title: "Apify como fonte externa auditável",
+      owner: "Claw/main",
+      target: "Integrações / Listas",
+      health: "monitor",
+      detail:
+        "A camada de coleta externa ainda não está visível na interface, mesmo sendo candidata natural para enriquecer listas e fontes auxiliares.",
+      nextStep: "Modelar enrichment externo por job, owner e status dentro do hub V2.",
+    },
+    {
       id: "lane-auth",
       title: "Publish privado por conta",
       owner: "Claw/main",
       target: "Portal / Configurações",
       health: "monitor",
       detail:
-        "Sessão real, recorte privado e pacote de abertura por operação já estão dentro do produto como fundação de exposição controlada.",
-      nextStep: "Fechar a governança final de abertura externa e aprofundar as fontes vivas por conta.",
+        "Sessão real, recorte privado e publicação final já estão dentro do produto como fundação de exposição controlada.",
+      nextStep: "Fechar a governança de abertura por conta, permissões e fontes vivas mais profundas por operação.",
     },
   ],
 };

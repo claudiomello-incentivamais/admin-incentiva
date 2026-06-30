@@ -23,7 +23,11 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
-import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
+import {
+  formatPeriodLabel,
+  formatVisibilityModeLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,7 +67,12 @@ function formatDecimal(value: number, digits = 1) {
 
 function Page() {
   const incentivaCockpit = Route.useLoaderData();
-  const { selectedOperationId, selectedOperationRecord, selectedPeriod } = useAdminFilters();
+  const {
+    selectedOperationId,
+    selectedOperationRecord,
+    selectedPeriod,
+    selectedVisibilityMode,
+  } = useAdminFilters();
   const fallbackOperation = fetchOperations()[0] ?? null;
   const effectiveOperation = selectedOperationRecord ?? fallbackOperation;
   const cockpit =
@@ -88,7 +97,7 @@ function Page() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Operações", cockpit.operationName]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
@@ -136,6 +145,49 @@ function Page() {
               <RefreshCcw className="h-3.5 w-3.5" />
               Refresh live em breve
             </Button>
+          </div>
+        </section>
+
+        <section className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="surface-card p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className="h-5 text-[10px] uppercase tracking-[0.16em]"
+              >
+                {formatVisibilityModeLabel(selectedVisibilityMode)}
+              </Badge>
+              <Badge
+                variant="outline"
+                className="h-5 text-[10px] uppercase tracking-[0.16em]"
+              >
+                {cockpit.source === "live" ? "Live" : "Snapshot"}
+              </Badge>
+            </div>
+            <h2 className="mt-3 text-sm font-semibold text-display">
+              Como interpretar esta operação
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {selectedVisibilityMode === "internal"
+                ? "Neste modo, a operação mostra base, reconciliação, health técnico, backlog e checkpoints de execução."
+                : "Neste modo, a operação prioriza saúde, cobertura, marcos e leitura segura para audiência externa."}
+            </p>
+          </div>
+
+          <div className="surface-card p-4">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Origem do recorte
+            </div>
+            <h2 className="mt-3 text-sm font-semibold text-display">
+              {cockpit.source === "live"
+                ? "A operação já está usando leitura viva desta conta."
+                : "A operação ainda está em fallback governado nesta tela."}
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {cockpit.source === "live"
+                ? "Score, cobertura, reconciliação e parte da leitura comercial já vieram do retrato atual da governança."
+                : "O cockpit continua navegável, mas este recorte ainda depende de snapshot para preservar consistência onde a telemetria viva não está completa."}
+            </p>
           </div>
         </section>
 

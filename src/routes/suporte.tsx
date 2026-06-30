@@ -79,7 +79,7 @@ const support = {
     {
       label: "Incidentes abertos",
       value: "2",
-      detail: "Hoje o foco principal ficou em credencial de deploy da publicação final e resíduo técnico de retry histórico.",
+      detail: "Hoje o foco principal ficou em resíduo técnico de retry histórico e na observabilidade ainda rasa por família de workflow.",
       tone: "risk" as const,
       icon: AlertTriangle,
     },
@@ -108,12 +108,13 @@ const support = {
   incidents: [
     {
       id: "lovable-publish",
-      title: "Publicação final bloqueada por credencial de Cloudflare ausente",
-      health: "critical" as OperationStatus,
+      title: "Publicação externa já validada; agora o ponto é manter paridade visual e semântica",
+      health: "monitor" as OperationStatus,
       summary:
-        "O código sobe, o build passa e o deploy pré-build existe, mas o runtime atual não possui `CLOUDFLARE_API_TOKEN` para materializar o corte final na URL pública.",
-      action: "Fechar o blocker de credencial do deploy e então rodar o cutover final para a URL publicada.",
-      status: "Credencial de deploy pendente",
+        "O corte já foi materializado externamente. O risco residual agora é publicar novas rodadas sem limpar a diferença entre leitura viva, snapshot e narrativa antiga dentro do produto.",
+      action:
+        "Usar esta frente para detectar drift entre o que está no repositório, o que está publicado e o que ainda precisa de clareza visual para virar software confortável no dia a dia.",
+      status: "Publicado e em consolidação",
     },
     {
       id: "retry-legacy",
@@ -136,22 +137,22 @@ const support = {
   ],
   runbooks: [
     {
-      title: "Cutover final em 5 minutos",
+      title: "Validação rápida de paridade publicada",
       steps: [
-        "Garantir `CLOUDFLARE_API_TOKEN` ativo no runtime que fará o deploy.",
-        "Rodar `npx nitro deploy --prebuilt` a partir do repositório já buildado.",
-        "Abrir `/configuracoes` e `/portal` na URL pública e validar os marcadores novos de paridade e corte externo.",
-        "Se a URL ainda servir assets antigos, tratar como drift de publicação e não como falha de produto.",
-        "Só declarar produção final fechada depois da validação visual e da homologação diária inicial.",
+        "Abrir a URL publicada e comparar a navegação com o corte local mais recente.",
+        "Validar `/configuracoes`, `/portal`, `/integracoes` e a shell logada em pelo menos uma viewport menor.",
+        "Se a URL ainda servir texto antigo ou layout quebrado, tratar como drift de publicação ou pendência de UX, não como quebra de deploy.",
+        "Registrar o desvio no admin e no Trello com dono e evidência visual.",
+        "Só chamar a etapa de estável quando a leitura ficar clara para operação interna e apresentação externa.",
       ],
     },
     {
-      title: "Publish travado",
+      title: "Publish com drift",
       steps: [
         "Validar se o build local passou no repositório.",
-        "Confirmar se o runtime tem `CLOUDFLARE_API_TOKEN` ativo para o `nitro deploy --prebuilt`.",
-        "Se a credencial estiver ausente, tratar isso como blocker real de cutover, não como erro genérico do fornecedor.",
-        "Só depois rodar o deploy final e validar a URL pública contra o corte atual.",
+        "Comparar a URL publicada com o corte atual do produto em uma tela crítica.",
+        "Se o deploy já tiver acontecido, tratar o desvio como paridade semântica ou asset antigo antes de chamar incidente de infraestrutura.",
+        "Atualizar a narrativa do produto para separar `live`, `guarded` e `snapshot` quando a ambiguidade for a causa da confusão.",
         "Enquanto isso, continuar fechando telas no código e mantendo a régua de paridade no produto.",
       ],
     },
@@ -224,10 +225,10 @@ const support = {
     {
       id: "publish",
       title: "Publish / Lovable",
-      health: "risk" as OperationStatus,
-      headline: "Código validado e publicação final ainda dependente da credencial de deploy.",
+      health: "monitor" as OperationStatus,
+      headline: "Publicação externa validada; foco agora é paridade de UX, copy e fontes expostas.",
       detail:
-        "O risco atual não está no repositório, mas na materialização da URL publicada porque o runtime atual não tem a credencial exigida para o deploy final.",
+        "O risco atual não está em colocar a URL no ar, e sim em deixar a camada publicada coerente com a evolução rápida do console e das integrações.",
       owner: "Claudio + Claw",
       icon: RadioTower,
     },
@@ -235,11 +236,11 @@ const support = {
   alertQueue: [
     {
       id: "publish-lock",
-      severity: "critical" as OperationStatus,
-      title: "URL publicada ainda não acompanha o corte novo automaticamente",
-      trigger: "Build validado + credencial de deploy ausente no runtime",
+      severity: "monitor" as OperationStatus,
+      title: "URL publicada precisa acompanhar a evolução semântica e visual do produto",
+      trigger: "Nova rodada de UX, responsividade ou integração muda a leitura do console",
       owner: "Claw/main",
-      nextStep: "Disponibilizar a credencial de Cloudflare, executar o cutover final e validar a paridade da URL pública.",
+      nextStep: "Validar a paridade da URL publicada após cada rodada relevante e eliminar textos antigos ou estados ambíguos do console.",
     },
     {
       id: "email-drilldown",
@@ -358,7 +359,7 @@ function SupportPage() {
     <>
       <Topbar breadcrumb={["Console Incentiva", "Suporte"]} />
 
-      <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
+      <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">

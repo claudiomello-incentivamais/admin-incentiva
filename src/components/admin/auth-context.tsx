@@ -15,11 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  ACCESS_PROFILE_LABELS,
   AUTH_IDENTITIES_PUBLIC,
   type AccessProfileId,
   type AuthIdentityPublic,
   type AuthSession,
   type VisibilityMode,
+  formatOperationScope,
 } from "@/lib/admin-auth.shared";
 import {
   getAuthSessionServerFn,
@@ -275,11 +277,9 @@ function SignInScreen() {
               <div className="rounded-xl border border-border bg-surface px-4 py-3 text-[12px] text-muted-foreground">
                 <span className="text-foreground font-medium">{selectedIdentity.name}</span>
                 {" · "}
-                {selectedIdentity.profileId}
+                {ACCESS_PROFILE_LABELS[selectedIdentity.profileId]}
                 {" · "}
-                {selectedIdentity.operationIds === "all"
-                  ? "carteira inteira"
-                  : `${selectedIdentity.operationIds.length} operação(ões) liberada(s)`}
+                {formatOperationScope(selectedIdentity.operationIds)}
               </div>
             )}
 
