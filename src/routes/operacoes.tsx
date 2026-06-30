@@ -30,10 +30,11 @@ import {
 } from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   buildOperationNotionView,
   buildOperationCockpitFromOperation,
-  buildPortalLiveSourceCards,
+  buildOperationTrelloView,
   fetchOperations,
   type IncentivaExecutionBacklogItem,
   type IncentivaWorkflowDrilldownItem,
@@ -92,12 +93,10 @@ function Page() {
   const headerDescription = isSpecificOperationSelected
     ? `Leitura executiva de ${cockpit.operationName} unindo base, funil, gargalos e telemetria de automação no período selecionado.`
     : `Nenhuma operação específica foi filtrada; mostrando a operação mais pressionada da carteira (${cockpit.operationName}) no período selecionado.`;
-  const sourceCards = effectiveOperation
-    ? buildPortalLiveSourceCards(effectiveOperation, cockpit.source)
-    : [];
   const notionView = effectiveOperation
     ? buildOperationNotionView(effectiveOperation, cockpit, cockpit.source)
     : null;
+  const trelloView = effectiveOperation ? buildOperationTrelloView(effectiveOperation, cockpit) : null;
 
   return (
     <>
@@ -244,163 +243,235 @@ function Page() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Pontos de gestão conectados</h2>
+              <h2 className="text-sm font-semibold text-display">Camadas operacionais conectadas</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Onde abrir pipeline comercial ou execução sem sair procurando contexto em outra tela.
+                Aqui a operação deixa de ser só resumo e passa a ter navegação útil de pipeline e execução.
               </p>
             </div>
             <Activity className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            {sourceCards.map((card) => (
-              <OperationSourceCard key={card.id} card={card} />
-            ))}
-          </div>
+          <Tabs defaultValue="trello" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="trello">Trello / Execução</TabsTrigger>
+              <TabsTrigger value="notion">Notion / Pipeline</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="trello" className="space-y-4">
+              {trelloView ? (
+                <section className="space-y-4">
+                  <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                    <div className="rounded-2xl border border-border bg-surface p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                          <GitBranch className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-display">{trelloView.headline}</div>
+                          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                            {trelloView.detail}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                        {trelloView.metrics.map((metric) => (
+                          <ExecKpi
+                            key={metric.id}
+                            label={metric.label}
+                            value={metric.value}
+                            sub={metric.detail}
+                            icon={
+                              metric.id === "cards-open"
+                                ? GitBranch
+                                : metric.id === "segments-open"
+                                  ? Activity
+                                  : metric.id === "backlog-suggested"
+                                    ? ListTodo
+                                    : AlertOctagon
+                            }
+                            tone={metric.tone ?? "monitor"}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-surface p-4">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Aberturas úteis
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-foreground">
+                        {trelloView.boardLabel}
+                      </div>
+                      <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                        {trelloView.syncLabel}
+                      </div>
+                      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                        {trelloView.availabilityLabel}
+                      </p>
+
+                      <div className="mt-4 grid gap-2">
+                        {trelloView.actions.map((action) =>
+                          action.href ? (
+                            <Button key={action.id} variant="outline" size="sm" className="justify-start gap-2" asChild>
+                              <a href={action.href} target="_blank" rel="noreferrer">
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                {action.label}
+                              </a>
+                            </Button>
+                          ) : (
+                            <div
+                              key={action.id}
+                              className="rounded-xl border border-border bg-card px-3 py-3 text-[12px] leading-relaxed text-muted-foreground"
+                            >
+                              <div className="font-medium text-foreground">{action.label}</div>
+                              <div className="mt-1">{action.availabilityLabel}</div>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <div className="grid min-w-[980px] gap-4 xl:grid-cols-3">
+                      {trelloView.columns.map((column) => (
+                        <div key={column.id} className="rounded-2xl border border-border bg-surface p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="text-sm font-semibold text-display">{column.title}</h3>
+                              <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                                {column.description}
+                              </p>
+                            </div>
+                            <Badge variant="secondary" className="text-[10px] text-mono h-5">
+                              {column.cards.length}
+                            </Badge>
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {column.cards.length ? (
+                              column.cards.map((card) => (
+                                <TrelloBoardCard key={card.id} card={card} />
+                              ))
+                            ) : (
+                              <div className="rounded-xl border border-dashed border-border bg-card px-3 py-4 text-[12px] text-muted-foreground">
+                                Nenhum cartão neste recorte.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+            </TabsContent>
+
+            <TabsContent value="notion" className="space-y-4">
+              {notionView ? (
+                <section className="space-y-4">
+                  <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-border bg-surface p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                            <NotebookPen className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-display">{notionView.headline}</div>
+                            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                              {notionView.detail}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <MiniStateCard label="Estado do pipeline" value={notionView.stageLabel} />
+                          <MiniStateCard label="Exposição" value={notionView.exposureLabel} />
+                          <MiniStateCard label="Sync" value={notionView.syncLabel} />
+                        </div>
+                      </div>
+
+                      <Tabs defaultValue="resumo" className="space-y-4">
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="resumo">Resumo</TabsTrigger>
+                          <TabsTrigger value="etapas">Etapas</TabsTrigger>
+                          <TabsTrigger value="reconciliacao">Reconciliação</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="resumo" className="grid gap-3 sm:grid-cols-2">
+                          {notionView.metrics.map((metric) => (
+                            <ExecKpi
+                              key={metric.id}
+                              label={metric.label}
+                              value={metric.value}
+                              sub={metric.detail}
+                              icon={
+                                metric.id === "notion-records"
+                                  ? NotebookPen
+                                  : metric.id === "match-rate"
+                                    ? Database
+                                    : metric.id === "stage-alignment"
+                                      ? Target
+                                      : metric.id === "divergence"
+                                        ? AlertOctagon
+                                        : Sparkles
+                              }
+                              tone={metric.tone ?? "monitor"}
+                            />
+                          ))}
+                        </TabsContent>
+
+                        <TabsContent value="etapas">
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                            {notionView.stageHighlights.map((stage) => (
+                              <div key={stage.id} className="rounded-xl border border-border bg-card px-3 py-3">
+                                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                  {stage.label}
+                                </div>
+                                <div className="mt-1 text-2xl font-semibold text-display tabular-nums">
+                                  {formatNumber(stage.count)}
+                                </div>
+                                <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                                  {stage.touchedLabel}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="reconciliacao" className="space-y-3">
+                          {notionView.actions.map((action) => (
+                            <NotionActionCard key={action.id} action={action} />
+                          ))}
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-surface p-4">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Próximo salto desta camada
+                      </div>
+                      <div className="mt-1 text-sm font-medium text-foreground">
+                        {notionView.nextStep}
+                      </div>
+                      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                        {notionView.availabilityLabel}
+                      </p>
+
+                      <div className="mt-4 space-y-3">
+                        {notionView.actions.map((action) => (
+                          <NotionActionCard key={action.id} action={action} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+            </TabsContent>
+          </Tabs>
         </section>
-
-        {notionView ? (
-          <section className="surface-card p-5">
-            <div className="flex items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Visão Notion da operação</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Primeira camada nativa de gestão do pipeline comercial dentro do admin, começando
-                  por {cockpit.operationName}.
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-[10px] uppercase tracking-[0.16em] h-5",
-                  statusMeta[notionView.health].color,
-                )}
-              >
-                {notionView.mode === "live" ? "Notion live" : "Notion governado"}
-              </Badge>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-border bg-surface p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
-                      <NotebookPen className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium text-display">{notionView.headline}</div>
-                      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                        {notionView.detail}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div className="rounded-xl border border-border bg-card px-3 py-3">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Estado do pipeline
-                      </div>
-                      <div className="mt-1 text-sm font-medium text-foreground">
-                        {notionView.stageLabel}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-border bg-card px-3 py-3">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Exposição
-                      </div>
-                      <div className="mt-1 text-sm font-medium text-foreground">
-                        {notionView.exposureLabel}
-                      </div>
-                    </div>
-                    <div className="rounded-xl border border-border bg-card px-3 py-3">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Sync
-                      </div>
-                      <div className="mt-1 text-sm font-medium text-foreground">
-                        {notionView.syncLabel}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {notionView.metrics.map((metric) => (
-                    <ExecKpi
-                      key={metric.id}
-                      label={metric.label}
-                      value={metric.value}
-                      sub={metric.detail}
-                      icon={
-                        metric.id === "notion-records"
-                          ? NotebookPen
-                          : metric.id === "match-rate"
-                            ? Database
-                            : metric.id === "stage-alignment"
-                              ? Target
-                              : metric.id === "divergence"
-                                ? AlertOctagon
-                                : Sparkles
-                      }
-                      tone={metric.tone ?? "monitor"}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-border bg-surface p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-display">Funil útil para gestão</h3>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        O objetivo aqui é enxergar o pipeline comercial da operação sem abrir o
-                        board bruto do Notion.
-                      </p>
-                    </div>
-                    <Target className="h-3.5 w-3.5 text-primary" />
-                  </div>
-
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    {notionView.stageHighlights.map((stage) => (
-                      <div
-                        key={stage.id}
-                        className="rounded-xl border border-border bg-card px-3 py-3"
-                      >
-                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                          {stage.label}
-                        </div>
-                        <div className="mt-1 text-2xl font-semibold text-display tabular-nums">
-                          {formatNumber(stage.count)}
-                        </div>
-                        <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                          {stage.touchedLabel}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-border bg-surface p-4">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                    Próximo salto desta camada
-                  </div>
-                  <div className="mt-1 text-sm font-medium text-foreground">
-                    {notionView.nextStep}
-                  </div>
-                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                    {notionView.availabilityLabel}
-                  </p>
-
-                  <div className="mt-4 space-y-3">
-                    {notionView.actions.map((action) => (
-                      <NotionActionCard key={action.id} action={action} />
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         <section className="surface-card p-5">
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
@@ -1071,6 +1142,74 @@ function NotionActionCard({
         </Badge>
       </div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{action.detail}</p>
+    </div>
+  );
+}
+
+function MiniStateCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-3">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-sm font-medium text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function TrelloBoardCard({
+  card,
+}: {
+  card: {
+    id: string;
+    title: string;
+    detail: string;
+    owner: string;
+    statusLabel: string;
+    segmentLabel: string;
+    followUp: string;
+    sourceLabel: string;
+    actionLabel?: string;
+    actionHref?: string;
+  };
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-foreground">{card.title}</div>
+          <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">{card.detail}</p>
+        </div>
+        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+          {card.statusLabel}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-lg border border-border bg-surface px-2.5 py-2">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Owner</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.owner}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-2.5 py-2">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Segmento</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.segmentLabel}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-2.5 py-2 sm:col-span-2">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Follow-up</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.followUp}</div>
+        </div>
+        <div className="rounded-lg border border-border bg-surface px-2.5 py-2 sm:col-span-2">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Fonte</div>
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.sourceLabel}</div>
+        </div>
+      </div>
+
+      {card.actionHref && card.actionLabel ? (
+        <Button variant="outline" size="sm" className="mt-3 h-8 w-full gap-2" asChild>
+          <a href={card.actionHref} target="_blank" rel="noreferrer">
+            <ArrowUpRight className="h-3.5 w-3.5" />
+            {card.actionLabel}
+          </a>
+        </Button>
+      ) : null}
     </div>
   );
 }

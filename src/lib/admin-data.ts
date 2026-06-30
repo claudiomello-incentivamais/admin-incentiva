@@ -402,6 +402,45 @@ export interface OperationNotionView {
   actions: OperationNotionViewAction[];
 }
 
+export interface OperationTrelloViewCard {
+  id: string;
+  title: string;
+  detail: string;
+  owner: string;
+  statusLabel: string;
+  segmentLabel: string;
+  followUp: string;
+  sourceLabel: string;
+  actionLabel?: string;
+  actionHref?: string;
+}
+
+export interface OperationTrelloViewColumn {
+  id: string;
+  title: string;
+  description: string;
+  cards: OperationTrelloViewCard[];
+}
+
+export interface OperationTrelloViewAction {
+  id: string;
+  label: string;
+  href?: string;
+  availabilityLabel?: string;
+}
+
+export interface OperationTrelloView {
+  health: OperationStatus;
+  boardLabel: string;
+  headline: string;
+  detail: string;
+  syncLabel: string;
+  availabilityLabel: string;
+  metrics: OperationNotionViewMetric[];
+  columns: OperationTrelloViewColumn[];
+  actions: OperationTrelloViewAction[];
+}
+
 export interface ScoreDriver {
   id: string;
   label: string;
@@ -3683,6 +3722,165 @@ export function buildOperationNotionView(
       : "Homologar telemetria viva desta conta e depois replicar o mesmo padrão nas demais operações.",
     metrics,
     stageHighlights,
+    actions,
+  };
+}
+
+export function buildOperationTrelloView(
+  operation: Operation,
+  cockpit: IncentivaCockpitData,
+): OperationTrelloView {
+  const trelloStates = trelloOperationalStateByOperationName[operation.name] ?? [];
+  const cadenceState = cadenceOperationalStateByOperationName[operation.name];
+
+  const openCards: OperationTrelloViewCard[] = trelloStates
+    .filter((state) => state.status === "open")
+    .map((state) => {
+      const shortLink = state.cardUrl ? state.cardUrl.split("/c/")[1]?.split("/")[0] ?? "" : "";
+      const runtime = shortLink ? trelloCardRuntimeByShortLink[shortLink] : undefined;
+      const hasCard = Boolean(state.cardUrl);
+
+      return {
+        id: `open-${state.segment}`,
+        title: runtime?.boardName ? `${runtime.boardName} · ${state.segment}` : state.segment,
+        detail: hasCard
+          ? `Card materializado em ${runtime?.listName ?? "lista não mapeada"} com observação mais recente em ${new Date(runtime?.lastActivityAt ?? state.lastObservedAt).toLocaleDateString("pt-BR")}.`
+          : "A operação está aberta na camada de execução, mas ainda sem card materializado para navegação direta.",
+        owner: runtime?.ownerLabel ?? "Ricardo + Sales Ops",
+        statusLabel: hasCard ? runtime?.listName ?? "Card aberto" : "Sem card aberto",
+        segmentLabel: state.segment,
+        followUp: runtime?.followUpText ?? "Sem follow-up recente gravado no card.",
+        sourceLabel: hasCard ? "Trello real" : "Governança sem card",
+        actionLabel: hasCard ? "Abrir card" : undefined,
+        actionHref: hasCard ? state.cardUrl : undefined,
+      };
+    });
+
+  const monitorCards: OperationTrelloViewCard[] = trelloStates
+    .filter((state) => state.status !== "open")
+    .map((state) => ({
+      id: `quiet-${state.segment}`,
+      title: state.segment,
+      detail: `Segmento em observação, com ${formatNumber(state.count)} registros disponíveis e sem card ativo no momento.`,
+      owner: "Ricardo + Sales Ops",
+      statusLabel: "Monitorado",
+      segmentLabel: state.segment,
+      followUp: state.lastAlertAt
+        ? `Último alerta em ${new Date(state.lastAlertAt).toLocaleDateString("pt-BR")}.`
+        : "Sem alerta aberto neste recorte.",
+      sourceLabel: "Cobertura do board",
+    }));
+
+  const suggestedCards: OperationTrelloViewCard[] = cockpit.executionBacklog.items
+    .slice(0, 3)
+    .map((item) => ({
+      id: `backlog-${item.id}`,
+      title: item.headline,
+      detail: item.detail,
+      owner: item.owner,
+      statusLabel: item.priority,
+      segmentLabel: item.lane,
+      followUp: item.nextStep,
+      sourceLabel: "Fila sugerida do cockpit",
+    }));
+
+  const boardLabel =
+    openCards.find((card) => card.sourceLabel === "Trello real")?.title.split(" · ")[0] ??
+    operation.name;
+
+  const actions: OperationTrelloViewAction[] = [];
+  for (const card of openCards) {
+    if (card.actionHref) {
+      actions.push({
+        id: `${card.id}-open`,
+        label: `${card.segmentLabel} · abrir card`,
+        href: card.actionHref,
+      });
+    }
+  }
+  if (!actions.length) {
+    actions.push({
+      id: "board-pending",
+      label: "Abertura direta do quadro",
+      availabilityLabel:
+        "Esta operação ainda não tem board completo homologado para navegação direta dentro do painel.",
+    });
+  }
+
+  const health: OperationStatus = openCards.some((card) => card.actionHref)
+    ? "monitor"
+    : cadenceState?.status === "open"
+      ? "risk"
+      : "healthy";
+
+  return {
+    health,
+    boardLabel,
+    headline:
+      "Quadro de execução desta operação agora entra como camada navegável, com cartões reais quando existirem e fila sugerida quando o board ainda estiver incompleto.",
+    detail:
+      "O objetivo aqui é parar de tratar Trello como botão perdido. A tela precisa mostrar coluna, card, owner, follow-up e abertura contextual da execução.",
+    syncLabel: trelloStates.length
+      ? `Última leitura operacional em ${new Date(
+          Math.max(
+            ...trelloStates.map((state) => new Date(state.lastObservedAt).getTime()),
+          ),
+        ).toLocaleDateString("pt-BR")}`
+      : "Sem leitura recente do board",
+    availabilityLabel:
+      "Onde já existe card real, ele é clicável. Onde ainda não existe, a tela assume a fila sugerida e deixa explícito o gap de board.",
+    metrics: [
+      {
+        id: "cards-open",
+        label: "Cards reais abertos",
+        value: formatNumber(openCards.filter((card) => card.actionHref).length),
+        detail: "Cards do Trello já materializados para esta operação.",
+        tone: openCards.filter((card) => card.actionHref).length > 0 ? "success" : "monitor",
+      },
+      {
+        id: "segments-open",
+        label: "Segmentos em execução",
+        value: formatNumber(trelloStates.filter((state) => state.status === "open").length),
+        detail: "Segmentos que hoje pedem ação ou acompanhamento operacional.",
+        tone: trelloStates.some((state) => state.status === "open") ? "monitor" : "healthy",
+      },
+      {
+        id: "backlog-suggested",
+        label: "Cards sugeridos",
+        value: formatNumber(suggestedCards.length),
+        detail: "Itens do cockpit prontos para virar execução caso o board esteja raso.",
+        tone: "info",
+      },
+      {
+        id: "cadence-watch",
+        label: "Pressão de cadência",
+        value: cadenceState ? formatNumber(cadenceState.count) : "0",
+        detail: cadenceState
+          ? "Fila de cobertura operacional ainda sob monitoramento."
+          : "Sem pressão adicional de cadência mapeada nesta operação.",
+        tone: cadenceState?.status === "open" ? "risk" : "healthy",
+      },
+    ],
+    columns: [
+      {
+        id: "cards-open",
+        title: "Cards do quadro",
+        description: "Cards reais do Trello que já existem para esta operação.",
+        cards: openCards,
+      },
+      {
+        id: "monitoring",
+        title: "Monitoradas",
+        description: "Frentes com cobertura no board, mas sem card aberto no recorte atual.",
+        cards: monitorCards,
+      },
+      {
+        id: "suggested",
+        title: "Fila sugerida",
+        description: "Itens que já deveriam virar card ou follow-up no board.",
+        cards: suggestedCards,
+      },
+    ],
     actions,
   };
 }
