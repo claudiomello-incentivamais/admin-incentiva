@@ -24,6 +24,7 @@ import { Topbar } from "@/components/admin/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  type IncentivaExecutionBacklogItem,
   loadIncentivaCockpit,
   type IncentivaEmailHealthTrack,
   statusMeta,
@@ -367,6 +368,61 @@ function Page() {
             <div className="space-y-3">
               {cockpit.emailHealth.tracks.map((track) => (
                 <EmailTrackCard key={track.id} track={track} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">V2 · Backlog Operacional</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Primeira camada de priorização executiva por frente da Incentiva
+                </p>
+              </div>
+              <ListTodo className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cockpit.executionBacklog.metrics.map((metric) => (
+                <ExecKpi
+                  key={metric.id}
+                  label={metric.label}
+                  value={metric.value}
+                  sub={metric.detail}
+                  icon={
+                    metric.id === "open-fronts"
+                      ? Orbit
+                      : metric.id === "p0-items"
+                        ? AlertOctagon
+                        : metric.id === "owner-clusters"
+                          ? Bot
+                          : Sparkles
+                  }
+                  tone={metric.tone ?? "monitor"}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Fila de intervenção</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  O que entra primeiro, com dono sugerido e próximo passo
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
+                Roteiro V2 <ChevronRight className="h-3 w-3" />
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.executionBacklog.items.map((item) => (
+                <ExecutionBacklogCard key={item.id} item={item} />
               ))}
             </div>
           </div>
@@ -901,6 +957,40 @@ function EmailTrackCard({ track }: { track: IncentivaEmailHealthTrack }) {
         <p className="text-[12px] text-foreground">{track.headline}</p>
         <p className="text-[11px] text-muted-foreground leading-relaxed">{track.detail}</p>
         <div className="text-[11px] text-primary leading-relaxed">{track.recommendation}</div>
+      </div>
+    </div>
+  );
+}
+
+function ExecutionBacklogCard({ item }: { item: IncentivaExecutionBacklogItem }) {
+  const meta = statusMeta[item.health];
+  const priorityTone =
+    item.priority === "P0"
+      ? "border-destructive/30 text-destructive bg-destructive/8"
+      : item.priority === "P1"
+        ? "border-warning/30 text-warning bg-warning/8"
+        : "border-info/30 text-info bg-info/8";
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1.5 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className={cn("text-[10px] h-5 font-semibold", priorityTone)}>
+              {item.priority}
+            </Badge>
+            <span className="text-sm font-medium">{item.lane}</span>
+            <Badge variant="outline" className={cn("text-[10px] h-5", meta.color)}>
+              {meta.label}
+            </Badge>
+          </div>
+          <p className="text-[12px] text-foreground">{item.headline}</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">{item.detail}</p>
+          <div className="text-[11px] text-muted-foreground">
+            Dono sugerido: <span className="text-foreground">{item.owner}</span>
+          </div>
+          <div className="text-[11px] text-primary leading-relaxed">{item.nextStep}</div>
+        </div>
       </div>
     </div>
   );

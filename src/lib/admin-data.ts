@@ -171,6 +171,25 @@ export interface IncentivaProspectingLane {
   recommendation: string;
 }
 
+export interface IncentivaExecutionBacklogMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IncentivaExecutionBacklogItem {
+  id: string;
+  lane: string;
+  priority: "P0" | "P1" | "P2";
+  health: OperationStatus;
+  owner: string;
+  headline: string;
+  detail: string;
+  nextStep: string;
+}
+
 export interface IncentivaCockpitAlert {
   id: string;
   severity: "critical" | "risk" | "monitor" | "info";
@@ -188,6 +207,10 @@ export interface IncentivaCockpitData {
   prospectingReadiness: {
     metrics: IncentivaProspectingMetric[];
     lanes: IncentivaProspectingLane[];
+  };
+  executionBacklog: {
+    metrics: IncentivaExecutionBacklogMetric[];
+    items: IncentivaExecutionBacklogItem[];
   };
   emailHealth: {
     metrics: IncentivaEmailHealthMetric[];
@@ -535,6 +558,80 @@ const incentivaCockpit: IncentivaCockpitData = {
         headline: "Retomada já é uma faixa pequena e executável sem grande fricção.",
         detail: "A fila é curta, porém com boa chance de virar tração rápida em cima de conversa já iniciada.",
         recommendation: "Manter retomada rodando como camada tática enquanto a lista nova e a reativação ganham escala.",
+      },
+    ],
+  },
+  executionBacklog: {
+    metrics: [
+      {
+        id: "open-fronts",
+        label: "Frentes abertas",
+        value: "4",
+        tone: "monitor",
+        detail: "A Incentiva já tem quatro blocos claros que pedem ação executiva dedicada.",
+      },
+      {
+        id: "p0-items",
+        label: "Ações P0",
+        value: "2",
+        tone: "critical",
+        detail: "Reposição de base e fila de e-mail seguem como prioridades imediatas.",
+      },
+      {
+        id: "owner-clusters",
+        label: "Donos sugeridos",
+        value: "3",
+        tone: "info",
+        detail: "Sales Ops, Lista/ICP e Claw já cobrem a maior parte da próxima rodada.",
+      },
+      {
+        id: "v2-readiness",
+        label: "Pronto para V2",
+        value: "Sim",
+        tone: "success",
+        detail: "A operação já tem densidade e clareza suficiente para uma camada V2 orientada a intervenção.",
+      },
+    ],
+    items: [
+      {
+        id: "backlog-base",
+        lane: "ICP / Lista",
+        priority: "P0",
+        health: "critical",
+        owner: "Bruna + Sales Ops",
+        headline: "Reposição de não iniciados continua sendo a ação mais urgente.",
+        detail: "A operação está com apenas 6 não iniciados canônicos para uma meta diária de 25 ativações, o que trava a sustentação da cadência.",
+        nextStep: "Abrir reposição de lista por ICP como entrega imediata e medir a recuperação da cobertura em dias.",
+      },
+      {
+        id: "backlog-email",
+        lane: "E-mail FUP",
+        priority: "P0",
+        health: "risk",
+        owner: "Claw",
+        headline: "FUP2 precisa sair da zona de waiting antes de escalar invisivelmente.",
+        detail: "O canal de e-mail não parece quebrado estruturalmente, mas já apresenta fila sem throughput útil no workflow mais crítico.",
+        nextStep: "Abrir drill-down do FUP2 com throughput, fila e saída útil por workflow na próxima iteração da V2.",
+      },
+      {
+        id: "backlog-whatsapp",
+        lane: "WhatsApp",
+        priority: "P1",
+        health: "monitor",
+        owner: "Sales Ops",
+        headline: "Canal está íntegro, mas depende demais da recomposição da base.",
+        detail: "A infraestrutura do WhatsApp está saudável; o principal risco é o canal perder tração por falta de abastecimento novo.",
+        nextStep: "Reavaliar o peso de outbound, reativação e retomada assim que a cobertura de base voltar a subir.",
+      },
+      {
+        id: "backlog-linkedin",
+        lane: "LinkedIn Social",
+        priority: "P2",
+        health: "monitor",
+        owner: "Claw + Sales Ops",
+        headline: "A frente social já pede leitura mais semântica, não mais estrutural.",
+        detail: "Há densidade real de workflows e sinais de uso, mas ainda falta separar descoberta, fila, engajamento e risco numa camada mais clara.",
+        nextStep: "Na V2, quebrar LinkedIn em submódulos operacionais para enxergar social selling com mais nitidez.",
       },
     ],
   },
@@ -1183,6 +1280,54 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
         }
 
         return lane;
+      }),
+    },
+    executionBacklog: {
+      metrics: base.executionBacklog.metrics.map((metric) => {
+        if (metric.id === "p0-items") {
+          const p0Count = base.executionBacklog.items.filter((item) => item.priority === "P0").length;
+
+          return {
+            ...metric,
+            value: String(p0Count),
+            detail: "O backlog vivo segue concentrado nas frentes mais urgentes já validadas pelo cockpit.",
+          };
+        }
+
+        if (metric.id === "open-fronts") {
+          return {
+            ...metric,
+            value: String(base.executionBacklog.items.length),
+            detail: "Quantidade de frentes já claras para intervenção executiva dentro da Incentiva.",
+          };
+        }
+
+        return metric;
+      }),
+      items: base.executionBacklog.items.map((item) => {
+        if (item.id === "backlog-base") {
+          return {
+            ...item,
+            health:
+              canonicalUnstarted < dailyActivationTarget ? "critical" : "monitor",
+            detail:
+              canonicalUnstarted < dailyActivationTarget
+                ? `A leitura viva mantém a frente em P0: ${canonicalUnstarted} não iniciados para meta diária de ${dailyActivationTarget}.`
+                : `A leitura viva já mostra recuperação de cobertura frente à meta diária de ${dailyActivationTarget} ativações.`,
+          };
+        }
+
+        if (item.id === "backlog-whatsapp") {
+          return {
+            ...item,
+            detail:
+              canonicalUnstarted < dailyActivationTarget
+                ? "A camada WhatsApp continua tecnicamente estável, mas ainda opera sob dependência direta da reposição de base."
+                : item.detail,
+          };
+        }
+
+        return item;
       }),
     },
     emailHealth: {
