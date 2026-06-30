@@ -12,8 +12,13 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import {
+  formatPeriodLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { fetchOperations } from "@/lib/admin-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/faturamento")({
@@ -187,6 +192,20 @@ const billingSnapshot = {
   ] satisfies BillingAccount[],
 };
 
+const billingOperationIdByClient: Record<string, string> = {
+  Iamit: "iamit",
+  Nimbus: "nimbus",
+  "Prime Action": "prime-action",
+  Acelerato: "acelerato",
+  "Lima Duarte Alimentos": "lima-duarte",
+  "Trial Ambiental": "trial-ambiental",
+  We9: "we9",
+  "Plan Idiomas": "plan-idiomas",
+  Incentiva: "incentiva",
+  DocSeg: "docseg",
+  "Café Fazenda": "cafe-fazenda-brasil",
+};
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
@@ -203,8 +222,18 @@ function formatPercent(value: number) {
 }
 
 function BillingPage() {
-  const paidAccounts = billingSnapshot.accounts.filter((account) => account.ticket > 0);
-  const zeroTicketAccounts = billingSnapshot.accounts.filter((account) => account.ticket === 0);
+  const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
+  const operationIds = new Set(fetchOperations().map((operation) => operation.id));
+  const filteredAccounts =
+    selectedOperationId === "all"
+      ? billingSnapshot.accounts
+      : billingSnapshot.accounts.filter(
+          (account) =>
+            billingOperationIdByClient[account.client] === selectedOperationId ||
+            (!operationIds.has(selectedOperationId) && account.client === selectedOperation?.label),
+        );
+  const paidAccounts = filteredAccounts.filter((account) => account.ticket > 0);
+  const zeroTicketAccounts = filteredAccounts.filter((account) => account.ticket === 0);
   const recurringRevenue = paidAccounts.reduce((sum, account) => sum + account.ticket, 0);
   const averageTicket = recurringRevenue / Math.max(paidAccounts.length, 1);
   const annualizedRevenue = recurringRevenue * 12;
@@ -260,13 +289,17 @@ function BillingPage() {
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {billingSnapshot.sourceLabel}
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Faturamento
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Esta frente responde quanto a carteira paga hoje, quão concentrada essa receita está
-              e quais contas pedem atenção de retenção, renovação ou saneamento comercial.
+              {selectedOperationId === "all"
+                ? "Esta frente responde quanto a carteira paga hoje, quão concentrada essa receita está e quais contas pedem atenção de retenção, renovação ou saneamento comercial."
+                : `Esta frente agora recorta só ${selectedOperation?.label ?? "a conta filtrada"} dentro do snapshot financeiro disponível.`}
             </p>
           </div>
 
@@ -281,7 +314,8 @@ function BillingPage() {
             <h2 className="text-sm font-semibold text-display">Como ler esta frente</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Aqui a pergunta deixa de ser só operacional e passa a ser econômica: quais contas
-              realmente sustentam a carteira e onde está o risco de receita?
+              realmente sustentam a carteira e onde está o risco de receita? O filtro por operação já
+              isola a conta; o período ainda é apenas referência visual nesta camada.
             </p>
           </div>
 
@@ -414,7 +448,7 @@ function BillingPage() {
               </p>
             </div>
             <Badge variant="secondary" className="text-[10px] text-mono h-5">
-              {billingSnapshot.accounts.length} linhas principais
+              {filteredAccounts.length} linha{filteredAccounts.length === 1 ? "" : "s"} principais
             </Badge>
           </div>
 
@@ -433,7 +467,7 @@ function BillingPage() {
                 </tr>
               </thead>
               <tbody>
-                {billingSnapshot.accounts.map((account) => (
+                {filteredAccounts.map((account) => (
                   <BillingRow key={account.client} account={account} />
                 ))}
               </tbody>

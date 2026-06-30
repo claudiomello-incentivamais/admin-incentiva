@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import {
+  formatPeriodLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +40,8 @@ export const Route = createFileRoute("/integracoes")({
 
 function IntegrationsPage() {
   const hub = Route.useLoaderData();
+  const { selectedOperation, selectedOperationId, selectedPeriod } = useAdminFilters();
+  const isSingleOperationView = selectedOperationId !== "all";
 
   return (
     <>
@@ -54,13 +60,17 @@ function IntegrationsPage() {
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {hub.snapshotLabel}
               </span>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Integrações
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Esta frente consolida o papel de cada sistema no produto, o estado do sync, a saúde
-              das pontes e o que ainda falta para a gestão ficar realmente centralizada.
+              {isSingleOperationView
+                ? `Esta frente continua mais sistêmica do que por conta, mas agora deixa explícito que você está olhando a stack a partir de ${selectedOperation?.label ?? "uma operação"}.`
+                : "Esta frente consolida o papel de cada sistema no produto, o estado do sync, a saúde das pontes e o que ainda falta para a gestão ficar realmente centralizada."}
             </p>
           </div>
 
@@ -77,7 +87,8 @@ function IntegrationsPage() {
             <h2 className="text-sm font-semibold text-display">Como ler esta frente</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               O objetivo aqui não é listar ferramentas. É mostrar como cada sistema entra na
-              operação, o que ele alimenta e onde ainda existe checkpoint manual.
+              operação, o que ele alimenta e onde ainda existe checkpoint manual. O período aqui é
+              apenas referência visual; esta camada ainda é majoritariamente estrutural.
             </p>
           </div>
 

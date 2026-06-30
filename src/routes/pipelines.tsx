@@ -15,15 +15,22 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import {
+  formatPeriodLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  buildOperationCockpitFromOperation,
+  fetchOperations,
   loadIncentivaCockpit,
   statusMeta,
   type IncentivaChannelStatus,
   type IncentivaWorkflowFamily,
   type IncentivaWorkflowRun,
 } from "@/lib/admin-data";
+import { applyPeriodToCockpit } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/pipelines")({
@@ -33,7 +40,18 @@ export const Route = createFileRoute("/pipelines")({
 });
 
 function PipelinesPage() {
-  const cockpit = Route.useLoaderData();
+  const incentivaCockpit = Route.useLoaderData();
+  const { selectedOperationId, selectedOperationRecord, selectedPeriod } = useAdminFilters();
+  const fallbackOperation = fetchOperations()[0] ?? null;
+  const effectiveOperation = selectedOperationRecord ?? fallbackOperation;
+  const baseCockpit =
+    effectiveOperation?.id === "incentiva"
+      ? incentivaCockpit
+      : effectiveOperation
+        ? buildOperationCockpitFromOperation(effectiveOperation)
+        : incentivaCockpit;
+  const cockpit = applyPeriodToCockpit(baseCockpit, selectedPeriod);
+  const isSingleOperationView = selectedOperationId !== "all";
 
   return (
     <>
@@ -52,13 +70,17 @@ function PipelinesPage() {
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {cockpit.snapshotLabel}
               </span>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Pipelines
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Aqui a leitura desce da operação para canal, família e workflow, separando onde há
-              volume, onde há gargalo e onde vale intervir primeiro.
+              {isSingleOperationView
+                ? `Aqui a leitura desce de ${cockpit.operationName} para canal, família e workflow, sem misturar outras operações no recorte.`
+                : "Aqui a leitura desce da operação para canal, família e workflow, separando onde há volume, onde há gargalo e onde vale intervir primeiro."}
             </p>
           </div>
 
@@ -73,6 +95,7 @@ function PipelinesPage() {
             <h2 className="text-sm font-semibold text-display">Como ler esta frente</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               O raciocínio aqui é simples: primeiro canal, depois família, depois workflow em foco.
+              O período ativo já governa esta tela.
             </p>
           </div>
 
@@ -189,11 +212,11 @@ function PipelinesPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Top workflows</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Volume, sucesso, waiting e última corrida em uma mesma leitura.
+                Volume, sucesso, waiting e última corrida no recorte ativo.
               </p>
             </div>
             <Badge variant="secondary" className="text-[10px] text-mono h-5">
-              Snapshot da operação
+              {isSingleOperationView ? cockpit.operationName : "Snapshot da operação"}
             </Badge>
           </div>
 
@@ -203,7 +226,9 @@ function PipelinesPage() {
                 <tr className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground border-b border-border bg-muted/20">
                   <th className="text-left font-medium px-4 py-2.5">Workflow</th>
                   <th className="text-left font-medium px-3 py-2.5">Família</th>
-                  <th className="text-right font-medium px-3 py-2.5">Exec. 7d</th>
+                  <th className="text-right font-medium px-3 py-2.5">
+                    {selectedPeriod === "mtd" ? "Exec. mês" : "Exec. recorte"}
+                  </th>
                   <th className="text-right font-medium px-3 py-2.5">Success</th>
                   <th className="text-right font-medium px-3 py-2.5">Error</th>
                   <th className="text-right font-medium px-3 py-2.5">Waiting</th>
