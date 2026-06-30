@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import {
+  formatPeriodLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +25,7 @@ import {
   type OperationStatus,
   type Priority,
 } from "@/lib/admin-data";
+import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/clientes")({
@@ -43,19 +48,29 @@ function formatPercent(value: number) {
 function ClientsPage() {
   const dashboard = Route.useLoaderData();
   const { operations } = dashboard;
+  const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
+  const scopedOperations = operations.map((operation) =>
+    applyPeriodToOperation(operation, selectedPeriod),
+  );
+  const filteredOperations =
+    selectedOperationId === "all"
+      ? scopedOperations
+      : scopedOperations.filter((operation) => operation.id === selectedOperationId);
+  const effectiveKpis = buildScopedKpis(dashboard.kpis, filteredOperations, scopedOperations, selectedPeriod);
+  const isSingleOperationView = selectedOperationId !== "all";
 
-  const priorityCounts = countByPriority(operations.map((operation) => operation.priority));
-  const healthCounts = countByHealth(operations.map((operation) => operation.health));
-  const totalAccounts = operations.length;
+  const priorityCounts = countByPriority(filteredOperations.map((operation) => operation.priority));
+  const healthCounts = countByHealth(filteredOperations.map((operation) => operation.health));
+  const totalAccounts = filteredOperations.length;
   const avgCoverage =
-    operations.reduce((sum, operation) => sum + operation.baseCoverage, 0) /
-    Math.max(operations.length, 1);
+    filteredOperations.reduce((sum, operation) => sum + operation.baseCoverage, 0) /
+    Math.max(filteredOperations.length, 1);
   const avgConversion =
-    operations.reduce((sum, operation) => sum + operation.monthlyConversion, 0) /
-    Math.max(operations.length, 1);
-  const portalReady = operations.filter((operation) => operation.health === "healthy").length;
-  const portalNeedsGovernance = operations.filter((operation) => operation.health === "monitor").length;
-  const portalNotReady = operations.filter((operation) => operation.health === "risk" || operation.health === "critical").length;
+    filteredOperations.reduce((sum, operation) => sum + operation.monthlyConversion, 0) /
+    Math.max(filteredOperations.length, 1);
+  const portalReady = filteredOperations.filter((operation) => operation.health === "healthy").length;
+  const portalNeedsGovernance = filteredOperations.filter((operation) => operation.health === "monitor").length;
+  const portalNotReady = filteredOperations.filter((operation) => operation.health === "risk" || operation.health === "critical").length;
 
   return (
     <>
@@ -77,13 +92,17 @@ function ClientsPage() {
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {dashboard.source === "live" ? "Supabase live" : "Snapshot fallback"}
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Clientes
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Esta frente organiza a carteira por conta, prioridade e risco, para ficar claro quais
-              operações pedem atenção executiva e quais já estão mais estáveis.
+              {isSingleOperationView
+                ? `Esta frente agora mostra só ${selectedOperation?.label ?? "a operação filtrada"}, sem misturar outras contas na carteira.`
+                : "Esta frente organiza a carteira por conta, prioridade e risco, para ficar claro quais operações pedem atenção executiva e quais já estão mais estáveis."}
             </p>
           </div>
 
@@ -115,8 +134,9 @@ function ClientsPage() {
               </div>
               <div className="mt-1 text-sm font-medium text-display">Prioridade + saúde + prontidão</div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                Esta frente serve para decidir quais contas precisam de atenção primeiro e quais já
-                estão mais próximas de virar portal apresentável.
+                {isSingleOperationView
+                  ? "Esta frente serve para enxergar a prontidão e a exposição segura da operação filtrada."
+                  : "Esta frente serve para decidir quais contas precisam de atenção primeiro e quais já estão mais próximas de virar portal apresentável."}
               </p>
             </div>
           </div>
@@ -132,7 +152,11 @@ function ClientsPage() {
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <GuideCard
               title="1. Carteira"
-              detail="Primeiro você vê o tamanho da carteira, a média de cobertura e a média de conversão atual."
+              detail={
+                isSingleOperationView
+                  ? "Primeiro você vê o recorte da operação filtrada dentro do período ativo."
+                  : "Primeiro você vê o tamanho da carteira, a média de cobertura e a média de conversão atual."
+              }
             />
             <GuideCard
               title="2. Clusters"
@@ -149,7 +173,7 @@ function ClientsPage() {
           <ClientKpi
             label="Contas ativas"
             value={String(totalAccounts)}
-            detail="Operações já visíveis na leitura consolidada."
+            detail={isSingleOperationView ? "Recorte da operação filtrada." : "Operações já visíveis na leitura consolidada."}
             icon={Building2}
             tone="info"
           />
@@ -183,8 +207,8 @@ function ClientsPage() {
           />
           <ClientKpi
             label="Leads totais"
-            value={formatNumber(dashboard.kpis.totalLeads)}
-            detail="Base total somada da carteira."
+            value={formatNumber(effectiveKpis.totalLeads)}
+            detail={isSingleOperationView ? "Base da operação no recorte." : "Base total somada da carteira."}
             icon={Users}
             tone="info"
           />
@@ -294,7 +318,7 @@ function ClientsPage() {
             </div>
 
             <div className="space-y-3">
-              {operations.map((operation) => (
+              {filteredOperations.map((operation) => (
                 <PortalOperationCard key={operation.id} operation={operation} />
               ))}
             </div>
@@ -329,7 +353,7 @@ function ClientsPage() {
                 </tr>
               </thead>
               <tbody>
-                {operations.map((operation) => (
+                {filteredOperations.map((operation) => (
                   <OperationRow key={operation.id} operation={operation} />
                 ))}
               </tbody>

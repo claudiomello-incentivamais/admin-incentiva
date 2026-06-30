@@ -22,6 +22,7 @@ import { Topbar } from "@/components/admin/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  formatPeriodLabel,
   formatVisibilityModeLabel,
   useAdminFilters,
 } from "@/components/admin/admin-filters";
@@ -34,6 +35,7 @@ import {
   loadGlobalDashboard,
   statusMeta,
 } from "@/lib/admin-data";
+import { applyPeriodToCockpit, applyPeriodToOperation } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal")({
@@ -62,6 +64,7 @@ function PortalPage() {
   const {
     selectedOperationId,
     selectedAccessProfile,
+    selectedPeriod,
     selectedVisibilityMode,
   } = useAdminFilters();
   const requestedOperationId = search.operationId;
@@ -89,11 +92,15 @@ function PortalPage() {
     );
   }
 
-  const cockpit = buildOperationCockpitFromOperation(portalOperation);
-  const actionPlan = buildOperationActionPlan(portalOperation);
-  const publishPacket = buildPortalPublishPacket(portalOperation);
-  const liveSourceCards = buildPortalLiveSourceCards(portalOperation, dashboard.source);
-  const drivers = getScoreDrivers(portalOperation).slice(0, 3);
+  const scopedPortalOperation = applyPeriodToOperation(portalOperation, selectedPeriod);
+  const cockpit = applyPeriodToCockpit(
+    buildOperationCockpitFromOperation(scopedPortalOperation),
+    selectedPeriod,
+  );
+  const actionPlan = buildOperationActionPlan(scopedPortalOperation);
+  const publishPacket = buildPortalPublishPacket(scopedPortalOperation);
+  const liveSourceCards = buildPortalLiveSourceCards(scopedPortalOperation, dashboard.source);
+  const drivers = getScoreDrivers(scopedPortalOperation).slice(0, 3);
   const exposedModules =
     selectedVisibilityMode === "client"
       ? [
@@ -142,6 +149,9 @@ function PortalPage() {
               </Badge>
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {formatVisibilityModeLabel(selectedVisibilityMode)}
+              </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {dashboard.snapshotLabel}
@@ -193,7 +203,8 @@ function PortalPage() {
               <p className="text-sm text-muted-foreground max-w-2xl">
                 {selectedVisibilityMode === "client"
                   ? "Recorte pronto para leitura privada, com foco em saúde geral, cobertura e próximo marco acordado."
-                  : "Preview interno do portal, ainda preservando mais contexto operacional para calibrar a publicação."}
+                  : "Preview interno do portal, ainda preservando mais contexto operacional para calibrar a publicação."}{" "}
+                O período ativo também já recorta este preview.
               </p>
             </div>
 
@@ -233,7 +244,7 @@ function PortalPage() {
               </div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
                 O portal já mostra de forma mais clara se a leitura desta operação vem de fonte
-                ativa ou de fallback curado.
+                ativa ou de fallback curado, sem misturar outras contas no recorte.
               </p>
             </div>
           </div>
@@ -248,22 +259,22 @@ function PortalPage() {
             />
             <PortalKpi
               label="Cobertura"
-              value={`${formatPercent(portalOperation.baseCoverage)}%`}
+              value={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
               detail="Cobertura de base atual."
               icon={Target}
               tone="monitor"
             />
             <PortalKpi
               label="Conversão"
-              value={`${formatPercent(portalOperation.monthlyConversion)}%`}
+              value={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
               detail="Conversão mensal da operação."
               icon={TrendingUp}
               tone="success"
             />
             <PortalKpi
               label="Score operacional"
-              value={String(portalOperation.score)}
-              detail={`Prioridade ${portalOperation.priority}`}
+              value={String(scopedPortalOperation.score)}
+              detail={`Prioridade ${scopedPortalOperation.priority}`}
               icon={Building2}
               tone="info"
             />

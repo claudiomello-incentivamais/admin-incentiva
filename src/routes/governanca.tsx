@@ -24,6 +24,10 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import {
+  formatPeriodLabel,
+  useAdminFilters,
+} from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -302,7 +306,23 @@ const governance = {
 };
 
 function GovernancePage() {
+  const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
   const healthMeta = statusMeta[governance.health];
+  const isSingleOperationView = selectedOperationId !== "all";
+  const operationSignal = selectedOperation?.label ?? "";
+  const filteredIssues = isSingleOperationView
+    ? governance.issues.filter(
+        (issue) =>
+          issue.lane === operationSignal ||
+          issue.title.includes(operationSignal) ||
+          issue.detail.includes(operationSignal),
+      )
+    : governance.issues;
+  const filteredConnections = isSingleOperationView
+    ? governance.connections.filter((connection) =>
+        ["Admin Global", "Operações", "Clientes"].includes(connection.title),
+      )
+    : governance.connections;
 
   return (
     <>
@@ -327,13 +347,17 @@ function GovernancePage() {
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {governance.snapshotLabel}
               </span>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Governança
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Aqui o console separa leitura comercial de integridade operacional: dado, n8n,
-              ownership, rollout e checkpoint de execução.
+              {isSingleOperationView
+                ? `Aqui a governança foi recortada para ${operationSignal}, sem misturar fila de outras operações quando existir sinal específico desta conta.`
+                : "Aqui o console separa leitura comercial de integridade operacional: dado, n8n, ownership, rollout e checkpoint de execução."}
             </p>
           </div>
 
@@ -349,8 +373,9 @@ function GovernancePage() {
           <div>
             <h2 className="text-sm font-semibold text-display">O que esta frente cobre</h2>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              Esta é a camada que responde se o sistema está confiável o bastante para a leitura de
-              negócio fazer sentido.
+              {isSingleOperationView
+                ? "Esta é a camada que responde se a operação filtrada está confiável o bastante para a leitura de negócio fazer sentido."
+                : "Esta é a camada que responde se o sistema está confiável o bastante para a leitura de negócio fazer sentido."}
             </p>
           </div>
 
@@ -458,14 +483,22 @@ function GovernancePage() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Fila de governança</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Onde a governança ainda precisa intervir com dono e próximo passo claros.
+                  {isSingleOperationView
+                    ? "Onde a governança ainda precisa intervir nesta operação com dono e próximo passo claros."
+                    : "Onde a governança ainda precisa intervir com dono e próximo passo claros."}
                 </p>
               </div>
               <ShieldAlert className="h-3.5 w-3.5 text-primary" />
             </div>
 
             <div className="space-y-3">
-              {governance.issues.map((issue) => (
+              {filteredIssues.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-4 text-[12px] leading-relaxed text-muted-foreground">
+                  Este recorte não tem issue própria publicada nesta camada. A fila global foi ocultada
+                  para evitar vazamento de outra operação.
+                </div>
+              ) : null}
+              {filteredIssues.map((issue) => (
                 <GovernanceIssueCard key={issue.id} issue={issue} />
               ))}
             </div>
@@ -499,7 +532,7 @@ function GovernancePage() {
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {governance.connections.map((connection) => (
+            {filteredConnections.map((connection) => (
               <div key={connection.title} className="rounded-xl border border-border bg-surface p-4">
                 <div className="text-sm font-medium">{connection.title}</div>
                 <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
