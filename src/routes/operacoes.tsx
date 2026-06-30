@@ -1116,6 +1116,8 @@ function NotionActionCard({
     title: string;
     detail: string;
     tone: "healthy" | "monitor" | "risk" | "critical" | "info";
+    href?: string;
+    external?: boolean;
   };
 }) {
   const toneClass =
@@ -1142,6 +1144,18 @@ function NotionActionCard({
         </Badge>
       </div>
       <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{action.detail}</p>
+      {action.href ? (
+        <Button variant="outline" size="sm" className="mt-3 h-8 w-full gap-2" asChild>
+          <a
+            href={action.href}
+            target={action.external ? "_blank" : undefined}
+            rel={action.external ? "noreferrer" : undefined}
+          >
+            <ArrowUpRight className="h-3.5 w-3.5" />
+            Abrir Notion da operação
+          </a>
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -1167,8 +1181,6 @@ function TrelloBoardCard({
     segmentLabel: string;
     followUp: string;
     sourceLabel: string;
-    actionLabel?: string;
-    actionHref?: string;
   };
 }) {
   return (
@@ -1201,15 +1213,6 @@ function TrelloBoardCard({
           <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.sourceLabel}</div>
         </div>
       </div>
-
-      {card.actionHref && card.actionLabel ? (
-        <Button variant="outline" size="sm" className="mt-3 h-8 w-full gap-2" asChild>
-          <a href={card.actionHref} target="_blank" rel="noreferrer">
-            <ArrowUpRight className="h-3.5 w-3.5" />
-            {card.actionLabel}
-          </a>
-        </Button>
-      ) : null}
     </div>
   );
 }

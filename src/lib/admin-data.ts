@@ -385,6 +385,8 @@ export interface OperationNotionViewAction {
   title: string;
   detail: string;
   tone: OperationStatus | "info";
+  href?: string;
+  external?: boolean;
 }
 
 export interface OperationNotionView {
@@ -411,8 +413,6 @@ export interface OperationTrelloViewCard {
   segmentLabel: string;
   followUp: string;
   sourceLabel: string;
-  actionLabel?: string;
-  actionHref?: string;
 }
 
 export interface OperationTrelloViewColumn {
@@ -785,6 +785,19 @@ const trelloBoardUrlByOperationName: Record<string, string> = {
   "Plan Idiomas": "https://trello.com/b/ItDFXdkc/plan-idiomas",
   "Prime Action": "https://trello.com/b/GYpxDBiD/prime-action",
   "Trial Ambiental": "https://trello.com/b/0OnYuhul/trial-ambiental",
+};
+
+const notionUrlByOperationName: Record<string, string> = {
+  Acelerato: "https://www.notion.so/2a99328122fb818eb49fe85e62ab3121",
+  "Café Fazenda Brasil": "https://www.notion.so/25b9328122fb80188c94c4f07b7b28b8",
+  DocSeg: "https://www.notion.so/2729328122fb81af8456c0b7a725b0be",
+  Iamit: "https://www.notion.so/27e9328122fb814baa45d108c595d2ce",
+  Incentiva: "https://www.notion.so/2999328122fb8112aac3c634bb282e14",
+  "Lima Duarte Alimentos": "https://www.notion.so/3109328122fb8181aac9df43bff8400c",
+  Nimbus: "https://www.notion.so/2a99328122fb8169b6e2fe8f4e07bbc9",
+  "Plan Idiomas": "https://www.notion.so/27d9328122fb8148aeb7faccdb4b7bdd",
+  "Prime Action": "https://www.notion.so/2a89328122fb81eba09be9491ba7fb53",
+  "Trial Ambiental": "https://www.notion.so/d689328122fb82cb9a76816da3645e52",
 };
 
 const trelloCardRuntimeByShortLink: Record<
@@ -3375,6 +3388,7 @@ export function buildPortalLiveSourceCards(
   operation: Operation,
   source: GlobalDashboardData["source"],
 ): PortalLiveSourceCard[] {
+  const notionUrl = notionUrlByOperationName[operation.name];
   const trelloStates = trelloOperationalStateByOperationName[operation.name] ?? [];
   const primaryTrelloState =
     trelloStates.find((state) => state.status === "open") ??
@@ -3465,7 +3479,12 @@ export function buildPortalLiveSourceCards(
           { label: "Divergência", value: "Drill-down pendente" },
         ],
     nextStep: notionLive ? notionActionLabel : "Fechar a telemetria viva desta conta antes de expor reconciliação como verdade operacional.",
-    availabilityLabel: "Link direto do Notion ainda não homologado nesta conta.",
+    actionLabel: notionUrl ? "Abrir Notion da operação" : undefined,
+    actionHref: notionUrl || undefined,
+    actionExternal: true,
+    availabilityLabel: notionUrl
+      ? "Abertura direta da base da operação já pronta; a navegação nativa do pipeline continua evoluindo dentro do painel."
+      : "Link direto do Notion ainda não homologado nesta conta.",
   };
 
   const trelloHealth: OperationStatus = !primaryTrelloState
@@ -3549,6 +3568,7 @@ export function buildOperationNotionView(
   cockpit: IncentivaCockpitData,
   source: GlobalDashboardData["source"],
 ): OperationNotionView {
+  const notionUrl = notionUrlByOperationName[operation.name];
   const notionLive =
     source === "live" &&
     typeof operation.notionRecords === "number" &&
@@ -3665,8 +3685,22 @@ export function buildOperationNotionView(
         },
       ];
 
-  const actions: OperationNotionViewAction[] = notionLive
-    ? [
+  const actions: OperationNotionViewAction[] = [
+    ...(notionUrl
+      ? [
+          {
+            id: "open-notion",
+            title: "Abrir Notion da operação",
+            detail:
+              "Abrir a base comercial real desta operação no Notion para navegação completa, filtros e histórico bruto quando precisar aprofundar.",
+            tone: "info" as const,
+            href: notionUrl,
+            external: true,
+          },
+        ]
+      : []),
+    ...(notionLive
+      ? [
         {
           id: "status",
           title:
@@ -3704,7 +3738,7 @@ export function buildOperationNotionView(
           tone: exposureLabel === "Segurar exposição total" ? "risk" : exposureLabel === "Cliente-safe com monitoramento" ? "monitor" : "healthy",
         },
       ]
-    : [
+      : [
         {
           id: "telemetry",
           title: "Homologar leitura viva da conta",
@@ -3717,7 +3751,8 @@ export function buildOperationNotionView(
           detail: "Enquanto isso, a visão nativa já organiza estágio, volume e próximos passos sem misturar outras operações.",
           tone: "info",
         },
-      ];
+      ]),
+  ];
 
   return {
     health,
@@ -3769,8 +3804,6 @@ export function buildOperationTrelloView(
         segmentLabel: state.segment,
         followUp: runtime?.followUpText ?? "Sem follow-up recente gravado no card.",
         sourceLabel: hasCard ? "Trello real" : "Governança sem card",
-        actionLabel: hasCard ? "Abrir card específico" : undefined,
-        actionHref: hasCard ? state.cardUrl : undefined,
       };
     });
 
@@ -3816,16 +3849,6 @@ export function buildOperationTrelloView(
       ]
     : [];
 
-  for (const card of openCards) {
-    if (card.actionHref) {
-      actions.push({
-        id: `${card.id}-open`,
-        label: `${card.segmentLabel} · abrir card específico`,
-        href: card.actionHref,
-      });
-    }
-  }
-
   if (!boardUrl) {
     actions.push({
       id: "board-pending",
@@ -3835,7 +3858,11 @@ export function buildOperationTrelloView(
     });
   }
 
-  const health: OperationStatus = openCards.some((card) => card.actionHref)
+  const realOpenCardsCount = trelloStates.filter(
+    (state) => state.status === "open" && Boolean(state.cardUrl),
+  ).length;
+
+  const health: OperationStatus = realOpenCardsCount > 0
     ? "monitor"
     : cadenceState?.status === "open"
       ? "risk"
@@ -3857,15 +3884,15 @@ export function buildOperationTrelloView(
       : "Sem leitura recente do board",
     availabilityLabel:
       boardUrl
-        ? "Abertura principal já leva para o quadro da operação. Cards específicos continuam como atalho secundário."
-        : "O quadro ainda não está mapeado nesta operação; por enquanto, a tela só mostra o estado e os cards específicos quando existirem.",
+        ? "Abertura principal já leva para o quadro da operação; o painel fica só com a leitura resumida da execução."
+        : "O quadro ainda não está mapeado nesta operação; por enquanto, a tela só mostra o estado resumido da execução.",
     metrics: [
       {
         id: "cards-open",
         label: "Cards reais abertos",
-        value: formatNumber(openCards.filter((card) => card.actionHref).length),
+        value: formatNumber(realOpenCardsCount),
         detail: "Cards do Trello já materializados para esta operação.",
-        tone: openCards.filter((card) => card.actionHref).length > 0 ? "success" : "monitor",
+        tone: realOpenCardsCount > 0 ? "success" : "monitor",
       },
       {
         id: "segments-open",
