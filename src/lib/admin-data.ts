@@ -262,6 +262,23 @@ export interface GlobalDashboardData {
   insights: ExecutiveInsight[];
 }
 
+export interface ScoreDriver {
+  id: string;
+  label: string;
+  value: number;
+  weight: number;
+  health: OperationStatus;
+  detail: string;
+}
+
+export interface OperationActionPlan {
+  headline: string;
+  causes: string[];
+  actions: string[];
+  discordMessage: string;
+  trelloCardTitle: string;
+}
+
 const operations: Operation[] = [
   {
     id: "cafe-fazenda-brasil",
@@ -1665,6 +1682,450 @@ export async function loadIncentivaCockpit(): Promise<IncentivaCockpitData> {
     console.error(error);
     return incentivaCockpit;
   }
+}
+
+export function getScoreDrivers(operation: Operation): ScoreDriver[] {
+  return [
+    {
+      id: "coverage",
+      label: "Cobertura de base",
+      value: operation.baseCoverage,
+      weight: 0.35,
+      health:
+        operation.baseCoverage < 55 ? "critical" : operation.baseCoverage < 70 ? "risk" : "healthy",
+      detail:
+        operation.baseCoverage < 55
+          ? "A operação está sem base suficiente para sustentar a cadência com folga."
+          : operation.baseCoverage < 70
+            ? "A cobertura existe, mas ainda pressiona a continuidade da cadência."
+            : "A base atual já dá sustentação razoável para a frente.",
+    },
+    {
+      id: "reconciliation",
+      label: "Reconciliação de dados",
+      value: operation.dataReconciliation,
+      weight: 0.2,
+      health:
+        operation.dataReconciliation < 80
+          ? "risk"
+          : operation.dataReconciliation < 92
+            ? "monitor"
+            : "healthy",
+      detail:
+        operation.dataReconciliation < 80
+          ? "Ainda há ruído entre camadas operacionais, então parte da leitura pode estar semanticamente frágil."
+          : operation.dataReconciliation < 92
+            ? "A reconciliação já é boa, mas ainda pede ajuste fino para decisões mais sensíveis."
+            : "A estrutura de dados já está bem coerente para leitura executiva.",
+    },
+    {
+      id: "conversion",
+      label: "Conversão mensal",
+      value: operation.monthlyConversion * 5,
+      weight: 0.25,
+      health:
+        operation.monthlyConversion < 8
+          ? "risk"
+          : operation.monthlyConversion < 11
+            ? "monitor"
+            : "healthy",
+      detail:
+        operation.monthlyConversion < 8
+          ? "A conversão ainda está curta para compensar a pressão operacional atual."
+          : operation.monthlyConversion < 11
+            ? "A operação já converte, mas ainda sem folga forte."
+            : "A conversão está em banda saudável frente ao retrato atual.",
+    },
+    {
+      id: "priority",
+      label: "Pressão executiva",
+      value: operation.priority === "P0" ? 35 : operation.priority === "P1" ? 55 : operation.priority === "P2" ? 75 : 88,
+      weight: 0.2,
+      health:
+        operation.priority === "P0"
+          ? "critical"
+          : operation.priority === "P1"
+            ? "risk"
+            : operation.priority === "P2"
+              ? "monitor"
+              : "healthy",
+      detail:
+        operation.priority === "P0"
+          ? "A operação ainda exige intervenção executiva imediata."
+          : operation.priority === "P1"
+            ? "A pressão já é relevante, mas não necessariamente bloqueia a carteira toda."
+            : operation.priority === "P2"
+              ? "A operação está mais em observação e ajuste."
+              : "A urgência relativa atual é baixa.",
+    },
+  ];
+}
+
+export function buildOperationActionPlan(operation: Operation): OperationActionPlan {
+  const causes = [
+    `Foco principal atual: ${operation.focus}.`,
+    `Cobertura em ${operation.baseCoverage.toFixed(1)}% e reconciliação em ${operation.dataReconciliation.toFixed(1)}%.`,
+    `Conversão mensal em ${operation.monthlyConversion.toFixed(1)}% com saúde ${statusMeta[operation.health].label}.`,
+  ];
+
+  const actions =
+    operation.baseCoverage < 60
+      ? [
+          "Confirmar a cobertura real de não iniciados e a fila de reativação.",
+          "Abrir frente de reposição de lista / ICP como prioridade imediata.",
+          "Só depois atacar ajustes finos de copy, cadência ou workflow.",
+        ]
+      : operation.dataReconciliation < 85
+        ? [
+            "Validar divergências entre Supabase, Notion e estágio canônico.",
+            "Ajustar a leitura semântica antes de concluir sobre performance.",
+            "Revisar a operação novamente depois do saneamento de dados.",
+          ]
+        : [
+            "Revisar gargalo dominante do canal principal da operação.",
+            "Definir próximo teste de melhoria com dono claro e prazo.",
+            "Monitorar o efeito da ação no próximo recorte operacional.",
+          ];
+
+  return {
+    headline: `${operation.name} pede intervenção orientada por ${operation.focus.toLowerCase()}.`,
+    causes,
+    actions,
+    discordMessage:
+      `Diagnóstico ${operation.name}: foco atual em ${operation.focus.toLowerCase()}, ` +
+      `cobertura ${operation.baseCoverage.toFixed(1)}%, reconciliação ${operation.dataReconciliation.toFixed(1)}% ` +
+      `e conversão mensal ${operation.monthlyConversion.toFixed(1)}%. Próximo passo sugerido: ${actions[0]}`,
+    trelloCardTitle: `${operation.name} · plano de ação operacional`,
+  };
+}
+
+export function buildOperationCockpitFromOperation(operation: Operation): IncentivaCockpitData {
+  const coverageGap = Math.max(0, 100 - operation.baseCoverage);
+  const unstarted = Math.max(6, Math.round(coverageGap * 4.5));
+  const dailyTarget = operation.priority === "P0" ? 25 : operation.priority === "P1" ? 20 : 15;
+  const coverageDays = Number((operation.baseCoverage / 35).toFixed(1));
+  const success7d = Math.max(180, Math.round(operation.score * 41));
+  const error7d = operation.health === "critical" ? 4 : operation.health === "risk" ? 2 : 1;
+  const waiting7d = operation.baseCoverage < 60 ? 5 : operation.baseCoverage < 75 ? 2 : 0;
+  const actionPlan = buildOperationActionPlan(operation);
+
+  return {
+    operationName: operation.name,
+    snapshotLabel: "Snapshot consolidado da operação selecionada",
+    source: "snapshot",
+    summary: {
+      health: operation.health,
+      focus: operation.focus,
+      priorityScore: operation.score,
+      stageAlignmentPct: operation.dataReconciliation,
+      matchRatePct: Math.min(99.9, operation.dataReconciliation + 2.6),
+      avgLeadScore: Math.max(48, Math.round(operation.score * 0.92)),
+      supabaseRecords: 900 + operation.score * 11,
+      notionRecords: 860 + operation.score * 12,
+      activeWorkflows: operation.priority === "P0" ? 8 : operation.priority === "P1" ? 7 : 6,
+      totalWorkflows: operation.priority === "P0" ? 12 : 10,
+      success7d,
+      error7d,
+      waiting7d,
+    },
+    funnel: [
+      { id: "prospecting", label: "Prospecting", count: 320 + operation.score * 8, touchedThisMonth: 40 },
+      { id: "lead-interessado", label: "Lead Interessado", count: 10 + Math.round(operation.monthlyConversion), touchedThisMonth: 8 },
+      { id: "mql-agendado", label: "MQL Agendado", count: Math.max(1, Math.round(operation.monthlyConversion / 2)), touchedThisMonth: 2 },
+      { id: "mql-realizado", label: "MQL Realizado", count: Math.max(0, Math.round(operation.monthlyConversion / 3)) },
+      { id: "negotiation", label: "Negociação", count: Math.max(0, Math.round(operation.monthlyConversion / 2.5)) },
+      { id: "won", label: "Cliente Ganho", count: Math.max(0, Math.round(operation.monthlyConversion / 5)), touchedThisMonth: 1 },
+      { id: "lost", label: "Perdido", count: 50 + coverageGap * 2 },
+    ],
+    baseMetrics: [
+      {
+        id: "unstarted",
+        label: "Não iniciados canônicos",
+        value: unstarted,
+        tone: operation.baseCoverage < 60 ? "destructive" : operation.baseCoverage < 75 ? "warning" : "info",
+        detail: `Meta diária de referência: ${dailyTarget} ativações.`,
+      },
+      {
+        id: "coverage-days",
+        label: "Cobertura em dias",
+        value: coverageDays,
+        unit: "d",
+        tone: coverageDays < 2 ? "destructive" : coverageDays < 4 ? "warning" : "info",
+        detail: "Estimativa sintética baseada na cobertura atual da operação.",
+      },
+      {
+        id: "reactivation",
+        label: "Pool de reativação",
+        value: 80 + Math.round(coverageGap * 3.2),
+        tone: "warning",
+        detail: "Pulmão tático para aliviar pressão enquanto a base nova é ajustada.",
+      },
+      {
+        id: "suppressed",
+        label: "Supressões ativas",
+        value: 30 + Math.round((100 - operation.dataReconciliation) * 2),
+        tone: "info",
+        detail: "Leads temporariamente fora de cadência ou com ruído operacional.",
+      },
+      {
+        id: "reprospeccao",
+        label: "Reprospecção elegível",
+        value: 8 + Math.round(operation.monthlyConversion / 2),
+        tone: "warning",
+        detail: "Faixa reaproveitável de curto prazo.",
+      },
+      {
+        id: "retomada",
+        label: "Retomada elegível",
+        value: 6 + Math.round(operation.monthlyConversion / 2.8),
+        tone: "info",
+        detail: "Fila de retomada potencialmente acionável.",
+      },
+    ],
+    prospectingReadiness: {
+      metrics: [
+        {
+          id: "icp-coverage",
+          label: "Cobertura vs meta diária",
+          value: `${unstarted} / ${dailyTarget}`,
+          tone: operation.baseCoverage < 60 ? "critical" : operation.baseCoverage < 75 ? "risk" : "success",
+          detail: "Leitura sintética baseada na cobertura atual da operação.",
+        },
+        {
+          id: "coverage-window",
+          label: "Janela de sustentação",
+          value: `${coverageDays} d`,
+          tone: coverageDays < 2 ? "critical" : coverageDays < 4 ? "risk" : "success",
+          detail: "Quanto a base atual sustenta a cadência antes de nova reposição.",
+        },
+        {
+          id: "reactivation-volume",
+          label: "Pulmão de base",
+          value: String(80 + Math.round(coverageGap * 3.2)),
+          tone: "warning",
+          detail: "Reativação como colchão tático no recorte atual.",
+        },
+        {
+          id: "recovery-lanes",
+          label: "Faixas acionáveis",
+          value: String(14 + Math.round(operation.monthlyConversion)),
+          tone: "monitor",
+          detail: "Reprospecção e retomada já disponíveis para destravar ritmo.",
+        },
+      ],
+      lanes: [
+        {
+          id: "new-list",
+          label: "Lista nova / ICP",
+          health: operation.baseCoverage < 60 ? "critical" : operation.baseCoverage < 75 ? "risk" : "healthy",
+          headline: `${operation.name} ainda depende de cobertura nova para sustentar o canal principal.`,
+          detail: `A cobertura atual está em ${operation.baseCoverage.toFixed(1)}% e continua sendo o principal driver do score da operação.`,
+          recommendation: actionPlan.actions[0],
+        },
+        {
+          id: "reactivation",
+          label: "Reativação",
+          health: "monitor",
+          headline: "Reativação funciona como alavanca de amortecimento no curto prazo.",
+          detail: "Útil para aliviar pressão, mas não substitui reposição estrutural de base.",
+          recommendation: actionPlan.actions[1],
+        },
+        {
+          id: "reprospeccao",
+          label: "Reprospecção",
+          health: "monitor",
+          headline: "Camada complementar para recuperar volume reaproveitável.",
+          detail: "Bom complemento tático quando a operação ainda está consolidando cobertura.",
+          recommendation: "Rodar em paralelo, sem tratar como solução principal do mês.",
+        },
+        {
+          id: "retomada",
+          label: "Retomada",
+          health: "healthy",
+          headline: "Retomada serve para capturar ganho rápido em cima de conversa já aquecida.",
+          detail: "Faixa pequena, porém acionável quando a operação já tem histórico recente de contato.",
+          recommendation: "Manter como camada tática de baixa fricção.",
+        },
+      ],
+    },
+    executionBacklog: {
+      metrics: [
+        { id: "open-fronts", label: "Frentes abertas", value: "4", tone: "monitor", detail: "Blocos operacionais já claros para priorização." },
+        { id: "p0-items", label: "Ações P0", value: operation.priority === "P0" ? "2" : "1", tone: operation.priority === "P0" ? "critical" : "monitor", detail: "Quantidade sintética de frentes urgentes para esta operação." },
+        { id: "owner-clusters", label: "Donos sugeridos", value: "3", tone: "info", detail: "Sales Ops, Claw e lista/ICP cobrem a maior parte do próximo passo." },
+        { id: "v2-readiness", label: "Pronto para V2", value: "Sim", tone: "success", detail: "A operação já pode virar fila de ação dentro do painel." },
+      ],
+      items: [
+        {
+          id: "backlog-base",
+          lane: "Base / ICP",
+          priority: operation.priority === "P0" ? "P0" : "P1",
+          health: operation.baseCoverage < 60 ? "critical" : "risk",
+          owner: "Sales Ops + Lista",
+          headline: `Cobertura de base é hoje o principal gargalo de ${operation.name}.`,
+          detail: actionPlan.causes[1],
+          nextStep: actionPlan.actions[0],
+        },
+        {
+          id: "backlog-data",
+          lane: "Reconciliação",
+          priority: operation.dataReconciliation < 80 ? "P0" : "P1",
+          health: operation.dataReconciliation < 80 ? "risk" : "monitor",
+          owner: "Claw/main",
+          headline: "A leitura semântica ainda influencia diretamente a confiabilidade da operação.",
+          detail: `Reconciliação atual em ${operation.dataReconciliation.toFixed(1)}%.`,
+          nextStep: actionPlan.actions[1],
+        },
+        {
+          id: "backlog-performance",
+          lane: "Conversão / canal",
+          priority: operation.monthlyConversion < 8 ? "P1" : "P2",
+          health: operation.monthlyConversion < 8 ? "risk" : "monitor",
+          owner: "Sales Ops",
+          headline: "O próximo ganho vem de atacar o gargalo dominante do canal, não de abrir mais teoria.",
+          detail: `Conversão mensal atual em ${operation.monthlyConversion.toFixed(1)}%.`,
+          nextStep: actionPlan.actions[2],
+        },
+      ],
+    },
+    workflowDrilldown: {
+      metrics: [
+        { id: "families-observed", label: "Famílias observadas", value: "4", tone: "info", detail: "Núcleos principais do canal e da operação." },
+        { id: "families-critical", label: "Famílias críticas", value: operation.priority === "P0" ? "2" : "1", tone: operation.priority === "P0" ? "critical" : "monitor", detail: "Faixas que mais pedem próxima camada de drill-down." },
+        { id: "workflow-focus", label: "Workflow foco", value: operation.focus, tone: "monitor", detail: "A leitura de workflow herda o foco principal atual da operação." },
+        { id: "actionability", label: "Pronto para ação", value: "Sim", tone: "success", detail: "Já dá para transformar diagnóstico em backlog e mensagem operacional." },
+      ],
+      items: [
+        {
+          id: "drill-primary",
+          family: "Canal principal",
+          health: operation.health,
+          owner: "Sales Ops",
+          highlightedWorkflow: operation.focus,
+          headline: `O gargalo central de ${operation.name} hoje conversa diretamente com ${operation.focus.toLowerCase()}.`,
+          detail: "O drill-down desta operação deve começar pelo bloco que mais afeta cobertura, throughput ou leitura útil.",
+          nextStep: actionPlan.actions[0],
+        },
+        {
+          id: "drill-data",
+          family: "Governança / dado",
+          health: operation.dataReconciliation < 80 ? "risk" : "monitor",
+          owner: "Claw/main",
+          highlightedWorkflow: "Reconciliação",
+          headline: "Antes de otimizar o detalhe, a leitura precisa estar coerente.",
+          detail: "Esta operação ainda depende da qualidade da camada de dados para não gerar falso positivo de performance.",
+          nextStep: actionPlan.actions[1],
+        },
+      ],
+    },
+    emailHealth: {
+      metrics: [
+        { id: "email-active", label: "E-mail ativo", value: "4/5", tone: "monitor", detail: "Família de e-mail em acompanhamento pelo recorte atual." },
+        { id: "email-waiting", label: "Waiting", value: String(waiting7d), tone: waiting7d > 3 ? "risk" : "monitor", detail: "Proxy de fila ou gargalo no recorte atual da operação." },
+        { id: "email-throughput", label: "Throughput", value: operation.monthlyConversion >= 10 ? "estável" : "pressionado", tone: operation.monthlyConversion >= 10 ? "success" : "monitor", detail: "Leitura sintética da fluidez da família de e-mail." },
+        { id: "email-risk", label: "Risco atual", value: operation.baseCoverage < 60 ? "base" : "fila", tone: operation.baseCoverage < 60 ? "risk" : "monitor", detail: "Onde o e-mail mais sofre no retrato atual." },
+      ],
+      tracks: [
+        {
+          id: "email-family",
+          label: "Família de e-mail",
+          health: operation.baseCoverage < 60 ? "risk" : "monitor",
+          headline: "O e-mail fica bom ou ruim conforme a base e a fila que o alimentam.",
+          detail: "Sem base suficiente, a família perde continuidade; sem observabilidade, a fila vira gargalo silencioso.",
+          recommendation: actionPlan.actions[0],
+        },
+      ],
+    },
+    whatsappHealth: {
+      metrics: [
+        { id: "infra", label: "Infra / webhook", value: "OK", tone: "healthy", detail: "Sem sinal sintético de quebra estrutural no retrato atual." },
+        { id: "base-pressure", label: "Pressão de base", value: String(unstarted), tone: operation.baseCoverage < 60 ? "critical" : "monitor", detail: "Quantidade de não iniciados pressionando a cadência." },
+        { id: "lead-lanes-idle", label: "Faixas ociosas", value: String(6 + Math.round(coverageGap / 8)), tone: "monitor", detail: "Faixas com potencial de retomada ou reaproveitamento." },
+        { id: "throughput", label: "Throughput", value: operation.monthlyConversion >= 10 ? "estável" : "irregular", tone: operation.monthlyConversion >= 10 ? "success" : "monitor", detail: "Leitura sintética do ritmo do canal." },
+      ],
+      tracks: [
+        {
+          id: "outbound",
+          label: "Outbound WhatsApp",
+          health: operation.baseCoverage < 60 ? "monitor" : "healthy",
+          headline: "O canal até pode estar íntegro, mas depende da base certa para render.",
+          detail: "Quando a cobertura cai, o WhatsApp vira termômetro do gargalo upstream.",
+          workflows: "Cadência, reativação e retomada",
+        },
+      ],
+    },
+    workflowIntelligence: {
+      metrics: [
+        { id: "active-families", label: "Famílias ativas", value: "4", tone: "info", detail: "Núcleos centrais já visíveis no cockpit." },
+        { id: "email-risk", label: "Risco dominante", value: operation.focus, tone: "monitor", detail: "A inteligência de workflow herda o problema principal da operação." },
+        { id: "social-density", label: "Densidade operacional", value: operation.priority === "P0" ? "alta" : "média", tone: "info", detail: "Nível de profundidade que já vale observar." },
+        { id: "next-cut", label: "Próximo corte", value: "plano de ação", tone: "success", detail: "O painel já pode transformar leitura em demanda operacional." },
+      ],
+      insights: [
+        {
+          id: "workflow-focus",
+          familyId: "core",
+          label: operation.focus,
+          health: operation.health,
+          headline: `O melhor próximo passo de ${operation.name} começa por ${operation.focus.toLowerCase()}.`,
+          detail: actionPlan.headline,
+          recommendation: actionPlan.actions[0],
+        },
+      ],
+    },
+    channels: [
+      {
+        id: "whatsapp",
+        label: "WhatsApp",
+        health: operation.baseCoverage < 60 ? "monitor" : "healthy",
+        activeWorkflows: 3,
+        totalWorkflows: 4,
+        headline: "Canal sensível à cobertura de base e à continuidade da cadência.",
+        detail: "A leitura do canal funciona melhor quando a operação já está com abastecimento minimamente estável.",
+      },
+      {
+        id: "email",
+        label: "E-mail",
+        health: operation.monthlyConversion < 8 ? "risk" : "monitor",
+        activeWorkflows: 4,
+        totalWorkflows: 5,
+        headline: "Canal importante para throughput e pressão silenciosa de fila.",
+        detail: "Sem observabilidade fina, tende a esconder gargalos de waiting e entrega útil.",
+      },
+      {
+        id: "linkedin",
+        label: "LinkedIn",
+        health: "monitor",
+        activeWorkflows: 1,
+        totalWorkflows: 2,
+        headline: "Camada complementar de social selling e sinal comercial.",
+        detail: "Ajuda mais como apoio e amplificação do que como único motor.",
+      },
+    ],
+    workflowFamilies: [
+      { id: "core", label: "Core de cadência", total: 4, active: 3, health: operation.health, summary: "Motor principal da operação." },
+      { id: "email", label: "E-mail FUP", total: 5, active: 4, health: operation.monthlyConversion < 8 ? "risk" : "monitor", summary: "Throughput e fila de seguimento." },
+      { id: "reactivation", label: "Reativação / retomada", total: 3, active: 2, health: "monitor", summary: "Pulmão tático de curto prazo." },
+    ],
+    topWorkflows: [
+      { name: `${operation.name} · Cadência principal`, family: "Core de cadência", active: true, executions7d: success7d, success7d, error7d, waiting7d, lastRun: "agora" },
+      { name: `${operation.name} · E-mail FUP`, family: "E-mail FUP", active: true, executions7d: Math.max(80, Math.round(success7d * 0.35)), success7d: Math.max(70, Math.round(success7d * 0.3)), error7d: Math.max(0, error7d - 1), waiting7d, lastRun: "hoje" },
+    ],
+    alerts: [
+      {
+        id: "score-alert",
+        severity: operation.health === "critical" ? "critical" : operation.health === "risk" ? "risk" : "monitor",
+        title: `${operation.name} segue puxando atenção por ${operation.focus.toLowerCase()}.`,
+        detail: actionPlan.causes.join(" "),
+      },
+      {
+        id: "action-alert",
+        severity: "info",
+        title: "Próximo passo sugerido",
+        detail: actionPlan.actions[0],
+      },
+    ],
+  };
 }
 
 async function fetchGovernanceAdminGlobalRows(): Promise<GovernanceAdminGlobalRow[] | null> {

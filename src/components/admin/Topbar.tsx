@@ -1,15 +1,31 @@
-import { Bell, Search, ChevronDown, Filter } from "lucide-react";
+import { Bell, Search, Filter, CalendarRange } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { BrandMark } from "@/components/admin/BrandMark";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formatPeriodLabel, useAdminFilters, type PeriodPreset } from "@/components/admin/admin-filters";
 
 interface TopbarProps {
   breadcrumb: string[];
 }
 
 export function Topbar({ breadcrumb }: TopbarProps) {
+  const {
+    selectedOperationId,
+    selectedPeriod,
+    operationOptions,
+    setSelectedOperationId,
+    setSelectedPeriod,
+  } = useAdminFilters();
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/88 backdrop-blur-xl px-4 topbar-glow">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
@@ -48,17 +64,44 @@ export function Topbar({ breadcrumb }: TopbarProps) {
           </kbd>
         </div>
 
-        <Button variant="ghost" size="sm" className="h-9 gap-2 text-muted-foreground">
-          <Filter className="h-3.5 w-3.5" />
-          <span className="text-xs">Últimos 30 dias</span>
-          <ChevronDown className="h-3 w-3" />
-        </Button>
+        <div className="hidden lg:flex items-center gap-2">
+          <div className="relative">
+            <CalendarRange className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Select value={selectedPeriod} onValueChange={(value) => setSelectedPeriod(value as PeriodPreset)}>
+              <SelectTrigger className="h-9 w-[170px] pl-8 bg-surface border-border text-xs">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
+                <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
+                <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
+                <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="relative">
+            <Filter className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Select value={selectedOperationId} onValueChange={setSelectedOperationId}>
+              <SelectTrigger className="h-9 w-[220px] pl-8 bg-surface border-border text-xs">
+                <SelectValue placeholder="Operação" />
+              </SelectTrigger>
+              <SelectContent>
+                {operationOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <Badge
           variant="outline"
           className="hidden lg:inline-flex h-8 rounded-full border-primary/25 bg-primary/8 text-primary px-3 text-[10px] uppercase tracking-[0.18em]"
         >
-          Piloto operacional
+          Filtros ativos
         </Badge>
 
         <Button variant="ghost" size="icon" className="h-9 w-9">

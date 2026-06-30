@@ -1,15 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   AlertOctagon,
   AlertTriangle,
   ArrowUpRight,
   Building2,
-  Calendar,
   ChevronRight,
-  Download,
-  Filter,
   Info,
+  MessageSquareShare,
+  SquareKanban,
   ShieldAlert,
   Target,
   TrendingUp,
@@ -18,15 +17,20 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAdminFilters, formatPeriodLabel } from "@/components/admin/admin-filters";
 import { cn } from "@/lib/utils";
 
 import {
+  buildOperationActionPlan,
+  buildOperationCockpitFromOperation,
+  getScoreDrivers,
   loadGlobalDashboard,
   priorityMeta,
   statusMeta,
   type GlobalDashboardData,
+  type Operation,
   type OperationStatus,
 } from "@/lib/admin-data";
 
@@ -51,10 +55,76 @@ function formatNumber(n: number) {
 
 function AdminGlobal() {
   const dashboard = Route.useLoaderData();
-  const { kpis, operations, distribution, insights } = dashboard;
+  const { kpis, operations, insights } = dashboard;
+  const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
+  const filteredOperations = useMemo(
+    () =>
+      selectedOperationId === "all"
+        ? operations
+        : operations.filter((operation) => operation.id === selectedOperationId),
+    [operations, selectedOperationId],
+  );
+  const filteredDistribution = useMemo(
+    () =>
+      filteredOperations.reduce(
+        (acc, operation) => {
+          acc[operation.health] += 1;
+          return acc;
+        },
+        { healthy: 0, monitor: 0, risk: 0, critical: 0 } as Record<OperationStatus, number>,
+      ),
+    [filteredOperations],
+  );
+  const filteredInsights = useMemo(
+    () =>
+      selectedOperationId === "all"
+        ? insights
+        : insights.filter((insight) => !insight.operationId || insight.operationId === selectedOperationId),
+    [insights, selectedOperationId],
+  );
+  const [activeOperationId, setActiveOperationId] = useState(
+    selectedOperationId === "all" ? filteredOperations[0]?.id ?? "" : selectedOperationId,
+  );
+
+  useEffect(() => {
+    if (selectedOperationId !== "all") {
+      setActiveOperationId(selectedOperationId);
+      return;
+    }
+
+    if (!filteredOperations.some((operation) => operation.id === activeOperationId)) {
+      setActiveOperationId(filteredOperations[0]?.id ?? "");
+    }
+  }, [activeOperationId, filteredOperations, selectedOperationId]);
+
+  const activeOperation =
+    filteredOperations.find((operation) => operation.id === activeOperationId) ?? filteredOperations[0] ?? null;
+  const activeDrivers = activeOperation ? getScoreDrivers(activeOperation) : [];
+  const activeActionPlan = activeOperation ? buildOperationActionPlan(activeOperation) : null;
+  const activeCockpit = activeOperation ? buildOperationCockpitFromOperation(activeOperation) : null;
+  const effectiveKpis = useMemo(() => {
+    if (selectedOperationId === "all") return kpis;
+    if (!activeOperation || !activeCockpit) return kpis;
+
+    return {
+      monitored: 1,
+      atRisk: activeOperation.health === "risk" ? 1 : 0,
+      critical: activeOperation.health === "critical" ? 1 : 0,
+      baseCoverage: activeOperation.baseCoverage,
+      totalLeads: activeCockpit.summary.supabaseRecords,
+      monthlyConversions: activeCockpit.funnel.find((stage) => stage.id === "won")?.count ?? 0,
+      conversionDelta: 0,
+      leadsDelta: 0,
+      coverageDelta: 0,
+      riskDelta: 0,
+    };
+  }, [activeCockpit, activeOperation, kpis, selectedOperationId]);
 
   const totalOps =
-    distribution.healthy + distribution.monitor + distribution.risk + distribution.critical;
+    filteredDistribution.healthy +
+    filteredDistribution.monitor +
+    filteredDistribution.risk +
+    filteredDistribution.critical;
 
   return (
     <>
@@ -83,23 +153,22 @@ function AdminGlobal() {
               Visão Consolidada de Operações
             </h1>
             <p className="text-sm text-muted-foreground max-w-xl">
-              Governança operacional e performance comercial consolidadas. Drill-down disponível
-              por operação.
+              Governança operacional e performance comercial consolidadas com leitura por operação,
+              score explicável e próximo passo sugerido.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
-              <Calendar className="h-3.5 w-3.5" />
-              <span className="text-xs">Jun 2026 · MTD</span>
-            </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
-              <Filter className="h-3.5 w-3.5" />
-              <span className="text-xs">Todas as operações</span>
-            </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-2">
-              <Download className="h-3.5 w-3.5" />
-              <span className="text-xs">Exportar</span>
-            </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-6">
+              {formatPeriodLabel(selectedPeriod)}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-6">
+              {selectedOperation?.label ?? "Todas as operações"}
+            </Badge>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-6">
+              {selectedOperationId === "all"
+                ? "Painel consolidado"
+                : "Painel filtrado por operação"}
+            </Badge>
           </div>
         </section>
 
@@ -107,21 +176,21 @@ function AdminGlobal() {
         <section className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <ExecKpi
             label="Operações monitoradas"
-            value={kpis.monitored.toString()}
+            value={effectiveKpis.monitored.toString()}
             icon={Building2}
-            sub="Em gestão ativa"
+            sub={selectedOperationId === "all" ? "Em gestão ativa" : "Recorte atual"}
           />
           <ExecKpi
             label="Em risco"
-            value={kpis.atRisk.toString()}
+            value={effectiveKpis.atRisk.toString()}
             icon={ShieldAlert}
-            delta={kpis.riskDelta}
+            delta={selectedOperationId === "all" ? effectiveKpis.riskDelta : undefined}
             tone="warning"
             sub="Status: risk"
           />
           <ExecKpi
             label="Críticas"
-            value={kpis.critical.toString()}
+            value={effectiveKpis.critical.toString()}
             icon={AlertOctagon}
             tone="destructive"
             sub="SLA comprometido"
@@ -129,26 +198,26 @@ function AdminGlobal() {
           />
           <ExecKpi
             label="Cobertura de base"
-            value={`${kpis.baseCoverage}%`}
+            value={`${effectiveKpis.baseCoverage}%`}
             icon={Target}
-            delta={kpis.coverageDelta}
+            delta={selectedOperationId === "all" ? effectiveKpis.coverageDelta : undefined}
             tone="info"
             sub="Média ponderada"
           />
           <ExecKpi
             label="Leads totais"
-            value={formatNumber(kpis.totalLeads)}
+            value={formatNumber(effectiveKpis.totalLeads)}
             icon={Users}
-            delta={kpis.leadsDelta}
-            sub="Base consolidada"
+            delta={selectedOperationId === "all" ? effectiveKpis.leadsDelta : undefined}
+            sub={selectedOperationId === "all" ? "Base consolidada" : "Base da operação"}
           />
           <ExecKpi
             label="Conversões do mês"
-            value={formatNumber(kpis.monthlyConversions)}
+            value={formatNumber(effectiveKpis.monthlyConversions)}
             icon={TrendingUp}
-            delta={kpis.conversionDelta}
+            delta={selectedOperationId === "all" ? effectiveKpis.conversionDelta : undefined}
             tone="success"
-            sub="MTD · todas operações"
+            sub={selectedOperationId === "all" ? "MTD · todas operações" : "MTD · operação selecionada"}
           />
         </section>
 
@@ -183,12 +252,16 @@ function AdminGlobal() {
                   </tr>
                 </thead>
                 <tbody>
-                  {operations.map((op) => {
+                  {filteredOperations.map((op) => {
                     const meta = statusMeta[op.health];
                     return (
                       <tr
                         key={op.id}
-                        className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer group"
+                        onClick={() => setActiveOperationId(op.id)}
+                        className={cn(
+                          "border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer group",
+                          activeOperationId === op.id && "bg-primary/5",
+                        )}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
@@ -267,12 +340,134 @@ function AdminGlobal() {
 
           {/* Status distribution + insights stacked */}
           <div className="space-y-4">
-            <StatusDistribution distribution={distribution} total={totalOps} />
-            <ExecutiveInsights insights={insights} />
+            {activeOperation && activeActionPlan ? (
+              <OperationDiagnosticCard
+                operation={activeOperation}
+                drivers={activeDrivers}
+                actionPlan={activeActionPlan}
+              />
+            ) : null}
+            <StatusDistribution distribution={filteredDistribution} total={totalOps} />
+            <ExecutiveInsights insights={filteredInsights} />
           </div>
         </section>
       </main>
     </>
+  );
+}
+
+function OperationDiagnosticCard({
+  operation,
+  drivers,
+  actionPlan,
+}: {
+  operation: Operation;
+  drivers: ReturnType<typeof getScoreDrivers>;
+  actionPlan: ReturnType<typeof buildOperationActionPlan>;
+}) {
+  return (
+    <div className="surface-card p-5">
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-sm font-semibold text-display">Diagnóstico acionável</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Clique na operação no ranking para entender o score e o próximo passo.
+          </p>
+        </div>
+        <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+          {operation.name}
+        </Badge>
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Score atual
+            </div>
+            <div className="mt-1 text-xl font-semibold text-display">{operation.score}</div>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn("text-[10px] uppercase tracking-[0.16em] h-5", statusMeta[operation.health].color)}
+          >
+            {statusMeta[operation.health].label}
+          </Badge>
+        </div>
+        <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+          {actionPlan.headline}
+        </p>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {drivers.map((driver) => (
+          <div key={driver.id} className="rounded-xl border border-border bg-surface px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] font-medium">{driver.label}</div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  peso {(driver.weight * 100).toFixed(0)}%
+                </span>
+                <span
+                  className={cn(
+                    "text-[12px] font-semibold text-mono",
+                    statusMeta[driver.health].color,
+                  )}
+                >
+                  {driver.value.toFixed(1)}
+                </span>
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{driver.detail}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-surface px-4 py-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          O que está puxando para baixo
+        </div>
+        <div className="mt-2 space-y-2">
+          {actionPlan.causes.map((cause) => (
+            <div key={cause} className="flex gap-2 text-[12px] text-muted-foreground leading-relaxed">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+              <span>{cause}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-xl border border-border bg-surface px-4 py-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+          Próximo plano de ação
+        </div>
+        <div className="mt-2 space-y-2">
+          {actionPlan.actions.map((action) => (
+            <div key={action} className="flex gap-2 text-[12px] text-foreground leading-relaxed">
+              <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[color:var(--color-success)] shrink-0" />
+              <span>{action}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <MessageSquareShare className="h-3.5 w-3.5" />
+            Mensagem sugerida para Discord
+          </div>
+          <p className="mt-2 text-[12px] leading-relaxed text-foreground">{actionPlan.discordMessage}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-surface px-4 py-3">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <SquareKanban className="h-3.5 w-3.5" />
+            Card sugerido no Trello
+          </div>
+          <p className="mt-2 text-[12px] font-medium text-foreground">{actionPlan.trelloCardTitle}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

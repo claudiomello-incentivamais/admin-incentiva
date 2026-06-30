@@ -21,9 +21,12 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  buildOperationCockpitFromOperation,
+  fetchOperations,
   type IncentivaExecutionBacklogItem,
   type IncentivaWorkflowDrilldownItem,
   loadIncentivaCockpit,
@@ -56,12 +59,28 @@ function formatDecimal(value: number, digits = 1) {
 }
 
 function Page() {
-  const cockpit = Route.useLoaderData();
+  const incentivaCockpit = Route.useLoaderData();
+  const { selectedOperationId, selectedOperationRecord, selectedPeriod } = useAdminFilters();
+  const fallbackOperation = fetchOperations()[0] ?? null;
+  const effectiveOperation = selectedOperationRecord ?? fallbackOperation;
+  const cockpit =
+    effectiveOperation?.id === "incentiva"
+      ? incentivaCockpit
+      : effectiveOperation
+        ? buildOperationCockpitFromOperation(effectiveOperation)
+        : incentivaCockpit;
   const healthMeta = statusMeta[cockpit.summary.health];
+  const isSpecificOperationSelected = selectedOperationId !== "all" && selectedOperationRecord;
+  const headerTitle = isSpecificOperationSelected
+    ? `Cockpit ${cockpit.operationName}`
+    : "Cockpit Operacional";
+  const headerDescription = isSpecificOperationSelected
+    ? `Leitura executiva de ${cockpit.operationName} unindo base, funil, gargalos e telemetria de automação.`
+    : `Nenhuma operação específica foi filtrada; mostrando a operação mais pressionada da carteira (${cockpit.operationName}).`;
 
   return (
     <>
-      <Topbar breadcrumb={["Console Incentiva", "Operações", "Cockpit Incentiva"]} />
+      <Topbar breadcrumb={["Console Incentiva", "Operações", cockpit.operationName]} />
 
       <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
@@ -71,7 +90,7 @@ function Page() {
                 variant="outline"
                 className="text-[10px] uppercase tracking-[0.18em] border-primary/40 text-primary bg-primary/5 h-5"
               >
-                Operação piloto
+                {isSpecificOperationSelected ? "Operação selecionada" : "Operação prioritária"}
               </Badge>
               <Badge
                 variant="outline"
@@ -82,6 +101,9 @@ function Page() {
               >
                 {healthMeta.label}
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                {formatPeriodLabel(selectedPeriod)}
+              </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {cockpit.snapshotLabel}
               </span>
@@ -90,10 +112,10 @@ function Page() {
               </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
-              Cockpit Incentiva
+              {headerTitle}
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Leitura executiva da operação piloto unindo base, funil, gargalos e telemetria de automação.
+              {headerDescription}
             </p>
           </div>
 
@@ -104,9 +126,9 @@ function Page() {
                 Voltar ao Admin Global
               </Link>
             </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-2">
+            <Button variant="outline" size="sm" className="h-9 gap-2" disabled>
               <RefreshCcw className="h-3.5 w-3.5" />
-              Snapshot consolidado
+              Refresh live em breve
             </Button>
           </div>
         </section>
@@ -143,7 +165,7 @@ function Page() {
             label="Workflows ativos"
             value={`${cockpit.summary.activeWorkflows}/${cockpit.summary.totalWorkflows}`}
             icon={Workflow}
-            sub="n8n VPS · Incentiva"
+            sub={`n8n VPS · ${cockpit.operationName}`}
           />
           <ExecKpi
             label="Execuções 7d"
@@ -242,11 +264,11 @@ function Page() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Resumo Executivo</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Leitura direta do ponto em que a Incentiva está agora
+                  Leitura direta do ponto em que {cockpit.operationName} está agora
                 </p>
               </div>
               <Badge variant="secondary" className="text-[10px] text-mono h-5">
-                Operação piloto
+                {cockpit.operationName}
               </Badge>
             </div>
 
@@ -282,9 +304,9 @@ function Page() {
                 title="Próxima decisão"
                 icon={Sparkles}
                 points={[
-                  "Manter o cockpit da Incentiva como primeira navegação real por operação.",
+                  `Usar ${cockpit.operationName} como leitura operacional do filtro atual.`,
                   "A próxima iteração natural é substituir os blocos mais críticos por leitura viva do Supabase.",
-                  "Email waiting e base de não iniciados merecem prioridade no próximo corte.",
+                  "Waiting, base de não iniciados e plano de ação são os próximos pivôs desta tela.",
                 ]}
               />
             </div>
@@ -413,7 +435,7 @@ function Page() {
               <div>
                 <h2 className="text-sm font-semibold text-display">E-mail / Waiting / Throughput</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Leitura do gargalo já confirmado na família de e-mail da Incentiva
+                  Leitura do gargalo dominante de e-mail da operação selecionada
                 </p>
               </div>
               <Mail className="h-3.5 w-3.5 text-primary" />
@@ -475,7 +497,7 @@ function Page() {
               <div>
                 <h2 className="text-sm font-semibold text-display">V2 · Backlog Operacional</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Primeira camada de priorização executiva por frente da Incentiva
+                  Primeira camada de priorização executiva por frente da operação atual
                 </p>
               </div>
               <ListTodo className="h-3.5 w-3.5 text-primary" />
