@@ -3,6 +3,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { BrandMark } from "@/components/admin/BrandMark";
 
 interface TopbarProps {
   breadcrumb: string[];
@@ -10,9 +11,12 @@ interface TopbarProps {
 
 export function Topbar({ breadcrumb }: TopbarProps) {
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 backdrop-blur-xl px-4">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/85 backdrop-blur-xl px-4 topbar-glow">
       <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
       <div className="h-5 w-px bg-border" />
+      <div className="hidden xl:flex">
+        <BrandMark compact className="mr-1" />
+      </div>
       <nav className="flex items-center gap-1.5 text-sm">
         {breadcrumb.map((c, i) => (
           <span key={i} className="flex items-center gap-1.5">
@@ -49,6 +53,13 @@ export function Topbar({ breadcrumb }: TopbarProps) {
           <span className="text-xs">Últimos 30 dias</span>
           <ChevronDown className="h-3 w-3" />
         </Button>
+
+        <Badge
+          variant="outline"
+          className="hidden lg:inline-flex h-8 rounded-full border-primary/25 bg-primary/8 text-primary px-3 text-[10px] uppercase tracking-[0.18em]"
+        >
+          AI-First Ops
+        </Badge>
 
         <Button variant="ghost" size="icon" className="h-9 w-9 relative">
           <Bell className="h-4 w-4" />

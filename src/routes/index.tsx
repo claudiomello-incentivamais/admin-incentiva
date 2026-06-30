@@ -33,11 +33,11 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Admin Global — Cockpit Executivo B2B" },
+      { title: "Incentiva Ops — Admin Global" },
       {
         name: "description",
         content:
-          "Visão consolidada de governança operacional e performance comercial das operações B2B.",
+          "Visão consolidada da governança operacional e da performance comercial da Incentiva.",
       },
     ],
   }),
@@ -58,7 +58,7 @@ function AdminGlobal() {
 
   return (
     <>
-      <Topbar breadcrumb={["Nexus Console", "Admin Global"]} />
+      <Topbar breadcrumb={["Incentiva Ops", "Admin Global"]} />
 
       <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
         {/* Executive header */}

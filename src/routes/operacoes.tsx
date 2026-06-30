@@ -37,7 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/operacoes")({
-  head: () => ({ meta: [{ title: "Operações — Cockpit Incentiva V1" }] }),
+  head: () => ({ meta: [{ title: "Incentiva Ops — Cockpit Incentiva V1" }] }),
   loader: async () => loadIncentivaCockpit(),
   component: Page,
 });
@@ -59,7 +59,7 @@ function Page() {
 
   return (
     <>
-      <Topbar breadcrumb={["Nexus Console", "Operações", "Cockpit Incentiva V1"]} />
+      <Topbar breadcrumb={["Incentiva Ops", "Operações", "Cockpit Incentiva V1"]} />
 
       <main className="flex-1 px-6 py-6 space-y-6 max-w-[1600px] w-full mx-auto">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">

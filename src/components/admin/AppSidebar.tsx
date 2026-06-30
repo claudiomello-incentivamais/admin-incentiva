@@ -24,6 +24,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { BrandMark } from "@/components/admin/BrandMark";
 
 const global = [
   { title: "Admin Global", url: "/", icon: LayoutDashboard },
@@ -83,16 +84,16 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center gap-2.5 px-2 py-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground font-display font-bold">
-            N
-          </div>
+        <div className="px-2 py-2.5">
+          <BrandMark compact={collapsed} />
           {!collapsed && (
-            <div className="flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-display">Nexus Console</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Admin · v2.4
-              </span>
+            <div className="mt-3 rounded-xl border border-sidebar-border bg-sidebar-accent/60 px-3 py-2.5">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Revenue AI-First
+              </div>
+              <div className="mt-1 text-[12px] leading-snug text-sidebar-foreground">
+                Governança operacional, automação e previsibilidade em uma só camada.
+              </div>
             </div>
           )}
         </div>
@@ -106,14 +107,14 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center gap-2.5 px-2 py-2">
-          <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center text-xs font-semibold">
+          <div className="h-8 w-8 rounded-full bg-primary/15 text-primary flex items-center justify-center text-xs font-semibold ring-1 ring-primary/25">
             RM
           </div>
           {!collapsed && (
             <div className="flex flex-col leading-tight overflow-hidden">
               <span className="text-xs font-medium truncate">Rafael Moreira</span>
               <span className="text-[10px] text-muted-foreground truncate">
-                Admin Global
+                Incentiva Ops
               </span>
             </div>
           )}

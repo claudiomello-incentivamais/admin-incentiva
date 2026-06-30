@@ -80,8 +80,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Console Admin — Governança Operacional" },
-      { name: "description", content: "Console B2B para governança operacional e performance comercial." },
+      { title: "Incentiva Ops — Governança Operacional AI-First" },
+      {
+        name: "description",
+        content: "Console da Incentiva para governança operacional, previsibilidade comercial e arquitetura AI-first.",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -120,7 +123,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background text-foreground">
+        <div className="app-shell min-h-screen flex w-full bg-background text-foreground">
           <AppSidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <Outlet />
@@ -130,4 +133,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-
