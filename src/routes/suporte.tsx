@@ -17,15 +17,27 @@ import {
   SquareChartGantt,
   Wrench,
   Bot,
+  Gauge,
+  Mail,
+  MessageCircleMore,
+  Orbit,
+  TimerReset,
+  Workflow,
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { statusMeta, type OperationStatus } from "@/lib/admin-data";
+import {
+  loadIncentivaCockpit,
+  statusMeta,
+  type IncentivaCockpitData,
+  type OperationStatus,
+} from "@/lib/admin-data";
 
 export const Route = createFileRoute("/suporte")({
+  loader: async () => loadIncentivaCockpit(),
   head: () => ({ meta: [{ title: "Suporte — Console Incentiva" }] }),
   component: SupportPage,
 });
@@ -260,6 +272,38 @@ const support = {
 };
 
 function SupportPage() {
+  const cockpit = Route.useLoaderData();
+  const supportKpis = [
+    {
+      label: "Canais observados",
+      value: String(cockpit.channels.length),
+      detail: "A leitura já separa os canais críticos com headline, saúde e densidade operacional.",
+      tone: "info" as const,
+      icon: Orbit,
+    },
+    {
+      label: "Famílias mapeadas",
+      value: String(cockpit.workflowFamilies.length),
+      detail: "A telemetria já consegue diferenciar os principais blocos de workflow da operação.",
+      tone: "success" as const,
+      icon: Workflow,
+    },
+    {
+      label: "Workflows ativos",
+      value: `${cockpit.summary.activeWorkflows}/${cockpit.summary.totalWorkflows}`,
+      detail: "A camada profunda já mostra o quanto da malha operacional está realmente em campo.",
+      tone: "monitor" as const,
+      icon: Gauge,
+    },
+    {
+      label: "Alertas vivos",
+      value: String(cockpit.alerts.length),
+      detail: "O suporte já enxerga alertas que saem de saúde genérica e entram em workflow intelligence.",
+      tone: "risk" as const,
+      icon: Siren,
+    },
+  ];
+
   return (
     <>
       <Topbar breadcrumb={["Console Incentiva", "Suporte"]} />
@@ -272,18 +316,22 @@ function SupportPage() {
                 variant="outline"
                 className="text-[10px] uppercase tracking-[0.18em] border-primary/40 text-primary bg-primary/5 h-5"
               >
-                Incidentes e runbooks
+                Workflow intelligence
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
-                {support.snapshotLabel}
+                {cockpit.snapshotLabel}
               </span>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
+                {cockpit.operationName} · operação referência
+              </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Suporte
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Esta frente organiza incidentes, contornos, checklists e runbooks para quando a
-              operação sair do modo leitura e pedir intervenção prática.
+              Esta frente deixou de ser só triagem de incidente e agora começa a consolidar
+              observabilidade profunda por canal, família e workflow, usando a Incentiva como
+              primeira operação-referência.
             </p>
           </div>
 
@@ -310,7 +358,7 @@ function SupportPage() {
         </section>
 
         <section className="grid gap-3 grid-cols-2 md:grid-cols-4">
-          {support.metrics.map((metric) => (
+          {supportKpis.map((metric) => (
             <MetricCard key={metric.label} metric={metric} />
           ))}
         </section>
@@ -331,6 +379,123 @@ function SupportPage() {
             {support.observability.map((item) => (
               <ObservabilityCard key={item.id} item={item} />
             ))}
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Saúde por canal</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Primeira camada profunda do bloco 3: leitura separada por canal operacional.
+                </p>
+              </div>
+              <MessageCircleMore className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.channels.map((channel) => (
+                <ChannelCard key={channel.id} channel={channel} />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Famílias de workflow</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  O cockpit já distingue quais blocos estão estáveis, pressionados ou virando foco.
+                </p>
+              </div>
+              <SquareChartGantt className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.workflowFamilies.map((family) => (
+                <WorkflowFamilyCard key={family.id} family={family} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Workflows em foco</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Agora já existe camada concreta para throughput, waiting, erro e última corrida por workflow.
+              </p>
+            </div>
+            <TimerReset className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {cockpit.topWorkflows.map((workflow) => (
+              <WorkflowFocusCard key={workflow.name} workflow={workflow} />
+            ))}
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <ChannelHealthSection
+            title="Saúde de e-mail"
+            subtitle="Leitura de fila, throughput útil e gargalo dominante da família."
+            icon={Mail}
+            metrics={cockpit.emailHealth.metrics}
+            tracks={cockpit.emailHealth.tracks}
+          />
+          <ChannelHealthSection
+            title="Saúde de WhatsApp"
+            subtitle="Separação entre outbound, leads e reativação com leitura prática de uso."
+            icon={MessageCircleMore}
+            metrics={cockpit.whatsappHealth.metrics}
+            tracks={cockpit.whatsappHealth.tracks}
+          />
+        </section>
+
+        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Workflow intelligence</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  A camada que separa infraestrutura viva de gargalo comercial silencioso.
+                </p>
+              </div>
+              <Bot className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {cockpit.workflowIntelligence.metrics.map((metric) => (
+                <MetricCard key={metric.id} metric={metric} />
+              ))}
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {cockpit.workflowIntelligence.insights.map((insight) => (
+                <WorkflowInsightCard key={insight.id} insight={insight} />
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Alertas vivos do cockpit</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  O que já está saindo da observabilidade e entrando em decisão operacional.
+                </p>
+              </div>
+              <ShieldAlert className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {cockpit.alerts.map((alert) => (
+                <CockpitAlertCard key={alert.id} alert={alert} />
+              ))}
+            </div>
           </div>
         </section>
 
@@ -467,7 +632,7 @@ function MetricCard({
     label: string;
     value: string;
     detail: string;
-    tone: "success" | "info" | "monitor" | "risk";
+    tone: "success" | "info" | "monitor" | "risk" | "healthy" | "critical";
     icon: React.ComponentType<{ className?: string }>;
   };
 }) {
@@ -639,9 +804,252 @@ function ActionCenterCard({
   );
 }
 
+function ChannelCard({
+  channel,
+}: {
+  channel: IncentivaCockpitData["channels"][number];
+}) {
+  const meta = statusMeta[channel.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{channel.label}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {channel.activeWorkflows}/{channel.totalWorkflows} workflows ativos
+          </div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <p className="mt-3 text-[12px] font-medium leading-relaxed">{channel.headline}</p>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{channel.detail}</p>
+    </div>
+  );
+}
+
+function WorkflowFamilyCard({
+  family,
+}: {
+  family: IncentivaCockpitData["workflowFamilies"][number];
+}) {
+  const meta = statusMeta[family.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{family.label}</div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {family.active}/{family.total} ativos
+          </div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{family.summary}</p>
+    </div>
+  );
+}
+
+function WorkflowFocusCard({
+  workflow,
+}: {
+  workflow: IncentivaCockpitData["topWorkflows"][number];
+}) {
+  const health =
+    workflow.waiting7d > 0 ? "risk" : workflow.error7d > 0 ? "monitor" : "healthy";
+  const meta = statusMeta[health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            {workflow.family}
+          </div>
+          <div className="mt-1 text-[12px] font-medium leading-snug">{workflow.name}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+        <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+          <div className="text-muted-foreground">Execuções 7d</div>
+          <div className="mt-1 font-semibold text-display">{workflow.executions7d}</div>
+        </div>
+        <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+          <div className="text-muted-foreground">Success 7d</div>
+          <div className="mt-1 font-semibold text-display">{workflow.success7d}</div>
+        </div>
+        <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+          <div className="text-muted-foreground">Error 7d</div>
+          <div className="mt-1 font-semibold text-display">{workflow.error7d}</div>
+        </div>
+        <div className="rounded-lg bg-muted/40 px-2.5 py-2">
+          <div className="text-muted-foreground">Waiting 7d</div>
+          <div className="mt-1 font-semibold text-display">{workflow.waiting7d}</div>
+        </div>
+      </div>
+      <div className="mt-3 text-[11px] text-muted-foreground">
+        Última corrida: {workflow.lastRun}
+      </div>
+    </div>
+  );
+}
+
+function ChannelHealthSection({
+  title,
+  subtitle,
+  icon: Icon,
+  metrics,
+  tracks,
+}: {
+  title: string;
+  subtitle: string;
+  icon: React.ComponentType<{ className?: string }>;
+  metrics: Array<{
+    id: string;
+    label: string;
+    value: string;
+    tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+    detail: string;
+  }>;
+  tracks: Array<{
+    id: string;
+    label: string;
+    health: OperationStatus;
+    headline: string;
+    detail: string;
+    recommendation?: string;
+    workflows?: string;
+  }>;
+}) {
+  return (
+    <div className="surface-card p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-sm font-semibold text-display">{title}</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>
+        </div>
+        <Icon className="h-3.5 w-3.5 text-primary" />
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {metrics.map((metric) => (
+          <MetricCard key={metric.id} metric={metric} />
+        ))}
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {tracks.map((track) => (
+          <ChannelTrackCard key={track.id} track={track} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ChannelTrackCard({
+  track,
+}: {
+  track: {
+    label: string;
+    health: OperationStatus;
+    headline: string;
+    detail: string;
+    recommendation?: string;
+    workflows?: string;
+  };
+}) {
+  const meta = statusMeta[track.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{track.label}</div>
+          <div className="text-[12px] mt-1 leading-relaxed">{track.headline}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{track.detail}</p>
+      {track.workflows ? (
+        <div className="mt-3 text-[11px] uppercase tracking-[0.14em] text-muted-foreground">
+          Workflows: {track.workflows}
+        </div>
+      ) : null}
+      {track.recommendation ? (
+        <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+          Próximo passo: {track.recommendation}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkflowInsightCard({
+  insight,
+}: {
+  insight: IncentivaCockpitData["workflowIntelligence"]["insights"][number];
+}) {
+  const meta = statusMeta[insight.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            {insight.label}
+          </div>
+          <h3 className="mt-1 text-sm font-medium">{insight.headline}</h3>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+
+      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{insight.detail}</p>
+      <div className="mt-3 rounded-lg bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+        Próximo passo: {insight.recommendation}
+      </div>
+    </div>
+  );
+}
+
+function CockpitAlertCard({
+  alert,
+}: {
+  alert: IncentivaCockpitData["alerts"][number];
+}) {
+  const meta = statusMeta[alert.severity];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-medium">{alert.title}</h3>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{alert.detail}</p>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+    </div>
+  );
+}
+
 const toneIconClass = {
   success: "bg-emerald-500/12 text-emerald-700",
   info: "bg-sky-500/12 text-sky-700",
   monitor: "bg-blue-500/12 text-blue-700",
   risk: "bg-rose-500/12 text-rose-700",
+  healthy: "bg-emerald-500/12 text-emerald-700",
+  critical: "bg-red-500/12 text-red-700",
 };
