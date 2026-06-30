@@ -139,7 +139,9 @@ export function AppSidebar() {
                   </span>
                   <button
                     type="button"
-                    onClick={signOut}
+                    onClick={() => {
+                      void signOut();
+                    }}
                     className="mt-3 inline-flex text-[11px] text-muted-foreground hover:text-foreground"
                   >
                     Encerrar sessão

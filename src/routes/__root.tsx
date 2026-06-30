@@ -15,6 +15,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/admin/AppSidebar";
 import { AdminFiltersProvider } from "@/components/admin/admin-filters";
 import { AdminAuthProvider, AuthGate } from "@/components/admin/auth-context";
+import { getAuthSessionServerFn } from "@/lib/admin-auth-rpc";
 
 
 function NotFoundComponent() {
@@ -108,6 +109,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
   }),
   shellComponent: RootShell,
+  loader: async () => ({
+    authSession: await getAuthSessionServerFn(),
+  }),
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
@@ -130,10 +134,11 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const { authSession } = Route.useLoaderData();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AdminAuthProvider>
+      <AdminAuthProvider initialSession={authSession}>
         <AuthGate>
           <AdminFiltersProvider>
             <SidebarProvider>

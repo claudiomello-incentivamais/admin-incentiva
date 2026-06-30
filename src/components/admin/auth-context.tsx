@@ -4,88 +4,43 @@ import {
   useEffect,
   useMemo,
   useState,
+  type FormEvent,
   type ReactNode,
 } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LockKeyhole, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 
 import { BrandMark } from "@/components/admin/BrandMark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  AUTH_IDENTITIES_PUBLIC,
+  type AccessProfileId,
+  type AuthIdentityPublic,
+  type AuthSession,
+  type VisibilityMode,
+} from "@/lib/admin-auth.shared";
+import {
+  getAuthSessionServerFn,
+  signInServerFn,
+  signOutServerFn,
+} from "@/lib/admin-auth-rpc";
 
-export type AccessProfileId = "direcao" | "claw" | "sales" | "cliente";
-export type VisibilityMode = "internal" | "client";
-
-export interface SessionIdentity {
-  id: string;
-  name: string;
-  email: string;
-  profileId: AccessProfileId;
-  operationIds: string[] | "all";
-  defaultVisibility: VisibilityMode;
-  passcode: string;
-}
-
-export interface AuthSession {
-  identityId: string;
-  name: string;
-  email: string;
-  profileId: AccessProfileId;
-  operationIds: string[] | "all";
-  defaultVisibility: VisibilityMode;
-  signedAt: string;
-}
+export type { AccessProfileId, AuthSession, VisibilityMode } from "@/lib/admin-auth.shared";
 
 type AdminAuthContextValue = {
   session: AuthSession | null;
-  identities: SessionIdentity[];
-  signIn: (identityId: string, passcode: string) => { ok: true } | { ok: false; error: string };
-  signOut: () => void;
+  identities: AuthIdentityPublic[];
+  signIn: (
+    identityId: string,
+    passcode: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  signOut: () => Promise<void>;
+  refreshSession: () => Promise<void>;
   canAccessOperation: (operationId: string) => boolean;
   canAccessRoute: (pathname: string) => boolean;
 };
-
-const SESSION_STORAGE_KEY = "admin-incentiva-auth-session";
-
-const identities: SessionIdentity[] = [
-  {
-    id: "claudio-direcao",
-    name: "Claudio",
-    email: "claudio@incentivamais.com",
-    profileId: "direcao",
-    operationIds: "all",
-    defaultVisibility: "internal",
-    passcode: "5501",
-  },
-  {
-    id: "claw-main",
-    name: "Claw/main",
-    email: "main@incentivamais.com",
-    profileId: "claw",
-    operationIds: "all",
-    defaultVisibility: "internal",
-    passcode: "5400",
-  },
-  {
-    id: "salesops-carteira",
-    name: "Sales Ops",
-    email: "salesops@incentivamais.com",
-    profileId: "sales",
-    operationIds: ["incentiva", "prime-action", "nimbus", "acelerato"],
-    defaultVisibility: "internal",
-    passcode: "5300",
-  },
-  {
-    id: "cliente-incentiva",
-    name: "Cliente Incentiva",
-    email: "cliente.incentiva@incentivamais.com",
-    profileId: "cliente",
-    operationIds: ["incentiva"],
-    defaultVisibility: "client",
-    passcode: "5200",
-  },
-];
 
 const routeAccess: Record<AccessProfileId, string[]> = {
   direcao: [
@@ -124,60 +79,58 @@ function matchesRoute(pathname: string, allowedRoute: string) {
   return allowedRoute === "/" ? pathname === "/" : pathname.startsWith(allowedRoute);
 }
 
-export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<AuthSession | null>(null);
+export function AdminAuthProvider({
+  children,
+  initialSession,
+}: {
+  children: ReactNode;
+  initialSession: AuthSession | null;
+}) {
+  const [session, setSession] = useState<AuthSession | null>(initialSession);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as AuthSession;
-      setSession(parsed);
-    } catch {
-      window.localStorage.removeItem(SESSION_STORAGE_KEY);
-    }
-  }, []);
+    setSession(initialSession);
+  }, [initialSession]);
 
-  const signIn = (identityId: string, passcode: string) => {
-    const identity = identities.find((item) => item.id === identityId);
-    if (!identity) return { ok: false as const, error: "Perfil não encontrado." };
-    if (identity.passcode !== passcode.trim()) {
-      return { ok: false as const, error: "Chave de acesso inválida." };
-    }
-
-    const nextSession: AuthSession = {
-      identityId: identity.id,
-      name: identity.name,
-      email: identity.email,
-      profileId: identity.profileId,
-      operationIds: identity.operationIds,
-      defaultVisibility: identity.defaultVisibility,
-      signedAt: new Date().toISOString(),
-    };
-
+  const refreshSession = async () => {
+    const nextSession = await getAuthSessionServerFn();
     setSession(nextSession);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(nextSession));
+  };
+
+  const signIn = async (identityId: string, passcode: string) => {
+    const response = await signInServerFn({
+      data: { identityId, passcode },
+    });
+    const payload = (await response.json()) as
+      | { ok: true; session: AuthSession }
+      | { ok: false; error?: string };
+
+    if (!response.ok || !payload.ok) {
+      return {
+        ok: false as const,
+        error: payload.ok ? "Falha ao abrir a sessão." : payload.error ?? "Falha ao abrir a sessão.",
+      };
     }
+
+    setSession(payload.session);
     return { ok: true as const };
   };
 
-  const signOut = () => {
+  const signOut = async () => {
+    await signOutServerFn({ data: undefined });
     setSession(null);
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(SESSION_STORAGE_KEY);
-    }
   };
 
   const value = useMemo<AdminAuthContextValue>(
     () => ({
       session,
-      identities,
+      identities: AUTH_IDENTITIES_PUBLIC,
       signIn,
       signOut,
+      refreshSession,
       canAccessOperation: (operationId: string) =>
-        !session || session.operationIds === "all" || session.operationIds.includes(operationId),
+        !!session &&
+        (session.operationIds === "all" || session.operationIds.includes(operationId)),
       canAccessRoute: (pathname: string) => {
         if (!session) return false;
         return routeAccess[session.profileId].some((route) => matchesRoute(pathname, route));
@@ -217,17 +170,22 @@ function SignInScreen() {
   const [selectedIdentityId, setSelectedIdentityId] = useState(identities[0]?.id ?? "");
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const selectedIdentity =
     identities.find((identity) => identity.id === selectedIdentityId) ?? identities[0] ?? null;
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const result = signIn(selectedIdentityId, passcode);
+    setIsSubmitting(true);
+    const result = await signIn(selectedIdentityId, passcode);
+    setIsSubmitting(false);
+
     if (!result.ok) {
       setError(result.error);
       return;
     }
+
     setError(null);
     setPasscode("");
   };
@@ -240,7 +198,7 @@ function SignInScreen() {
             variant="outline"
             className="text-[10px] uppercase tracking-[0.18em] border-primary/40 text-primary bg-primary/5 h-5"
           >
-            Auth e RBAC
+            Auth real
           </Badge>
           <div className="mt-4">
             <BrandMark />
@@ -249,14 +207,14 @@ function SignInScreen() {
             Entrada governada para o cockpit
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            O produto agora separa sessão, perfil e escopo por operação antes de liberar a leitura
-            interna, o portal e as frentes sensíveis do sistema.
+            A sessão agora sobe pelo servidor, grava cookie de acesso e aplica perfil e carteira
+            já na fundação do produto.
           </p>
 
           <div className="mt-8 grid gap-3 md:grid-cols-3">
             <GateInfoCard
               title="Sessão"
-              detail="Cada acesso passa a abrir uma identidade operacional clara."
+              detail="O acesso deixa de ser só local e passa a nascer no servidor."
               icon={UserRound}
             />
             <GateInfoCard
@@ -266,7 +224,7 @@ function SignInScreen() {
             />
             <GateInfoCard
               title="Escopo"
-              detail="O sistema limita rota e operação conforme a carteira liberada."
+              detail="Rota, visibilidade e carteira são limitadas pela sessão ativa."
               icon={LockKeyhole}
             />
           </div>
@@ -278,8 +236,8 @@ function SignInScreen() {
           </div>
           <h2 className="mt-2 text-2xl font-semibold text-display">Entrar no produto</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Esta é a base da próxima camada de produção real: sessão, permissão e portal privado
-            por papel.
+            Esta camada fecha a transição do mock local para sessão real por cookie, já pronta para
+            publish privado por conta.
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -331,8 +289,8 @@ function SignInScreen() {
               </div>
             )}
 
-            <Button type="submit" className="h-11 w-full">
-              Entrar no cockpit
+            <Button type="submit" className="h-11 w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Abrindo sessão..." : "Entrar no cockpit"}
             </Button>
           </form>
         </div>
@@ -362,6 +320,9 @@ function GateInfoCard({
 }
 
 function AccessDeniedScreen() {
+  const { session } = useAdminAuth();
+  const fallbackRoute = session?.profileId === "cliente" ? "/portal" : "/";
+
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center px-4">
       <div className="max-w-xl rounded-[28px] border border-border bg-card p-8 text-center">
@@ -375,15 +336,15 @@ function AccessDeniedScreen() {
           Esta rota não está liberada para o perfil atual
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-          O produto agora limita leitura e navegação por papel e por operação. Use uma rota
-          compatível com este perfil ou volte para o portal liberado.
+          A sessão ativa já está limitando rota e operação conforme o papel aberto. Volte para a
+          frente compatível com esse escopo.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild>
-            <Link to="/portal">Ir para o portal</Link>
+            <Link to={fallbackRoute}>Ir para a frente liberada</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link to="/">Voltar ao início</Link>
+            <Link to="/portal">Abrir portal</Link>
           </Button>
         </div>
       </div>
