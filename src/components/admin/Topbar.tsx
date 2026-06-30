@@ -11,7 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatPeriodLabel, useAdminFilters, type PeriodPreset } from "@/components/admin/admin-filters";
+import {
+  formatPeriodLabel,
+  formatVisibilityModeLabel,
+  useAdminFilters,
+  type AccessProfileId,
+  type PeriodPreset,
+  type VisibilityMode,
+} from "@/components/admin/admin-filters";
 
 interface TopbarProps {
   breadcrumb: string[];
@@ -21,9 +28,15 @@ export function Topbar({ breadcrumb }: TopbarProps) {
   const {
     selectedOperationId,
     selectedPeriod,
+    selectedAccessProfileId,
+    selectedVisibilityMode,
     operationOptions,
+    accessProfileOptions,
+    selectedAccessProfile,
     setSelectedOperationId,
     setSelectedPeriod,
+    setSelectedAccessProfileId,
+    setSelectedVisibilityMode,
   } = useAdminFilters();
 
   return (
@@ -65,6 +78,35 @@ export function Topbar({ breadcrumb }: TopbarProps) {
         </div>
 
         <div className="hidden lg:flex items-center gap-2">
+          <Select
+            value={selectedAccessProfileId}
+            onValueChange={(value) => setSelectedAccessProfileId(value as AccessProfileId)}
+          >
+            <SelectTrigger className="h-9 w-[170px] bg-surface border-border text-xs">
+              <SelectValue placeholder="Perfil" />
+            </SelectTrigger>
+            <SelectContent>
+              {accessProfileOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={selectedVisibilityMode}
+            onValueChange={(value) => setSelectedVisibilityMode(value as VisibilityMode)}
+          >
+            <SelectTrigger className="h-9 w-[170px] bg-surface border-border text-xs">
+              <SelectValue placeholder="Visibilidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">{formatVisibilityModeLabel("internal")}</SelectItem>
+              <SelectItem value="client">{formatVisibilityModeLabel("client")}</SelectItem>
+            </SelectContent>
+          </Select>
+
           <div className="relative">
             <CalendarRange className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Select value={selectedPeriod} onValueChange={(value) => setSelectedPeriod(value as PeriodPreset)}>
@@ -99,9 +141,16 @@ export function Topbar({ breadcrumb }: TopbarProps) {
 
         <Badge
           variant="outline"
-          className="hidden lg:inline-flex h-8 rounded-full border-primary/25 bg-primary/8 text-primary px-3 text-[10px] uppercase tracking-[0.18em]"
+          className="hidden xl:inline-flex h-8 rounded-full border-primary/25 bg-primary/8 text-primary px-3 text-[10px] uppercase tracking-[0.18em]"
         >
-          Filtros ativos
+          {selectedAccessProfile.label}
+        </Badge>
+
+        <Badge
+          variant="outline"
+          className="hidden xl:inline-flex h-8 rounded-full border-border bg-surface px-3 text-[10px] uppercase tracking-[0.18em]"
+        >
+          {formatVisibilityModeLabel(selectedVisibilityMode)}
         </Badge>
 
         <Button variant="ghost" size="icon" className="h-9 w-9">

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SuporteRouteImport } from './routes/suporte'
+import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PipelinesRouteImport } from './routes/pipelines'
 import { Route as PerformanceRouteImport } from './routes/performance'
 import { Route as OperacoesRouteImport } from './routes/operacoes'
@@ -22,6 +23,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SuporteRoute = SuporteRouteImport.update({
   id: '/suporte',
   path: '/suporte',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PipelinesRoute = PipelinesRouteImport.update({
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/operacoes': typeof OperacoesRoute
   '/performance': typeof PerformanceRoute
   '/pipelines': typeof PipelinesRoute
+  '/portal': typeof PortalRoute
   '/suporte': typeof SuporteRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/operacoes': typeof OperacoesRoute
   '/performance': typeof PerformanceRoute
   '/pipelines': typeof PipelinesRoute
+  '/portal': typeof PortalRoute
   '/suporte': typeof SuporteRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/operacoes': typeof OperacoesRoute
   '/performance': typeof PerformanceRoute
   '/pipelines': typeof PipelinesRoute
+  '/portal': typeof PortalRoute
   '/suporte': typeof SuporteRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/operacoes'
     | '/performance'
     | '/pipelines'
+    | '/portal'
     | '/suporte'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/operacoes'
     | '/performance'
     | '/pipelines'
+    | '/portal'
     | '/suporte'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/operacoes'
     | '/performance'
     | '/pipelines'
+    | '/portal'
     | '/suporte'
   fileRoutesById: FileRoutesById
 }
@@ -144,6 +156,7 @@ export interface RootRouteChildren {
   OperacoesRoute: typeof OperacoesRoute
   PerformanceRoute: typeof PerformanceRoute
   PipelinesRoute: typeof PipelinesRoute
+  PortalRoute: typeof PortalRoute
   SuporteRoute: typeof SuporteRoute
 }
 
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/suporte'
       fullPath: '/suporte'
       preLoaderRoute: typeof SuporteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/pipelines': {
@@ -224,6 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperacoesRoute: OperacoesRoute,
   PerformanceRoute: PerformanceRoute,
   PipelinesRoute: PipelinesRoute,
+  PortalRoute: PortalRoute,
   SuporteRoute: SuporteRoute,
 }
 export const routeTree = rootRouteImport

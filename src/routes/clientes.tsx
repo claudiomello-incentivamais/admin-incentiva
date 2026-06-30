@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -87,9 +87,11 @@ function ClientsPage() {
             </p>
           </div>
 
-          <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
-            <ArrowRight className="h-3.5 w-3.5" />
-            Próximo passo: Faturamento
+          <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
+            <Link to="/portal">
+              <ArrowRight className="h-3.5 w-3.5" />
+              Abrir portal da conta
+            </Link>
           </Button>
         </section>
 

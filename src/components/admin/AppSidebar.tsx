@@ -9,6 +9,7 @@ import {
   LifeBuoy,
   Workflow,
   Receipt,
+  GlobeLock,
 } from "lucide-react";
 
 import {
@@ -36,6 +37,7 @@ const global = [
 const operacional = [
   { title: "Pipelines", url: "/pipelines", icon: Workflow },
   { title: "Clientes", url: "/clientes", icon: Users },
+  { title: "Portal", url: "/portal", icon: GlobeLock },
   { title: "Faturamento", url: "/faturamento", icon: Receipt },
 ];
 
