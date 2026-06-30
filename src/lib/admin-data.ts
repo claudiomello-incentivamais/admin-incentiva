@@ -1637,6 +1637,10 @@ function toNumber(value: number | string | null | undefined, fallback = 0) {
   return fallback;
 }
 
+function formatNumber(value: number) {
+  return new Intl.NumberFormat("pt-BR").format(value);
+}
+
 function toLabelDate(value: string | null | undefined) {
   if (!value) return "Leitura viva do Supabase";
   const date = new Date(value);
