@@ -1,14 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Activity,
   ArrowRight,
   BriefcaseBusiness,
   Building2,
   ChevronRight,
+  Database,
   GlobeLock,
+  MessageCircle,
+  PhoneCall,
+  ServerCog,
   ShieldAlert,
   Target,
   TrendingUp,
   Users,
+  Workflow,
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
@@ -19,9 +25,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  buildOperationCadenceView,
+  buildOperationCockpitFromOperation,
+  buildOperationRuntimeView,
   loadGlobalDashboard,
   priorityMeta,
   statusMeta,
+  type Operation,
   type OperationStatus,
   type Priority,
 } from "@/lib/admin-data";
@@ -43,6 +53,12 @@ function formatPercent(value: number) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function parseFirstNumber(value: string) {
+  const normalized = value.replace(/\./g, "");
+  const match = normalized.match(/-?\d+(?:,\d+)?/);
+  return match ? Number(match[0].replace(",", ".")) : 0;
 }
 
 function ClientsPage() {
@@ -71,6 +87,37 @@ function ClientsPage() {
   const portalReady = filteredOperations.filter((operation) => operation.health === "healthy").length;
   const portalNeedsGovernance = filteredOperations.filter((operation) => operation.health === "monitor").length;
   const portalNotReady = filteredOperations.filter((operation) => operation.health === "risk" || operation.health === "critical").length;
+  const operationViews = filteredOperations.map((operation) => {
+    const cockpit = buildOperationCockpitFromOperation(operation);
+    const cadence = buildOperationCadenceView(operation, cockpit, dashboard.source);
+    const runtime = buildOperationRuntimeView(operation, cockpit, dashboard.source);
+    return {
+      operation,
+      cadence,
+      runtime,
+      primaryCard:
+        runtime.cards.find((card) => card.health === "critical" || card.health === "risk") ??
+        runtime.cards.find((card) => card.health === "monitor") ??
+        runtime.cards[0],
+      riskCount: runtime.cards.filter((card) => card.health === "critical" || card.health === "risk").length,
+      liveCount: runtime.cards.filter((card) => card.modeLabel === "Live").length,
+    };
+  });
+  const totalUnstarted = operationViews.reduce((sum, view) => {
+    const metric = view.cadence.metrics.find((item) => item.id === "canonical-unstarted");
+    return sum + parseFirstNumber(metric?.value ?? "0");
+  }, 0);
+  const totalActiveNow = operationViews.reduce((sum, view) => {
+    const metric = view.cadence.metrics.find((item) => item.id === "active-now");
+    return sum + parseFirstNumber(metric?.value ?? "0");
+  }, 0);
+  const coveragePressureCount = operationViews.filter((view) => {
+    const metric = view.cadence.metrics.find((item) => item.id === "coverage-days");
+    return metric?.tone === "critical" || metric?.tone === "risk";
+  }).length;
+  const avgLiveCards =
+    operationViews.reduce((sum, view) => sum + view.liveCount, 0) /
+    Math.max(operationViews.length, 1);
 
   return (
     <>
@@ -325,6 +372,76 @@ function ClientsPage() {
           </div>
         </section>
 
+        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Cadência consolidada da carteira</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  A carteira agora mostra pressão comercial agregada, e não só score e saúde isolados por conta.
+                </p>
+              </div>
+              <Activity className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PortfolioStateCard
+                label="Não iniciados somados"
+                value={formatNumber(totalUnstarted)}
+                detail="Base disponível para alimentar a cadência sem depender de reativação."
+                tone="info"
+              />
+              <PortfolioStateCard
+                label="Ativos no recorte"
+                value={formatNumber(totalActiveNow)}
+                detail="Volume que efetivamente se moveu entre as contas no período filtrado."
+                tone="success"
+              />
+              <PortfolioStateCard
+                label="Contas com pressão de cobertura"
+                value={String(coveragePressureCount)}
+                detail="Operações cuja sustentação da cadência já está curta para o ritmo atual."
+                tone="risk"
+              />
+              <PortfolioStateCard
+                label="Fontes live por conta"
+                value={avgLiveCards.toFixed(1)}
+                detail="Média de camadas já em leitura viva por operação neste retrato."
+                tone="monitor"
+              />
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                Leitura executiva
+              </div>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                Esta camada passa a responder duas perguntas ao mesmo tempo: quanta base ainda
+                sustenta a carteira e quantas operações já têm runtime suficiente para subir como
+                visão mais viva, sem depender só de snapshot.
+              </p>
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Runtime por conta</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Cada conta agora explicita qual camada está mais pressionada: Supabase, Notion, n8n, Evolution ou API4Com.
+                </p>
+              </div>
+              <ServerCog className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="space-y-3">
+              {operationViews.map((view) => (
+                <ClientRuntimeCard key={view.operation.id} view={view} />
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="surface-card overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
@@ -549,6 +666,97 @@ function PortalOperationCard({
   );
 }
 
+function PortfolioStateCard({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone: "risk" | "success" | "monitor" | "info";
+}) {
+  const toneMap = {
+    risk: "border-[color:var(--color-warning)]/20 bg-[color:var(--color-warning)]/5",
+    success: "border-[color:var(--color-success)]/20 bg-[color:var(--color-success)]/5",
+    monitor: "border-[color:var(--color-info)]/20 bg-[color:var(--color-info)]/5",
+    info: "border-primary/20 bg-primary/5",
+  } as const;
+
+  return (
+    <div className={cn("rounded-xl border p-4", toneMap[tone])}>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-2 text-[24px] leading-none font-semibold tracking-tight text-display">{value}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function ClientRuntimeCard({
+  view,
+}: {
+  view: {
+    operation: Operation;
+    cadence: ReturnType<typeof buildOperationCadenceView>;
+    runtime: ReturnType<typeof buildOperationRuntimeView>;
+    primaryCard: ReturnType<typeof buildOperationRuntimeView>["cards"][number];
+    riskCount: number;
+    liveCount: number;
+  };
+}) {
+  const meta = statusMeta[view.primaryCard.health];
+  const stageTwo = view.cadence.stages[1];
+  const Icon = runtimeCardIconMap[view.primaryCard.id];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium text-display">{view.operation.name}</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{view.operation.client}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-xl border border-border bg-card px-3 py-3">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            <Icon className="h-3.5 w-3.5 text-primary" />
+            Camada em foco
+          </div>
+          <div className="mt-2 text-sm font-medium text-foreground">{view.primaryCard.title}</div>
+          <div className="mt-1 text-[11px] text-muted-foreground">{view.primaryCard.modeLabel}</div>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{view.primaryCard.headline}</p>
+        </div>
+
+        <div className="rounded-xl border border-border bg-card px-3 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            Pulso comercial
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <MiniRuntimeStat label="Etapa 2" value={stageTwo?.conversionLabel ?? "Sem leitura"} />
+            <MiniRuntimeStat label="Ativos" value={view.cadence.windows[1]?.activeLabel ?? "Sem leitura"} />
+            <MiniRuntimeStat label="Risco técnico" value={`${view.riskCount} camadas`} />
+            <MiniRuntimeStat label="Camadas live" value={`${view.liveCount}/5`} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MiniRuntimeStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-surface px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-[12px] font-medium text-foreground">{value}</div>
+    </div>
+  );
+}
+
 function OperationRow({
   operation,
 }: {
@@ -591,3 +799,11 @@ function OperationRow({
     </tr>
   );
 }
+
+const runtimeCardIconMap = {
+  supabase: Database,
+  notion: BriefcaseBusiness,
+  n8n: Workflow,
+  evolution: MessageCircle,
+  api4com: PhoneCall,
+} as const;

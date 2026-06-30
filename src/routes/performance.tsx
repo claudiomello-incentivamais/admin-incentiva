@@ -1,16 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
   ArrowRight,
   BarChart3,
   ChevronRight,
   Crosshair,
+  Database,
   Filter,
   Gauge,
+  MessageCircle,
+  PhoneCall,
   Radar,
+  ServerCog,
   ShieldAlert,
   Target,
   TrendingUp,
+  Workflow,
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
@@ -20,7 +25,15 @@ import {
 } from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { loadGlobalDashboard, statusMeta, type Operation, type OperationStatus } from "@/lib/admin-data";
+import {
+  buildOperationCadenceView,
+  buildOperationCockpitFromOperation,
+  buildOperationRuntimeView,
+  loadGlobalDashboard,
+  statusMeta,
+  type Operation,
+  type OperationStatus,
+} from "@/lib/admin-data";
 import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +52,12 @@ function formatPercent(value: number) {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value);
+}
+
+function parseFirstNumber(value: string) {
+  const normalized = value.replace(/\./g, "");
+  const match = normalized.match(/-?\d+(?:,\d+)?/);
+  return match ? Number(match[0].replace(",", ".")) : 0;
 }
 
 function PerformancePage() {
@@ -77,6 +96,42 @@ function PerformancePage() {
   const reconciliationWatch = [...filteredOperations]
     .sort((a, b) => a.dataReconciliation - b.dataReconciliation)
     .slice(0, 5);
+  const operationViews = filteredOperations.map((operation) => {
+    const cockpit = buildOperationCockpitFromOperation(operation);
+    const cadence = buildOperationCadenceView(operation, cockpit, dashboard.source);
+    const runtime = buildOperationRuntimeView(operation, cockpit, dashboard.source);
+
+    return {
+      operation,
+      cadence,
+      runtime,
+      runtimeRiskCount: runtime.cards.filter((card) => card.health === "risk" || card.health === "critical").length,
+      runtimeMonitorCount: runtime.cards.filter((card) => card.health === "monitor").length,
+      n8nCard: runtime.cards.find((card) => card.id === "n8n"),
+      evolutionCard: runtime.cards.find((card) => card.id === "evolution"),
+      api4ComCard: runtime.cards.find((card) => card.id === "api4com"),
+    };
+  });
+  const cadenceWindowViews = operationViews
+    .map((view) => ({
+      ...view,
+      window30d: view.cadence.windows.find((window) => window.id === "30d"),
+      stageTwo: view.cadence.stages[1],
+    }))
+    .sort(
+      (a, b) =>
+        parseFirstNumber(b.window30d?.conversionLabel ?? "0") -
+        parseFirstNumber(a.window30d?.conversionLabel ?? "0"),
+    )
+    .slice(0, 4);
+  const runtimeWatch = [...operationViews]
+    .sort(
+      (a, b) =>
+        b.runtimeRiskCount - a.runtimeRiskCount ||
+        b.runtimeMonitorCount - a.runtimeMonitorCount ||
+        a.operation.baseCoverage - b.operation.baseCoverage,
+    )
+    .slice(0, 5);
 
   return (
     <>
@@ -112,9 +167,11 @@ function PerformancePage() {
             </p>
           </div>
 
-          <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface">
-            <ArrowRight className="h-3.5 w-3.5" />
-            Próximo passo: Configurações
+          <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
+            <Link to="/operacoes">
+              <ArrowRight className="h-3.5 w-3.5" />
+              Abrir Operações
+            </Link>
           </Button>
         </section>
 
@@ -255,6 +312,54 @@ function PerformancePage() {
           </div>
         </section>
 
+        <section className="surface-card p-5">
+          <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-display">Cadência por janela</h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    O benchmark agora cruza conversão de 30 dias com avanço real da etapa 2, para não confundir resultado isolado com pipeline saudável.
+                  </p>
+                </div>
+                <BarChart3 className="h-3.5 w-3.5 text-primary" />
+              </div>
+
+              <div className="space-y-3">
+                {cadenceWindowViews.map((view, index) => (
+                  <CadenceWindowCard
+                    key={view.operation.id}
+                    index={index + 1}
+                    operation={view.operation}
+                    activeLabel={view.window30d?.activeLabel ?? "Sem leitura"}
+                    conversionLabel={view.window30d?.conversionLabel ?? "Sem leitura"}
+                    stageLabel={view.stageTwo?.conversionLabel ?? "Sem leitura"}
+                    velocityLabel={view.window30d?.velocityLabel ?? "Sem leitura"}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-display">Watchlist multi-fonte</h2>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Esta fila mostra onde performance, runtime técnico e pressão operacional começam a divergir.
+                  </p>
+                </div>
+                <ServerCog className="h-3.5 w-3.5 text-primary" />
+              </div>
+
+              <div className="space-y-3">
+                {runtimeWatch.map((view) => (
+                  <RuntimeWatchCard key={view.operation.id} view={view} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="grid grid-cols-1 xl:grid-cols-[1.02fr_0.98fr] gap-4">
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
@@ -312,6 +417,40 @@ function PerformancePage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </section>
+
+        <section className="surface-card overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Matriz de cadência x runtime</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Agora a performance mostra, na mesma linha, ritmo comercial e saúde das camadas n8n, Evolution e API4Com.
+              </p>
+            </div>
+            <Badge variant="secondary" className="text-[10px] text-mono h-5">
+              {filteredOperations.length} operação{filteredOperations.length === 1 ? "" : "ões"}
+            </Badge>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground border-b border-border bg-muted/20">
+                  <th className="text-left font-medium px-4 py-2.5">Operação</th>
+                  <th className="text-right font-medium px-3 py-2.5">Ativos 30d</th>
+                  <th className="text-right font-medium px-3 py-2.5">Etapa 2</th>
+                  <th className="text-left font-medium px-3 py-2.5">n8n VPS</th>
+                  <th className="text-left font-medium px-3 py-2.5">Evolution</th>
+                  <th className="text-left font-medium px-4 py-2.5">API4Com</th>
+                </tr>
+              </thead>
+              <tbody>
+                {operationViews.map((view) => (
+                  <CadenceRuntimeRow key={view.operation.id} view={view} />
+                ))}
+              </tbody>
+            </table>
           </div>
         </section>
       </main>
@@ -467,9 +606,171 @@ function PerformanceRow({ operation }: { operation: Operation }) {
   );
 }
 
+function CadenceWindowCard({
+  index,
+  operation,
+  activeLabel,
+  conversionLabel,
+  stageLabel,
+  velocityLabel,
+}: {
+  index: number;
+  operation: Operation;
+  activeLabel: string;
+  conversionLabel: string;
+  stageLabel: string;
+  velocityLabel: string;
+}) {
+  const meta = statusMeta[operation.health];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="h-8 w-8 rounded-full border border-border bg-muted/40 text-xs font-semibold flex items-center justify-center">
+            {index}
+          </div>
+          <div>
+            <div className="text-sm font-medium">{operation.name}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{operation.focus}</div>
+          </div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <MiniPerformanceState label="Ativos 30d" value={activeLabel} />
+        <MiniPerformanceState label="Conv. 30d" value={conversionLabel} />
+        <MiniPerformanceState label="Etapa 2" value={stageLabel} />
+        <MiniPerformanceState label="Velocidade" value={velocityLabel} />
+      </div>
+    </div>
+  );
+}
+
+function RuntimeWatchCard({
+  view,
+}: {
+  view: {
+    operation: Operation;
+    runtime: ReturnType<typeof buildOperationRuntimeView>;
+    runtimeRiskCount: number;
+    runtimeMonitorCount: number;
+  };
+}) {
+  const mainCard =
+    view.runtime.cards.find((card) => card.health === "critical" || card.health === "risk") ??
+    view.runtime.cards.find((card) => card.health === "monitor") ??
+    view.runtime.cards[0];
+  const meta = statusMeta[mainCard.health];
+  const Icon = runtimeCardIconMap[mainCard.id];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-medium">{view.operation.name}</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{mainCard.title}</div>
+        </div>
+        <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+          {meta.label}
+        </Badge>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <Icon className="h-3.5 w-3.5 text-primary" />
+        <span>{mainCard.modeLabel}</span>
+        <span>•</span>
+        <span>{view.runtimeRiskCount} risco</span>
+        <span>•</span>
+        <span>{view.runtimeMonitorCount} monitor</span>
+      </div>
+
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{mainCard.nextStep}</p>
+    </div>
+  );
+}
+
+function MiniPerformanceState({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border/70 bg-card px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-[12px] font-medium text-foreground">{value}</div>
+    </div>
+  );
+}
+
+function CadenceRuntimeRow({
+  view,
+}: {
+  view: {
+    operation: Operation;
+    cadence: ReturnType<typeof buildOperationCadenceView>;
+    n8nCard?: ReturnType<typeof buildOperationRuntimeView>["cards"][number];
+    evolutionCard?: ReturnType<typeof buildOperationRuntimeView>["cards"][number];
+    api4ComCard?: ReturnType<typeof buildOperationRuntimeView>["cards"][number];
+  };
+}) {
+  const active30d = view.cadence.windows.find((window) => window.id === "30d")?.activeLabel ?? "Sem leitura";
+  const stageTwo = view.cadence.stages[1]?.conversionLabel ?? "Sem leitura";
+
+  return (
+    <tr className="border-b border-border/70 last:border-0">
+      <td className="px-4 py-3.5">
+        <div className="font-medium">{view.operation.name}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">{view.operation.focus}</div>
+      </td>
+      <td className="px-3 py-3.5 text-right">{active30d}</td>
+      <td className="px-3 py-3.5 text-right">{stageTwo}</td>
+      <td className="px-3 py-3.5">
+        <RuntimeCell card={view.n8nCard} />
+      </td>
+      <td className="px-3 py-3.5">
+        <RuntimeCell card={view.evolutionCard} />
+      </td>
+      <td className="px-4 py-3.5">
+        <RuntimeCell card={view.api4ComCard} />
+      </td>
+    </tr>
+  );
+}
+
+function RuntimeCell({
+  card,
+}: {
+  card?: ReturnType<typeof buildOperationRuntimeView>["cards"][number];
+}) {
+  if (!card) {
+    return <span className="text-[11px] text-muted-foreground">Sem leitura</span>;
+  }
+
+  const meta = statusMeta[card.health];
+  const primaryFact = card.facts[0]?.value ?? card.modeLabel;
+
+  return (
+    <div>
+      <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.14em]", meta.color)}>
+        {meta.label}
+      </Badge>
+      <div className="mt-1 text-[11px] text-foreground">{primaryFact}</div>
+      <div className="text-[10px] text-muted-foreground">{card.modeLabel}</div>
+    </div>
+  );
+}
+
 const toneIconClass: Record<OperationStatus, string> = {
   healthy: "bg-emerald-500/12 text-emerald-700",
   monitor: "bg-blue-500/12 text-blue-700",
   risk: "bg-amber-500/12 text-amber-700",
   critical: "bg-rose-500/12 text-rose-700",
 };
+
+const runtimeCardIconMap = {
+  supabase: Database,
+  notion: Radar,
+  n8n: Workflow,
+  evolution: MessageCircle,
+  api4com: PhoneCall,
+} as const;
