@@ -147,9 +147,9 @@ const settings = {
   ],
   finalPublishReadiness: {
     stage: "Pré-publicação final / homologação avançada",
-    percent: 88,
+    percent: 90,
     headline:
-      "A fundação do software já está de pé, o recorte publicado já existe, o Trello já mostra estado real de card e o Notion agora já orienta reconciliação, exposição e ação sugerida; o fechamento agora é a última milha de integração direta e materialização pública final.",
+      "A fundação do software já está de pé, o recorte publicado já existe, o Trello já mostra estado real de card, o Notion já orienta reconciliação e a frente agora já explicita a régua de corte externo por conta; o fechamento agora é materializar a publicação pública final com paridade do produto.",
     completed: [
       "Auth real por cookie já no servidor",
       "RBAC e escopo por operação já ativos",
@@ -158,16 +158,46 @@ const settings = {
       "Notion já entra com leitura viva, faixa de reconciliação e ação sugerida",
       "Trello já entra com owner, etapa e follow-up em cards reais mapeados no produto",
       "Operações e Portal já mostram drill-down por conta",
+      "Portal já mostra régua de prontidão e blockers do corte externo por operação",
     ],
     missing: [
       "Eliminar a dependência de snapshot intermediário e ligar o board real do Trello de forma mais direta no painel",
       "Aprofundar o drill-down da divergência comercial do Notion",
-      "Fechar o checkpoint final de publish para a URL pública refletir o último estado do produto",
+      "Materializar a URL publicada final para refletir exatamente o corte atual do produto",
       "Homologar a abertura externa final como software usável no dia a dia",
     ],
     risks: [
       "Hoje o produto está mais avançado no código do que na publicação pública final",
       "Ainda existe dependência de sinais operacionais intermediários em parte da camada Trello",
+    ],
+  },
+  publicCutover: {
+    detail:
+      "A frente agora separa claramente o que já está pronto no código do que ainda falta materializar na URL pública final. Isso evita chamar de publicado algo que ainda está só homologado internamente.",
+    steps: [
+      {
+        title: "Corte interno validado",
+        status: "ready" as const,
+        detail: "Build, sessão real, portal privado e integração viva inicial já estão amarrados no produto.",
+      },
+      {
+        title: "Paridade do recorte publicado",
+        status: "monitor" as const,
+        detail:
+          "O produto já mostra a régua por conta, mas a publicação pública final ainda precisa refletir exatamente este último corte.",
+      },
+      {
+        title: "Homologação externa diária",
+        status: "monitor" as const,
+        detail:
+          "Antes do fechamento final, a conta precisa provar leitura útil no uso real, sem depender de interpretação manual do cockpit.",
+      },
+      {
+        title: "Abertura final",
+        status: "blocked" as const,
+        detail:
+          "Só deve virar publicação final quando a URL pública estiver no mesmo estado do produto e a operação estiver homologada no dia a dia.",
+      },
     ],
   },
 };
@@ -419,6 +449,29 @@ function SettingsPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
+              <h2 className="text-sm font-semibold text-display">Paridade da publicação final</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {settings.publicCutover.detail}
+              </p>
+            </div>
+            <GlobeLock className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-4">
+            {settings.publicCutover.steps.map((step) => (
+              <PublishParityCard
+                key={step.title}
+                title={step.title}
+                detail={step.detail}
+                status={step.status}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
               <h2 className="text-sm font-semibold text-display">Gates do portal</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Checklist do que precisa estar pronto antes de abrir o software para leitura externa real.
@@ -577,6 +630,42 @@ function ReadinessColumn({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function PublishParityCard({
+  title,
+  detail,
+  status,
+}: {
+  title: string;
+  detail: string;
+  status: "ready" | "monitor" | "blocked";
+}) {
+  const meta =
+    status === "ready"
+      ? {
+          label: "Fechado",
+          className: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700",
+        }
+      : status === "monitor"
+        ? {
+            label: "Em fechamento",
+            className: "border-amber-500/20 bg-amber-500/10 text-amber-700",
+          }
+        : {
+            label: "Ainda não",
+            className: "border-rose-500/20 bg-rose-500/10 text-rose-700",
+          };
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <Badge variant="outline" className={cn("text-[10px] uppercase tracking-[0.16em] h-5", meta.className)}>
+        {meta.label}
+      </Badge>
+      <div className="mt-3 text-sm font-medium text-foreground">{title}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
     </div>
   );
 }

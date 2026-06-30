@@ -377,6 +377,11 @@ function PortalPage() {
                 icon={GlobeLock}
               />
               <ActivationRow
+                title="Corte externo final"
+                detail={publishPacket.externalCutover}
+                icon={RadioTower}
+              />
+              <ActivationRow
                 title="Mensagem base"
                 detail={actionPlan.discordMessage}
                 icon={MessageSquareShare}
@@ -413,6 +418,30 @@ function PortalPage() {
                   slug {publishPacket.privateSlug}
                 </Badge>
               </div>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-primary">
+                    Prontidão do corte externo
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-display">
+                    {publishPacket.finalCutoverReadinessPct}%
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                    Etapa final
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-display">
+                    {publishPacket.finalCutoverStage}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-primary/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${publishPacket.finalCutoverReadinessPct}%` }}
+                />
+              </div>
               <div className="mt-2 text-base font-semibold text-display">
                 {publishPacket.headline}
               </div>
@@ -425,6 +454,22 @@ function PortalPage() {
               {publishPacket.checkpoints.map((checkpoint) => (
                 <PublishCheckpointCard key={checkpoint.id} checkpoint={checkpoint} />
               ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                Blockers do fechamento externo
+              </div>
+              <div className="mt-3 space-y-2">
+                {publishPacket.cutoverBlockers.map((blocker) => (
+                  <div
+                    key={blocker}
+                    className="rounded-xl border border-border/80 bg-background/70 px-3 py-2 text-sm text-foreground"
+                  >
+                    {blocker}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

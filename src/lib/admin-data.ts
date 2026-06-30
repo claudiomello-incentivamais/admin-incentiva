@@ -333,14 +333,18 @@ export interface PortalPublishPacket {
   clientLabel: string;
   privateSlug: string;
   privatePath: string;
+  externalCutover: string;
   audience: string;
   authLayer: string;
   visibility: string;
   owner: string;
   publishHealth: OperationStatus;
   publishStage: string;
+  finalCutoverStage: string;
+  finalCutoverReadinessPct: number;
   headline: string;
   checkpoints: PortalPublishCheckpoint[];
+  cutoverBlockers: string[];
 }
 
 export interface PortalLiveSourceCard {
@@ -3046,12 +3050,15 @@ export async function loadIntegrationHub(): Promise<IntegrationHubData> {
 export function buildPortalPublishPacket(operation: Operation): PortalPublishPacket {
   const privateSlug = operation.id;
   const privatePath = `/portal?operationId=${operation.id}`;
+  const externalCutover = "URL publicada do console + recorte privado homologado por conta";
   const publishHealth: OperationStatus =
     operation.dataReconciliation >= 90 && operation.baseCoverage >= 50
       ? "healthy"
       : operation.dataReconciliation >= 84
         ? "monitor"
         : "risk";
+  const finalCutoverReadinessPct =
+    publishHealth === "healthy" ? 94 : publishHealth === "monitor" ? 89 : 76;
 
   const publishStage =
     publishHealth === "healthy"
@@ -3059,6 +3066,12 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
       : publishHealth === "monitor"
         ? "Quase pronto para abertura privada"
         : "Segurar abertura até fechar a base";
+  const finalCutoverStage =
+    publishHealth === "healthy"
+      ? "Última milha da publicação pública"
+      : publishHealth === "monitor"
+        ? "Paridade externa ainda em fechamento"
+        : "Publicação pública ainda bloqueada";
 
   const checkpoints: PortalPublishCheckpoint[] = [
     {
@@ -3095,7 +3108,33 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
       detail:
         "Notion já entra com reconciliação viva e Trello já aparece com checkpoint operacional; o próximo salto é aprofundar etapa, owner e sync direto.",
     },
+    {
+      id: "public-parity",
+      title: "Paridade com a URL publicada",
+      status: publishHealth === "healthy" ? "monitor" : "blocked",
+      detail:
+        publishHealth === "healthy"
+          ? "A conta já está pronta para corte externo controlado, faltando só materializar a publicação final no endpoint visível."
+          : "O produto já tem base interna, mas ainda não deve ser tratado como publicação final até fechar a paridade externa.",
+    },
   ];
+
+  const cutoverBlockers =
+    publishHealth === "healthy"
+      ? [
+          "Materializar a URL publicada com o último corte validado",
+          "Homologar a abertura externa da conta com leitura diária real",
+        ]
+      : publishHealth === "monitor"
+        ? [
+            "Fechar a materialização final da URL publicada com o corte atual",
+            "Reduzir dependência de snapshot intermediário na leitura do Trello",
+            "Homologar a conta em uso real antes de abrir a publicação final",
+          ]
+        : [
+            "Fechar cobertura e reconciliação da conta antes da abertura externa",
+            "Concluir governança final do publish e das fontes vivas",
+          ];
 
   return {
     operationId: operation.id,
@@ -3103,12 +3142,15 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
     clientLabel: operation.client,
     privateSlug,
     privatePath,
+    externalCutover,
     audience: "Cliente da conta + operação homologada",
     authLayer: "Sessão real por cookie + RBAC + escopo por operação",
     visibility: "Portal privado cliente-safe",
     owner: operation.owner,
     publishHealth,
     publishStage,
+    finalCutoverStage,
+    finalCutoverReadinessPct,
     headline:
       publishHealth === "healthy"
         ? "A operação já tem base suficiente para ensaiar abertura privada controlada."
@@ -3116,6 +3158,7 @@ export function buildPortalPublishPacket(operation: Operation): PortalPublishPac
           ? "A operação já cabe num portal privado, mas ainda pede checkpoint final antes de abrir uso real."
           : "Ainda é melhor segurar a abertura externa até fechar melhor base e governança da conta.",
     checkpoints,
+    cutoverBlockers,
   };
 }
 
