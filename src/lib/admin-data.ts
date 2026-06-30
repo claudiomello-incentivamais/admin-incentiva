@@ -190,6 +190,25 @@ export interface IncentivaExecutionBacklogItem {
   nextStep: string;
 }
 
+export interface IncentivaWorkflowDrilldownMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IncentivaWorkflowDrilldownItem {
+  id: string;
+  family: string;
+  health: OperationStatus;
+  owner: string;
+  highlightedWorkflow: string;
+  headline: string;
+  detail: string;
+  nextStep: string;
+}
+
 export interface IncentivaCockpitAlert {
   id: string;
   severity: "critical" | "risk" | "monitor" | "info";
@@ -211,6 +230,10 @@ export interface IncentivaCockpitData {
   executionBacklog: {
     metrics: IncentivaExecutionBacklogMetric[];
     items: IncentivaExecutionBacklogItem[];
+  };
+  workflowDrilldown: {
+    metrics: IncentivaWorkflowDrilldownMetric[];
+    items: IncentivaWorkflowDrilldownItem[];
   };
   emailHealth: {
     metrics: IncentivaEmailHealthMetric[];
@@ -632,6 +655,80 @@ const incentivaCockpit: IncentivaCockpitData = {
         headline: "A frente social já pede leitura mais semântica, não mais estrutural.",
         detail: "Há densidade real de workflows e sinais de uso, mas ainda falta separar descoberta, fila, engajamento e risco numa camada mais clara.",
         nextStep: "Na V2, quebrar LinkedIn em submódulos operacionais para enxergar social selling com mais nitidez.",
+      },
+    ],
+  },
+  workflowDrilldown: {
+    metrics: [
+      {
+        id: "families-observed",
+        label: "Famílias observadas",
+        value: "5",
+        tone: "success",
+        detail: "A Incentiva já tem massa suficiente para leitura semântica das famílias principais.",
+      },
+      {
+        id: "families-critical",
+        label: "Famílias críticas",
+        value: "1",
+        tone: "risk",
+        detail: "E-mail FUP continua sendo a única família com sinal de gargalo claro no snapshot atual.",
+      },
+      {
+        id: "workflow-focus",
+        label: "Workflow em foco",
+        value: "FUP2",
+        tone: "critical",
+        detail: "O workflow que melhor representa risco operacional hoje continua sendo o FUP2 de e-mail.",
+      },
+      {
+        id: "best-engine",
+        label: "Motor referência",
+        value: "Instagram",
+        tone: "healthy",
+        detail: "Instagram segue como benchmark de volume, estabilidade e observabilidade para o cockpit.",
+      },
+    ],
+    items: [
+      {
+        id: "drill-email",
+        family: "E-mail FUP",
+        health: "risk",
+        owner: "Claw",
+        highlightedWorkflow: "Outbound - Email - FUP2",
+        headline: "A família de e-mail já tem workflow específico pedindo drill-down.",
+        detail: "O FUP2 concentra waiting sem sucesso útil, enquanto o resto da família permanece ativo, o que caracteriza gargalo localizado e rastreável.",
+        nextStep: "Abrir visão por workflow de e-mail com throughput, waiting, última corrida e saída útil.",
+      },
+      {
+        id: "drill-instagram",
+        family: "Instagram",
+        health: "healthy",
+        owner: "Claw + Sales Ops",
+        highlightedWorkflow: "Lead Inbound Sync",
+        headline: "Instagram é hoje o melhor padrão operacional da Incentiva.",
+        detail: "A família entrega alto volume, erro marginal e workflows com papéis claros, servindo como referência de como a observabilidade deveria ficar nos demais canais.",
+        nextStep: "Usar Instagram como baseline visual e semântico para a futura V2 por workflow.",
+      },
+      {
+        id: "drill-linkedin",
+        family: "LinkedIn Social",
+        health: "monitor",
+        owner: "Claw + Sales Ops",
+        highlightedWorkflow: "Família social / fila distribuída",
+        headline: "LinkedIn já deixou de ser questão estrutural e virou questão de leitura.",
+        detail: "Existe densidade relevante de workflows, mas a frente ainda aparece muito agregada, o que esconde diferenças entre descoberta, fila, engajamento e risco.",
+        nextStep: "Quebrar a família em submódulos operacionais para ler descoberta, score, fila e social selling separadamente.",
+      },
+      {
+        id: "drill-whatsapp",
+        family: "WhatsApp FUP",
+        health: "monitor",
+        owner: "Sales Ops",
+        highlightedWorkflow: "FUP1-FUP4 outbound",
+        headline: "WhatsApp tem boa saúde técnica, mas não pode ser lido só por uptime.",
+        detail: "O canal está íntegro nos workflows principais, porém sua performance prática depende diretamente da disponibilidade de base e da mistura entre outbound, leads e retomada.",
+        nextStep: "Na próxima camada, cruzar WhatsApp com pressão de base e distribuição de corridas por frente.",
       },
     ],
   },
@@ -1323,6 +1420,48 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
             detail:
               canonicalUnstarted < dailyActivationTarget
                 ? "A camada WhatsApp continua tecnicamente estável, mas ainda opera sob dependência direta da reposição de base."
+                : item.detail,
+          };
+        }
+
+        return item;
+      }),
+    },
+    workflowDrilldown: {
+      metrics: base.workflowDrilldown.metrics.map((metric) => {
+        if (metric.id === "families-observed") {
+          return {
+            ...metric,
+            value: String(base.workflowFamilies.length),
+            detail: "Quantidade de famílias que já aparecem com clareza suficiente para observabilidade executiva.",
+          };
+        }
+
+        if (metric.id === "families-critical") {
+          const criticalFamilies = base.workflowFamilies.filter((family) => family.health === "risk" || family.health === "critical").length;
+          return {
+            ...metric,
+            value: String(criticalFamilies),
+            detail: "Contagem de famílias com risco material já explícito no cockpit atual.",
+          };
+        }
+
+        return metric;
+      }),
+      items: base.workflowDrilldown.items.map((item) => {
+        if (item.id === "drill-email") {
+          return {
+            ...item,
+            detail: "A leitura live ainda não abre fila por workflow, então o FUP2 segue como melhor proxy confirmado do gargalo de e-mail nesta camada.",
+          };
+        }
+
+        if (item.id === "drill-whatsapp") {
+          return {
+            ...item,
+            detail:
+              canonicalUnstarted < dailyActivationTarget
+                ? "Na leitura viva, o canal continua tecnicamente íntegro, mas com dependência explícita da cobertura de base para manter tração comercial."
                 : item.detail,
           };
         }
