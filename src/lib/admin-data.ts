@@ -119,6 +119,24 @@ export interface IncentivaWhatsappHealthTrack {
   workflows: string;
 }
 
+export interface IncentivaWorkflowInsightMetric {
+  id: string;
+  label: string;
+  value: string;
+  tone?: "healthy" | "monitor" | "risk" | "critical" | "success" | "info";
+  detail: string;
+}
+
+export interface IncentivaWorkflowInsight {
+  id: string;
+  familyId: string;
+  label: string;
+  health: OperationStatus;
+  headline: string;
+  detail: string;
+  recommendation: string;
+}
+
 export interface IncentivaCockpitAlert {
   id: string;
   severity: "critical" | "risk" | "monitor" | "info";
@@ -136,6 +154,10 @@ export interface IncentivaCockpitData {
   whatsappHealth: {
     metrics: IncentivaWhatsappHealthMetric[];
     tracks: IncentivaWhatsappHealthTrack[];
+  };
+  workflowIntelligence: {
+    metrics: IncentivaWorkflowInsightMetric[];
+    insights: IncentivaWorkflowInsight[];
   };
   channels: IncentivaChannelStatus[];
   workflowFamilies: IncentivaWorkflowFamily[];
@@ -463,6 +485,76 @@ const incentivaCockpit: IncentivaCockpitData = {
         headline: "Canal apto para amortecer a falta de base nova.",
         detail: "Retomada em WhatsApp já mostrou corrida recente e pode ganhar peso enquanto a reposição de lista é atacada.",
         workflows: "1 workflow com corrida",
+      },
+    ],
+  },
+  workflowIntelligence: {
+    metrics: [
+      {
+        id: "active-families",
+        label: "Famílias ativas",
+        value: "11",
+        tone: "success",
+        detail: "A Incentiva já opera com densidade multicanal suficiente para leitura por família.",
+      },
+      {
+        id: "email-risk",
+        label: "Famílias sob risco",
+        value: "1",
+        tone: "risk",
+        detail: "E-mail FUP concentra o principal sinal de fila silenciosa nesta camada.",
+      },
+      {
+        id: "social-density",
+        label: "Social selling ativo",
+        value: "26/23",
+        tone: "monitor",
+        detail: "LinkedIn social + conexão + Instagram já sustentam uma malha densa de automação.",
+      },
+      {
+        id: "top-engine",
+        label: "Motor dominante",
+        value: "Instagram",
+        tone: "info",
+        detail: "Instagram concentra a maior parte das execuções e hoje é o principal motor de volume.",
+      },
+    ],
+    insights: [
+      {
+        id: "email-fup-bottleneck",
+        familyId: "email_fup",
+        label: "E-mail FUP",
+        health: "risk",
+        headline: "Waiting concentrado no FUP2 já merece leitura dedicada.",
+        detail: "A família está 100% ativa, mas o FUP2 fechou o snapshot com 5 waiting e zero sucesso no período.",
+        recommendation: "Abrir a próxima intervenção em throughput e fila do e-mail antes de virar gargalo invisível.",
+      },
+      {
+        id: "instagram-engine",
+        familyId: "instagram",
+        label: "Instagram",
+        health: "healthy",
+        headline: "Instagram é hoje o motor operacional mais confiável da Incentiva.",
+        detail: "Lead Inbound Sync, Action Queue e Engagement Score concentram volume alto e erro marginal.",
+        recommendation: "Usar Instagram como referência de padrão visual e de observabilidade do cockpit.",
+      },
+      {
+        id: "linkedin-spread",
+        familyId: "linkedin_social",
+        label: "LinkedIn Social",
+        health: "monitor",
+        headline: "Família extensa, porém ainda heterogênea em uso real.",
+        detail: "Há boa cobertura de workflows ativos, mas a distribuição de execuções ainda é rasa e muito dispersa.",
+        recommendation: "Separar descoberta, fila, engajamento e risco em leitura mais semântica na próxima V2.",
+      },
+      {
+        id: "whatsapp-base-dependency",
+        familyId: "whatsapp_fup",
+        label: "WhatsApp FUP",
+        health: "monitor",
+        headline: "A infraestrutura está íntegra, mas o canal depende demais da reposição de base.",
+        detail: "Os workflows de WhatsApp estão ativos e sem erro recente relevante, mas a sustentação comercial está pressionada pela falta de não iniciados.",
+        recommendation: "Tratar a próxima melhoria do canal junto com ICP / lista / não iniciados, não isoladamente.",
       },
     ],
   },
@@ -905,6 +997,42 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
         }
 
         return track;
+      }),
+    },
+    workflowIntelligence: {
+      ...base.workflowIntelligence,
+      metrics: base.workflowIntelligence.metrics.map((metric) => {
+        if (metric.id === "email-risk") {
+          return {
+            ...metric,
+            detail:
+              "A leitura viva da governança ainda não abriu telemetria por workflow; mantido o principal risco já confirmado no snapshot.",
+          };
+        }
+
+        if (metric.id === "active-families") {
+          return {
+            ...metric,
+            detail: `A operação segue com ${base.workflowFamilies.length} famílias já mapeadas no cockpit atual.`,
+          };
+        }
+
+        return metric;
+      }),
+      insights: base.workflowIntelligence.insights.map((insight) => {
+        if (insight.id === "whatsapp-base-dependency") {
+          return {
+            ...insight,
+            health:
+              canonicalUnstarted < dailyActivationTarget ? "risk" : "monitor",
+            detail:
+              canonicalUnstarted < dailyActivationTarget
+                ? `A leitura viva reforça a dependência do WhatsApp sobre a base: ${canonicalUnstarted} não iniciados para meta diária de ${dailyActivationTarget}.`
+                : insight.detail,
+          };
+        }
+
+        return insight;
       }),
     },
   };
