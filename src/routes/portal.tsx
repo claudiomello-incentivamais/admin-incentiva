@@ -54,6 +54,11 @@ function formatPercent(value: number) {
   }).format(value);
 }
 
+function ratioPct(numerator: number, denominator: number) {
+  if (denominator <= 0) return 0;
+  return (numerator / denominator) * 100;
+}
+
 function formatPipelineStageLabel(stageId: string) {
   if (stageId === "prospecting") return "Prospect";
   if (stageId === "lead-interessado") return "Lead Interessado";
@@ -116,6 +121,20 @@ function PortalPage() {
       stage.id,
     ),
   );
+  const prospectTouched =
+    currentCockpit.funnel.find((stage) => stage.id === "prospecting")?.touchedThisMonth ?? 0;
+  const leadTouched =
+    currentCockpit.funnel.find((stage) => stage.id === "lead-interessado")?.touchedThisMonth ?? 0;
+  const scheduledTouched =
+    currentCockpit.funnel.find((stage) => stage.id === "mql-agendado")?.touchedThisMonth ?? 0;
+  const negotiationTouched =
+    currentCockpit.funnel.find((stage) => stage.id === "negotiation")?.touchedThisMonth ?? 0;
+  const wonTouched =
+    currentCockpit.funnel.find((stage) => stage.id === "won")?.touchedThisMonth ?? 0;
+  const firstInterestPct = ratioPct(leadTouched, prospectTouched);
+  const scheduledPct = ratioPct(scheduledTouched, leadTouched);
+  const negotiationPct = ratioPct(negotiationTouched, scheduledTouched);
+  const wonPct = ratioPct(wonTouched, negotiationTouched);
   const runtimePortalCards = runtimeView.cards.filter((card) =>
     ["n8n", "evolution"].includes(card.id),
   );
@@ -207,9 +226,9 @@ function PortalPage() {
               tone="monitor"
             />
             <PortalKpi
-              label="Conversão do mês"
-              value={`${formatPercent(portalOperation.monthlyConversion)}%`}
-              detail="Clientes ganhos sobre volume tocado no mês, conforme a última atualização útil."
+              label="1º interesse"
+              value={`${formatPercent(firstInterestPct)}%`}
+              detail="Lead interessado sobre prospects tocados no mês, na última leitura útil."
               icon={TrendingUp}
               tone="success"
             />
@@ -258,9 +277,9 @@ function PortalPage() {
                 detail="Mostra se ainda existe base suficiente para sustentar a cadência sem reposição imediata."
               />
               <PortalNarrativeCard
-                label="Conversão do mês"
-                title={`${formatPercent(portalOperation.monthlyConversion)}%`}
-                detail="Clientes ganhos sobre o volume tocado no mês até a última atualização útil."
+                label="Ganhos no mês"
+                title={formatNumber(wonTouched)}
+                detail="Clientes ganhos já refletidos na operação até a última atualização útil."
               />
             </div>
           </div>
@@ -374,6 +393,41 @@ function PortalPage() {
                 />
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Conversões do mês por etapa</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Conversões gerenciais nomeadas, calculadas sobre o acumulado do mês na última leitura útil.
+              </p>
+            </div>
+            <TrendingUp className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <PortalMiniMetric
+              label="1º interesse"
+              value={`${formatPercent(firstInterestPct)}%`}
+              detail={`${formatNumber(leadTouched)} leads interessados sobre ${formatNumber(prospectTouched)} prospects tocados no mês.`}
+            />
+            <PortalMiniMetric
+              label="Reunião agendada"
+              value={`${formatPercent(scheduledPct)}%`}
+              detail={`${formatNumber(scheduledTouched)} MQLs agendados sobre ${formatNumber(leadTouched)} leads interessados no mês.`}
+            />
+            <PortalMiniMetric
+              label="Negociação"
+              value={`${formatPercent(negotiationPct)}%`}
+              detail={`${formatNumber(negotiationTouched)} negociações sobre ${formatNumber(scheduledTouched)} reuniões agendadas no mês.`}
+            />
+            <PortalMiniMetric
+              label="Cliente ganho"
+              value={`${formatPercent(wonPct)}%`}
+              detail={`${formatNumber(wonTouched)} clientes ganhos sobre ${formatNumber(negotiationTouched)} negociações no mês.`}
+            />
           </div>
         </section>
 
