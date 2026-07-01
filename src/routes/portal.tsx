@@ -38,6 +38,7 @@ import {
 import { loadEvolutionTelemetryDashboardServerFn } from "@/lib/admin-evolution-rpc";
 import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
 import { loadN8nTelemetryDashboardServerFn } from "@/lib/admin-n8n-rpc";
+import { applyPeriodToCockpit } from "@/lib/admin-period";
 import { loadPortalAnalyticsServerFn } from "@/lib/admin-portal-rpc";
 import { cn } from "@/lib/utils";
 
@@ -143,7 +144,10 @@ function PortalPage() {
     );
   }
 
-  const currentCockpit = buildOperationCockpitFromOperation(portalOperation);
+  const currentCockpit = applyPeriodToCockpit(
+    buildOperationCockpitFromOperation(portalOperation),
+    selectedPeriod,
+  );
   const cockpit = currentCockpit;
   const cadenceView = buildOperationCadenceView(portalOperation, cockpit, dashboard.source);
   const actionPlan = buildOperationActionPlan(portalOperation);
@@ -238,6 +242,8 @@ function PortalPage() {
   const hasTimelineChartData = chartTimelineData.some((item) =>
     item.prospecting > 0 || item.leadInteressado > 0 || item.mqlAgendado > 0 || item.won > 0,
   );
+  const firstInterestPctDisplay = periodAnalytics?.firstInterestPct ?? firstInterestPct;
+  const wonTouchedDisplay = periodAnalytics?.stageCounts.won ?? wonTouched;
   const n8nLiveCard = {
     id: "n8n" as const,
     title: "n8n VPS",
@@ -446,8 +452,12 @@ function PortalPage() {
             />
             <PortalKpi
               label="1º interesse"
-              value={`${formatPercent(firstInterestPct)}%`}
-              detail="Lead interessado sobre prospects tocados no mês, na última leitura útil."
+              value={`${formatPercent(firstInterestPctDisplay)}%`}
+              detail={
+                hasPeriodAnalytics
+                  ? "Lead interessado sobre prospects tocados no recorte selecionado."
+                  : "Lead interessado sobre prospects tocados na melhor leitura disponível."
+              }
               icon={TrendingUp}
               tone="success"
             />
@@ -493,9 +503,9 @@ function PortalPage() {
               detail="Mostra se ainda existe base suficiente para sustentar a cadência sem reposição imediata."
             />
             <PortalNarrativeCard
-              label="Ganhos no mês"
-              title={formatNumber(wonTouched)}
-              detail="Clientes ganhos já refletidos na operação até a última atualização útil."
+              label={hasPeriodAnalytics ? "Ganhos no recorte" : "Ganhos na leitura"}
+              title={formatNumber(wonTouchedDisplay)}
+              detail="Clientes ganhos refletidos na operação conforme a leitura disponível na tela."
             />
           </div>
 

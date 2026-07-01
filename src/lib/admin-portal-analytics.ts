@@ -99,7 +99,7 @@ export interface PortalAnalyticsDashboard {
 
 type SupabaseClientConfig = {
   url: string;
-  serviceRoleKey: string;
+  accessKey: string;
 };
 
 const PERIOD_LABELS: Record<PortalPeriodPreset, string> = {
@@ -127,17 +127,26 @@ function getSupabaseServiceRoleKey() {
   );
 }
 
+function getSupabaseAnonKey() {
+  return (
+    process.env.ADMIN_INCENTIVA_SUPABASE_ANON_KEY?.trim() ||
+    process.env.VITE_SUPABASE_ANON_KEY?.trim() ||
+    (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() ||
+    ""
+  );
+}
+
 function getSupabaseClientConfig(): SupabaseClientConfig | null {
   const url = getSupabaseUrl();
-  const serviceRoleKey = getSupabaseServiceRoleKey();
-  if (!url || !serviceRoleKey) return null;
-  return { url, serviceRoleKey };
+  const accessKey = getSupabaseServiceRoleKey() || getSupabaseAnonKey();
+  if (!url || !accessKey) return null;
+  return { url, accessKey };
 }
 
 function buildHeaders(config: SupabaseClientConfig, extra?: HeadersInit) {
   return {
-    apikey: config.serviceRoleKey,
-    Authorization: `Bearer ${config.serviceRoleKey}`,
+    apikey: config.accessKey,
+    Authorization: `Bearer ${config.accessKey}`,
     Accept: "application/json",
     "Accept-Profile": "governance",
     ...extra,
