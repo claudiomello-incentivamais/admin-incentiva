@@ -21,6 +21,40 @@ export const signInServerFn = createServerFn({ method: "POST" })
   .middleware([requestContextMiddleware])
   .validator(
     z.object({
+      email: z.string().email(),
+      password: z.string().min(8),
+    }),
+  )
+  .handler(async ({ data, context }) => {
+    const { request } = requestContext.parse(context);
+    const { signInWithEmail } = await import("./admin-auth.server");
+    const result = await signInWithEmail({
+      email: data.email,
+      password: data.password,
+      request,
+    });
+
+    if (!result.ok || !result.session) {
+      return Response.json(
+        { ok: false, error: result.error ?? "Falha ao abrir a sessão." },
+        { status: 401 },
+      );
+    }
+
+    return Response.json(
+      { ok: true, session: result.session },
+      {
+        headers: {
+          "Set-Cookie": result.cookie,
+        },
+      },
+    );
+  });
+
+export const signInInternalServerFn = createServerFn({ method: "POST" })
+  .middleware([requestContextMiddleware])
+  .validator(
+    z.object({
       identityId: z.string().min(1),
       passcode: z.string().min(1),
     }),
@@ -129,18 +163,20 @@ export const verifyAccessInviteServerFn = createServerFn({ method: "POST" })
     return Response.json({ ok: true, invite: result.invite });
   });
 
-export const acceptAccessInviteServerFn = createServerFn({ method: "POST" })
+export const completeInviteSetupServerFn = createServerFn({ method: "POST" })
   .middleware([requestContextMiddleware])
   .validator(
     z.object({
       token: z.string().min(1),
+      password: z.string().min(8),
     }),
   )
   .handler(async ({ data, context }) => {
     const { request } = requestContext.parse(context);
-    const { acceptAccessInvite } = await import("./admin-auth.server");
-    const result = await acceptAccessInvite({
+    const { completeInviteSetup } = await import("./admin-auth.server");
+    const result = await completeInviteSetup({
       token: data.token,
+      password: data.password,
       request,
     });
 

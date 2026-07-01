@@ -28,9 +28,10 @@ import {
   resolveAccessScopeMode,
 } from "@/lib/admin-auth.shared";
 import {
-  acceptAccessInviteServerFn,
+  completeInviteSetupServerFn,
   getAuthSessionServerFn,
   signInServerFn,
+  signInInternalServerFn,
   signOutServerFn,
   verifyAccessInviteServerFn,
 } from "@/lib/admin-auth-rpc";
@@ -41,10 +42,17 @@ type AdminAuthContextValue = {
   session: AuthSession | null;
   identities: AuthIdentityPublic[];
   signIn: (
+    email: string,
+    password: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
+  signInInternal: (
     identityId: string,
     passcode: string,
   ) => Promise<{ ok: true } | { ok: false; error: string }>;
-  acceptInvite: (token: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  completeInviteSetup: (
+    token: string,
+    password: string,
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
   canAccessOperation: (operationId: string) => boolean;
@@ -75,8 +83,27 @@ export function AdminAuthProvider({
     setSession(nextSession);
   };
 
-  const signIn = async (identityId: string, passcode: string) => {
+  const signIn = async (email: string, password: string) => {
     const response = await signInServerFn({
+      data: { email, password },
+    });
+    const payload = (await response.json()) as
+      | { ok: true; session: AuthSession }
+      | { ok: false; error?: string };
+
+    if (!response.ok || !payload.ok) {
+      return {
+        ok: false as const,
+        error: payload.ok ? "Falha ao abrir a sessão." : payload.error ?? "Falha ao abrir a sessão.",
+      };
+    }
+
+    setSession(payload.session);
+    return { ok: true as const };
+  };
+
+  const signInInternal = async (identityId: string, passcode: string) => {
+    const response = await signInInternalServerFn({
       data: { identityId, passcode },
     });
     const payload = (await response.json()) as
@@ -99,9 +126,9 @@ export function AdminAuthProvider({
     setSession(null);
   };
 
-  const acceptInvite = async (token: string) => {
-    const response = await acceptAccessInviteServerFn({
-      data: { token },
+  const completeInviteSetup = async (token: string, password: string) => {
+    const response = await completeInviteSetupServerFn({
+      data: { token, password },
     });
     const payload = (await response.json()) as
       | { ok: true; session: AuthSession }
@@ -124,7 +151,8 @@ export function AdminAuthProvider({
       session,
       identities: AUTH_IDENTITIES_PUBLIC,
       signIn,
-      acceptInvite,
+      signInInternal,
+      completeInviteSetup,
       signOut,
       refreshSession,
       canAccessOperation: (operationId: string) =>
@@ -165,7 +193,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 function SignInScreen() {
-  const { identities, signIn, acceptInvite } = useAdminAuth();
+  const { identities, signIn, signInInternal, completeInviteSetup } = useAdminAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [selectedIdentityId, setSelectedIdentityId] = useState(identities[0]?.id ?? "");
   const [passcode, setPasscode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +205,8 @@ function SignInScreen() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [isInviteLoading, setIsInviteLoading] = useState(false);
   const [isInviteSubmitting, setIsInviteSubmitting] = useState(false);
+  const [invitePassword, setInvitePassword] = useState("");
+  const [invitePasswordConfirm, setInvitePasswordConfirm] = useState("");
 
   const selectedIdentity =
     identities.find((identity) => identity.id === selectedIdentityId) ?? identities[0] ?? null;
@@ -227,7 +259,7 @@ function SignInScreen() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
-    const result = await signIn(selectedIdentityId, passcode);
+    const result = await signIn(email, password);
     setIsSubmitting(false);
 
     if (!result.ok) {
@@ -236,14 +268,22 @@ function SignInScreen() {
     }
 
     setError(null);
-    setPasscode("");
+    setPassword("");
   };
 
   const handleInviteAccept = async () => {
     if (!inviteToken) return;
+    if (invitePassword.length < 8) {
+      setInviteError("Defina uma senha com pelo menos 8 caracteres.");
+      return;
+    }
+    if (invitePassword !== invitePasswordConfirm) {
+      setInviteError("A confirmação da senha não confere.");
+      return;
+    }
 
     setIsInviteSubmitting(true);
-    const result = await acceptInvite(inviteToken);
+    const result = await completeInviteSetup(inviteToken, invitePassword);
     setIsInviteSubmitting(false);
 
     if (!result.ok) {
@@ -303,8 +343,7 @@ function SignInScreen() {
           </div>
           <h2 className="mt-2 text-2xl font-semibold text-display">Entrar no produto</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Esta camada fecha a transição do mock local para sessão real por cookie, já pronta para
-            publish privado por conta.
+            Para usuários convidados, o acesso recorrente agora entra por e-mail e senha.
           </p>
 
           {(inviteToken || invitePreview || inviteError) && (
@@ -361,13 +400,39 @@ function SignInScreen() {
                   <p className="mt-3 text-[12px] text-muted-foreground">
                     Válido até {new Date(invitePreview.expiresAt).toLocaleString("pt-BR")}.
                   </p>
+                  <div className="mt-4 space-y-3">
+                    <div className="space-y-2">
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Criar senha
+                      </label>
+                      <Input
+                        type="password"
+                        value={invitePassword}
+                        onChange={(event) => setInvitePassword(event.target.value)}
+                        placeholder="Mínimo de 8 caracteres"
+                        className="h-11 bg-background"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Confirmar senha
+                      </label>
+                      <Input
+                        type="password"
+                        value={invitePasswordConfirm}
+                        onChange={(event) => setInvitePasswordConfirm(event.target.value)}
+                        placeholder="Repita a senha"
+                        className="h-11 bg-background"
+                      />
+                    </div>
+                  </div>
                   <Button
                     type="button"
                     className="mt-4 h-10 w-full"
                     onClick={handleInviteAccept}
                     disabled={isInviteSubmitting}
                   >
-                    {isInviteSubmitting ? "Ativando acesso..." : "Ativar acesso deste convite"}
+                    {isInviteSubmitting ? "Criando acesso..." : "Criar senha e entrar"}
                   </Button>
                 </>
               ) : (
@@ -381,45 +446,29 @@ function SignInScreen() {
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                Perfil
-              </label>
-              <select
-                value={selectedIdentityId}
-                onChange={(event) => setSelectedIdentityId(event.target.value)}
-                className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                {identities.map((identity) => (
-                  <option key={identity.id} value={identity.id}>
-                    {identity.name} · {identity.email}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                Chave de acesso
+                E-mail
               </label>
               <Input
-                type="password"
-                value={passcode}
-                onChange={(event) => setPasscode(event.target.value)}
-                placeholder="Informe a chave deste perfil"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="voce@empresa.com"
                 className="h-11 bg-background"
               />
             </div>
 
-            {selectedIdentity && (
-              <div className="rounded-xl border border-border bg-surface px-4 py-3 text-[12px] text-muted-foreground">
-                <span className="text-foreground font-medium">{selectedIdentity.name}</span>
-                {" · "}
-                {ACCESS_PROFILE_LABELS[selectedIdentity.profileId]}
-                {" · "}
-                {ACCESS_SCOPE_LABELS[resolveAccessScopeMode(selectedIdentity.operationIds)]}
-                {" · "}
-                {formatOperationScope(selectedIdentity.operationIds)}
-              </div>
-            )}
+            <div className="space-y-2">
+              <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                Senha
+              </label>
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Informe sua senha"
+                className="h-11 bg-background"
+              />
+            </div>
 
             {error && (
               <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -428,9 +477,78 @@ function SignInScreen() {
             )}
 
             <Button type="submit" className="h-11 w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Abrindo sessão..." : "Entrar no cockpit"}
+              {isSubmitting ? "Entrando..." : "Entrar"}
             </Button>
           </form>
+
+          <div className="mt-6 rounded-2xl border border-border bg-surface p-4">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Acesso interno
+            </div>
+            <p className="mt-2 text-[12px] text-muted-foreground">
+              Atalho temporário para perfis internos enquanto a migração completa de autenticação não termina.
+            </p>
+            <div className="mt-4 space-y-3">
+              <div className="space-y-2">
+                <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Perfil interno
+                </label>
+                <select
+                  value={selectedIdentityId}
+                  onChange={(event) => setSelectedIdentityId(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {identities.map((identity) => (
+                    <option key={identity.id} value={identity.id}>
+                      {identity.name} · {identity.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Chave interna
+                </label>
+                <Input
+                  type="password"
+                  value={passcode}
+                  onChange={(event) => setPasscode(event.target.value)}
+                  placeholder="Informe a chave deste perfil"
+                  className="h-11 bg-background"
+                />
+              </div>
+              {selectedIdentity && (
+                <div className="rounded-xl border border-border bg-background/80 px-4 py-3 text-[12px] text-muted-foreground">
+                  <span className="text-foreground font-medium">{selectedIdentity.name}</span>
+                  {" · "}
+                  {ACCESS_PROFILE_LABELS[selectedIdentity.profileId]}
+                  {" · "}
+                  {ACCESS_SCOPE_LABELS[resolveAccessScopeMode(selectedIdentity.operationIds)]}
+                  {" · "}
+                  {formatOperationScope(selectedIdentity.operationIds)}
+                </div>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full"
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  const result = await signInInternal(selectedIdentityId, passcode);
+                  setIsSubmitting(false);
+                  if (!result.ok) {
+                    setError(result.error);
+                    return;
+                  }
+                  setError(null);
+                  setPasscode("");
+                }}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Abrindo sessão..." : "Entrar com chave interna"}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

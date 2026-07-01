@@ -248,7 +248,7 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     audienceLabel: "Operação interna",
     scopeLabel: "Carteira inteira da operação comercial",
     notes: "Hoje entra com visão operacional em toda a carteira.",
-    signInEnabled: true,
+    signInEnabled: false,
   },
   {
     id: "cliente-incentiva",

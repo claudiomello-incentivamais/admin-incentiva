@@ -19,6 +19,12 @@ import {
   persistAccessInviteRecord,
   readInviteRegistryState,
 } from "./admin-access-registry.server";
+import {
+  findAccessUserByEmail,
+  touchAccessUserLogin,
+  upsertAccessUserFromInvite,
+  verifyAccessPassword,
+} from "./admin-access-users.server";
 
 type AuthIdentityRecord = AuthIdentityPublic & {
   passcode?: string;
@@ -55,20 +61,12 @@ const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 12;
 
 const authIdentitySeedRecords: AuthIdentityRecord[] = [
   {
-    ...AUTH_IDENTITIES_PUBLIC[0],
+    ...(AUTH_IDENTITIES_PUBLIC.find((identity) => identity.id === "claudio-direcao") as AuthIdentityPublic),
     passcode: "5501",
   },
   {
-    ...AUTH_IDENTITIES_PUBLIC[1],
+    ...(AUTH_IDENTITIES_PUBLIC.find((identity) => identity.id === "claw-main") as AuthIdentityPublic),
     passcode: "5400",
-  },
-  {
-    ...AUTH_IDENTITIES_PUBLIC[2],
-    passcode: "5300",
-  },
-  {
-    ...AUTH_IDENTITIES_PUBLIC[3],
-    passcode: "5200",
   },
 ];
 
@@ -411,6 +409,49 @@ export async function signInIdentity(params: {
   };
 }
 
+export async function signInWithEmail(params: {
+  email: string;
+  password: string;
+  request: Request;
+}) {
+  const lookup = await findAccessUserByEmail(params.email);
+  if (!lookup.ok) {
+    return { ok: false as const, error: lookup.error };
+  }
+
+  if (!lookup.user || lookup.user.disabledAt) {
+    return { ok: false as const, error: "Usuário não encontrado ou sem acesso ativo." };
+  }
+
+  const passwordOk = await verifyAccessPassword(params.password.trim(), lookup.user.passwordHash);
+  if (!passwordOk) {
+    return { ok: false as const, error: "E-mail ou senha inválidos." };
+  }
+
+  await touchAccessUserLogin(lookup.user.email);
+
+  const cookieValue = await encodeEmbeddedSessionCookie(lookup.user.identity);
+  const currentSession = await readAuthSessionFromRequest(
+    new Request(params.request.url, {
+      headers: {
+        cookie: `${AUTH_COOKIE_NAME}=${cookieValue}`,
+      },
+    }),
+  );
+
+  return {
+    ok: true as const,
+    session: currentSession,
+    cookie: serialize(AUTH_COOKIE_NAME, cookieValue, {
+      httpOnly: true,
+      secure: new URL(params.request.url).protocol === "https:",
+      sameSite: "lax",
+      path: "/",
+      maxAge: AUTH_COOKIE_MAX_AGE_SECONDS,
+    }),
+  };
+}
+
 export async function createAccessInvite(params: {
   invitedBy: AuthSession;
   draft: AccessInviteDraft;
@@ -498,8 +539,9 @@ export async function verifyAccessInviteToken(params: {
   };
 }
 
-export async function acceptAccessInvite(params: {
+export async function completeInviteSetup(params: {
   token: string;
+  password: string;
   request: Request;
 }) {
   const verification = await verifyAccessInviteToken(params);
@@ -512,6 +554,15 @@ export async function acceptAccessInvite(params: {
     return { ok: false as const, error: "Convite inválido, expirado ou já inutilizável." };
   }
 
+  const createdUser = await upsertAccessUserFromInvite({
+    invite: verification.invite,
+    password: params.password,
+  });
+
+  if (!createdUser.ok) {
+    return { ok: false as const, error: createdUser.error };
+  }
+
   if (isAccessRegistryConfigured()) {
     const acceptance = await markAccessInviteAccepted(params.token);
     if (!acceptance.ok) {
@@ -519,9 +570,9 @@ export async function acceptAccessInvite(params: {
     }
   }
 
-  const cookieValue = await encodeEmbeddedSessionCookie(payload.identity);
+  const cookieValue = await encodeEmbeddedSessionCookie(createdUser.user.identity);
   const session = mapIdentityToSession(
-    payload.identity,
+    createdUser.user.identity,
     Math.floor(Date.now() / 1000),
     Math.floor(Date.now() / 1000) + AUTH_COOKIE_MAX_AGE_SECONDS,
   );
