@@ -115,16 +115,10 @@ export function AppSidebar() {
                 Ambiente
               </span>
               <span className="mt-1 block text-xs text-sidebar-foreground">
-                Piloto Lovable + GitHub da Incentiva
+                Piloto Lovable
               </span>
               {session && (
                 <>
-                  <span className="mt-3 block text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                    Sessão
-                  </span>
-                  <span className="mt-1 block text-xs text-sidebar-foreground">
-                    {session.name} · {session.profileId}
-                  </span>
                   <button
                     type="button"
                     onClick={() => {
