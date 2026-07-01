@@ -15,6 +15,7 @@ import {
 import { z } from "zod";
 
 import { Topbar } from "@/components/admin/Topbar";
+import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,6 +59,7 @@ function formatPercent(value: number) {
 function PortalPage() {
   const dashboard = Route.useLoaderData();
   const search = Route.useSearch();
+  const { session } = useAdminAuth();
   const {
     selectedOperationId,
     selectedAccessProfile,
@@ -101,6 +103,9 @@ function PortalPage() {
   const drivers = getScoreDrivers(scopedPortalOperation).slice(0, 3);
   const openNotionAction = notionView.actions.find((action) => action.id === "open-notion");
   const openBoardAction = trelloView.actions.find((action) => action.id === "open-board");
+  const allowedRoutes = new Set(session?.allowedRoutes ?? ["/portal"]);
+  const canAccessSettings = allowedRoutes.has("/configuracoes");
+  const canAccessAdminViews = allowedRoutes.has("/clientes") || allowedRoutes.has("/");
 
   return (
     <>
@@ -138,20 +143,26 @@ function PortalPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
-              <Link to="/configuracoes">
-                <LockKeyhole className="h-3.5 w-3.5" />
-                Ajustar regras de acesso
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
-              <Link to="/clientes">
-                <ArrowRight className="h-3.5 w-3.5" />
-                Voltar para carteira
-              </Link>
-            </Button>
-          </div>
+          {(canAccessSettings || canAccessAdminViews) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {canAccessSettings && (
+                <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
+                  <Link to="/configuracoes">
+                    <LockKeyhole className="h-3.5 w-3.5" />
+                    Ajustar regras de acesso
+                  </Link>
+                </Button>
+              )}
+              {canAccessAdminViews && (
+                <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
+                  <Link to={allowedRoutes.has("/clientes") ? "/clientes" : "/"}>
+                    <ArrowRight className="h-3.5 w-3.5" />
+                    Voltar ao admin
+                  </Link>
+                </Button>
+              )}
+            </div>
+          )}
         </section>
 
         <section className="surface-card p-5">

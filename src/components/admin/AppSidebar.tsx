@@ -6,7 +6,6 @@ import {
   BarChart3,
   ShieldCheck,
   Settings,
-  LifeBuoy,
   Workflow,
   Receipt,
   GlobeLock,
@@ -39,12 +38,11 @@ const principal = [
 ];
 
 const apoioInterno = [
-  { title: "Operações", url: "/operacoes", icon: Building2 },
-  { title: "Performance", url: "/performance", icon: BarChart3 },
-  { title: "Governança", url: "/governanca", icon: ShieldCheck },
+  { title: "Operações internas", url: "/operacoes", icon: Building2 },
+  { title: "Carteira", url: "/clientes", icon: Users },
+  { title: "Performance interna", url: "/performance", icon: BarChart3 },
+  { title: "Governança técnica", url: "/governanca", icon: ShieldCheck },
   { title: "Pipelines", url: "/pipelines", icon: Workflow },
-  { title: "Clientes", url: "/clientes", icon: Users },
-  { title: "Suporte", url: "/suporte", icon: LifeBuoy },
 ];
 
 export function AppSidebar() {
@@ -54,6 +52,7 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p));
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/"]);
+  const visibleInternalSupport = apoioInterno.filter((item) => allowedRoutes.has(item.url));
 
   const renderGroup = (label: string, items: typeof principal) => (
     <SidebarGroup>
@@ -113,8 +112,9 @@ export function AppSidebar() {
                 )}
               </div>
               <div className="mt-1 text-[12px] leading-snug text-sidebar-foreground">
-                Portal vira o cockpit da operação. Admin Global consolida a carteira. O restante
-                fica como apoio interno temporário até a consolidação final.
+                Cliente entra no Portal. Admin usa Admin Global, integrações, faturamento e
+                configurações. O restante fica escondido como apoio interno enquanto a consolidação
+                final não termina.
               </div>
               {session && (
                 <div className="mt-3 rounded-lg border border-sidebar-border/80 bg-sidebar px-3 py-2">
@@ -131,7 +131,7 @@ export function AppSidebar() {
 
       <SidebarContent className="gap-1">
         {renderGroup("Principal", principal)}
-        {renderGroup("Apoio interno", apoioInterno)}
+        {visibleInternalSupport.length > 0 && renderGroup("Apoio interno", apoioInterno)}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">

@@ -124,23 +124,23 @@ export const ACCESS_PROFILE_LABELS: Record<AccessProfileId, string> = {
 
 export const ACCESS_PACKAGE_LABELS: Record<AccessPackageId, string> = {
   admin_full: "Console completo",
-  executivo_publish: "Visão executiva",
-  operacional_safe: "Visão operacional",
+  executivo_publish: "Admin enxuto",
+  operacional_safe: "Portal operacional",
   portal_private: "Área do cliente",
 };
 
 export const ADMIN_ROUTE_LABELS: Record<string, string> = {
   "/": "Admin Global",
-  "/operacoes": "Operações",
-  "/performance": "Performance",
-  "/governanca": "Governança",
+  "/operacoes": "Operações internas",
+  "/performance": "Performance interna",
+  "/governanca": "Governança técnica",
   "/pipelines": "Pipelines",
-  "/clientes": "Clientes",
+  "/clientes": "Carteira",
   "/portal": "Portal",
   "/faturamento": "Faturamento",
   "/integracoes": "Integrações",
   "/configuracoes": "Configurações",
-  "/suporte": "Suporte",
+  "/suporte": "Suporte interno",
 };
 
 export const ACCESS_SCOPE_LABELS: Record<AccessScopeMode, string> = {
@@ -185,13 +185,13 @@ export const ACCESS_ROUTE_PACKAGES: Record<
   },
   executivo_publish: {
     label: ACCESS_PACKAGE_LABELS.executivo_publish,
-    description: "Visão executiva com foco em leitura gerencial.",
-    allowedRoutes: ["/", "/performance", "/clientes", "/portal", "/faturamento", "/integracoes"],
+    description: "Camada administrativa enxuta para direção e gestão executiva.",
+    allowedRoutes: ["/", "/portal", "/integracoes", "/faturamento", "/configuracoes"],
   },
   operacional_safe: {
     label: ACCESS_PACKAGE_LABELS.operacional_safe,
-    description: "Visão operacional para rotina comercial sem abrir a camada administrativa.",
-    allowedRoutes: ["/", "/performance", "/clientes", "/portal"],
+    description: "Acesso interno focado no portal da operação, sem abrir a camada administrativa.",
+    allowedRoutes: ["/portal"],
   },
   portal_private: {
     label: ACCESS_PACKAGE_LABELS.portal_private,
@@ -246,8 +246,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     defaultVisibility: "internal",
     status: "active",
     audienceLabel: "Operação interna",
-    scopeLabel: "Carteira inteira da operação comercial",
-    notes: "Hoje entra com visão operacional em toda a carteira.",
+    scopeLabel: "Portal operacional com troca de conta controlada",
+    notes: "Entra pelo portal e navega a carteira sem abrir a camada administrativa inteira.",
     signInEnabled: false,
   },
   {
@@ -291,8 +291,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     defaultVisibility: "internal",
     status: "pilot",
     audienceLabel: "Operação interna",
-    scopeLabel: "Acesso restrito à operação Incentiva",
-    notes: "Modelo para liberar leitura operacional e execução sem abrir a carteira inteira.",
+    scopeLabel: "Portal restrito à operação Incentiva",
+    notes: "Modelo para leitura operacional interna sem liberar carteira nem camada administrativa.",
     signInEnabled: false,
   },
   {
