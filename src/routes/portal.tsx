@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowRight,
   Building2,
+  ChartColumn,
   Database,
   Eye,
   GitBranch,
@@ -17,13 +18,15 @@ import {
   Users,
   Workflow,
 } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { z } from "zod";
 
 import { Topbar } from "@/components/admin/Topbar";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAdminFilters } from "@/components/admin/admin-filters";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
 import {
   buildOperationActionPlan,
   buildOperationCadenceView,
@@ -35,6 +38,8 @@ import {
 } from "@/lib/admin-data";
 import { loadEvolutionTelemetryDashboardServerFn } from "@/lib/admin-evolution-rpc";
 import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
+import { loadN8nTelemetryDashboardServerFn } from "@/lib/admin-n8n-rpc";
+import { loadPortalAnalyticsServerFn } from "@/lib/admin-portal-rpc";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal")({
@@ -43,14 +48,18 @@ export const Route = createFileRoute("/portal")({
     operationId: z.string().optional(),
   }),
   loader: async () => {
-    const [dashboard, evolution] = await Promise.all([
+    const [dashboard, evolution, n8n, analytics] = await Promise.all([
       loadScopedGlobalDashboardServerFn(),
       loadEvolutionTelemetryDashboardServerFn(),
+      loadN8nTelemetryDashboardServerFn(),
+      loadPortalAnalyticsServerFn(),
     ]);
 
     return {
       dashboard,
       evolution,
+      n8n,
+      analytics,
     };
   },
   component: PortalPage,
@@ -85,10 +94,10 @@ function formatPipelineStageLabel(stageId: string) {
 
 function PortalPage() {
   const loaderData = Route.useLoaderData();
-  const { dashboard, evolution } = loaderData;
+  const { dashboard, evolution, n8n, analytics } = loaderData;
   const search = Route.useSearch();
   const { session } = useAdminAuth();
-  const { selectedOperationId } = useAdminFilters();
+  const { selectedOperationId, selectedPeriod } = useAdminFilters();
   const requestedOperationId = search.operationId;
 
   const portalOperation =
@@ -152,25 +161,56 @@ function PortalPage() {
   const runtimePortalCards = runtimeView.cards.filter((card) =>
     ["n8n", "evolution"].includes(card.id),
   );
+  const periodAnalytics =
+    analytics.operations.find((operation) => operation.operationId === portalOperation.id)?.periods[
+      selectedPeriod
+    ] ?? null;
   const evolutionRow =
     evolution.operations.find((row) => row.operationId === portalOperation.id) ?? null;
-  const emailChannel = currentCockpit.channels.find((channel) => channel.id === "email") ?? null;
+  const evolutionInstances = evolution.instances.filter((row) => row.operationId === portalOperation.id);
+  const evolutionOutbound7d = evolutionInstances.reduce((sum, row) => sum + row.outbound7d, 0);
   const linkedinChannel = currentCockpit.channels.find((channel) => channel.id === "linkedin") ?? null;
+  const n8nOperation = n8n.operations.find((row) => row.operationId === portalOperation.id) ?? null;
+  const n8nWorkflows = n8n.workflows.filter((row) => row.operationId === portalOperation.id);
   const emailWaitingMetric =
     currentCockpit.emailHealth.metrics.find((metric) => metric.id === "email-waiting")?.value ?? "0";
-  const emailThroughputMetric =
-    currentCockpit.emailHealth.metrics.find((metric) => metric.id === "email-throughput")?.value ?? "snapshot";
+  const emailWorkflowExecToday = n8nWorkflows
+    .filter((workflow) => ["email_fup", "retorno_email"].includes(workflow.workflowFamily))
+    .reduce((sum, workflow) => sum + workflow.execToday, 0);
+  const emailWorkflowExec7d = n8nWorkflows
+    .filter((workflow) => ["email_fup", "retorno_email"].includes(workflow.workflowFamily))
+    .reduce((sum, workflow) => sum + workflow.exec7d, 0);
+  const linkedinWorkflowExecToday = n8nWorkflows
+    .filter((workflow) =>
+      ["linkedin_conexao", "linkedin_fup", "linkedin_social"].includes(workflow.workflowFamily),
+    )
+    .reduce((sum, workflow) => sum + workflow.execToday, 0);
+  const linkedinWorkflowExec7d = n8nWorkflows
+    .filter((workflow) =>
+      ["linkedin_conexao", "linkedin_fup", "linkedin_social"].includes(workflow.workflowFamily),
+    )
+    .reduce((sum, workflow) => sum + workflow.exec7d, 0);
+  const chartStageData = periodAnalytics
+    ? [
+        { stage: "Prospect", value: periodAnalytics.stageCounts.prospecting },
+        { stage: "Lead Int.", value: periodAnalytics.stageCounts["lead-interessado"] },
+        { stage: "MQL Ag.", value: periodAnalytics.stageCounts["mql-agendado"] },
+        { stage: "Negociação", value: periodAnalytics.stageCounts.negotiation },
+        { stage: "Ganhos", value: periodAnalytics.stageCounts.won },
+      ]
+    : [];
+  const chartTimelineData = periodAnalytics?.timeline ?? [];
 
   return (
     <>
-      <Topbar breadcrumb={["Console Incentiva", "Portal"]} hidePeriodFilter />
+      <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
 
       <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
-                Estado atual
+                {formatPeriodLabel(selectedPeriod)}
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 Atualizado em {dashboard.snapshotLabel}
@@ -364,38 +404,59 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Base e movimento comercial</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Estado atual do pipeline na última leitura útil, sem recorte sintético por período.
+                Recorte real do pipeline conforme o período selecionado, usando a última edição útil da camada comercial.
               </p>
             </div>
             <Activity className="h-3.5 w-3.5 text-primary" />
           </div>
 
           <div className="rounded-2xl border border-border bg-surface p-4">
-            <div className="text-sm font-medium text-display">Base e movimento comercial atual</div>
+            <div className="text-sm font-medium text-display">Base e movimento comercial do recorte</div>
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              Visão resumida do pipeline atual da operação com base na última leitura útil entre
-              Notion e Supabase.
+              O bloco abaixo considera a movimentação real do período filtrado. Cobertura e não iniciados seguem como fotografia atual da base.
             </p>
             <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {cadenceView.metrics.map((metric) => (
-                <PortalMiniMetric
-                  key={metric.id}
-                  label={metric.label}
-                  value={metric.value}
-                  detail={metric.detail}
-                />
-              ))}
+              <PortalMiniMetric
+                label="Não iniciados"
+                value={currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value?.toLocaleString("pt-BR") ?? "0"}
+                detail="Base ainda disponível agora para continuar abastecendo a cadência."
+              />
+              <PortalMiniMetric
+                label="Cobertura em dias"
+                value={currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value?.toLocaleString("pt-BR") ?? "0"}
+                detail="Quanto a base atual sustenta a meta diária de ativações."
+              />
+              <PortalMiniMetric
+                label="Prospects tocados"
+                value={formatNumber(periodAnalytics?.stageCounts.prospecting ?? 0)}
+                detail="Prospects que passaram por atualização útil no período filtrado."
+              />
+              <PortalMiniMetric
+                label="Ativos no recorte"
+                value={formatNumber(periodAnalytics?.touched ?? 0)}
+                detail="Total de movimentos de etapa refletidos no período filtrado."
+              />
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-              {pipelineStages.map((stage) => (
+              {(periodAnalytics
+                ? [
+                    { id: "prospecting", count: periodAnalytics.stageCounts.prospecting },
+                    { id: "lead-interessado", count: periodAnalytics.stageCounts["lead-interessado"] },
+                    { id: "mql-agendado", count: periodAnalytics.stageCounts["mql-agendado"] },
+                    { id: "mql-realizado", count: periodAnalytics.stageCounts["mql-realizado"] },
+                    { id: "negotiation", count: periodAnalytics.stageCounts.negotiation },
+                    { id: "won", count: periodAnalytics.stageCounts.won },
+                    { id: "lost", count: periodAnalytics.stageCounts.lost },
+                  ]
+                : pipelineStages).map((stage) => (
                 <PortalNarrativeCard
                   key={stage.id}
                   label={formatPipelineStageLabel(stage.id)}
                   title={formatNumber(stage.count)}
-                  detail="Volume atual nesta etapa do pipeline."
+                  detail="Volume desta etapa dentro do período selecionado."
                 />
               ))}
             </div>
@@ -407,7 +468,7 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Conversões do mês por etapa</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Conversões calculadas com relação explícita entre origem e destino no acumulado do mês.
+                Conversões calculadas com relação explícita entre origem e destino no período selecionado.
               </p>
             </div>
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -416,23 +477,23 @@ function PortalPage() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PortalMiniMetric
               label="Prospect -> Lead interessado"
-              value={`${formatPercent(firstInterestPct)}%`}
-              detail={`${formatNumber(leadTouched)} leads interessados sobre ${formatNumber(prospectTouched)} prospects tocados no mês.`}
+              value={`${formatPercent(periodAnalytics?.firstInterestPct ?? firstInterestPct)}%`}
+              detail={`${formatNumber(periodAnalytics?.stageCounts["lead-interessado"] ?? leadTouched)} leads interessados sobre ${formatNumber(periodAnalytics?.stageCounts.prospecting ?? prospectTouched)} prospects tocados no período.`}
             />
             <PortalMiniMetric
               label="Lead interessado -> MQL agendado"
-              value={`${formatPercent(scheduledPct)}%`}
-              detail={`${formatNumber(scheduledTouched)} MQLs agendados sobre ${formatNumber(leadTouched)} leads interessados no mês.`}
+              value={`${formatPercent(periodAnalytics?.scheduledPct ?? scheduledPct)}%`}
+              detail={`${formatNumber(periodAnalytics?.stageCounts["mql-agendado"] ?? scheduledTouched)} MQLs agendados sobre ${formatNumber(periodAnalytics?.stageCounts["lead-interessado"] ?? leadTouched)} leads interessados no período.`}
             />
             <PortalMiniMetric
               label="MQL agendado -> Negociação"
-              value={`${formatPercent(negotiationPct)}%`}
-              detail={`${formatNumber(negotiationTouched)} negociações sobre ${formatNumber(scheduledTouched)} reuniões agendadas no mês.`}
+              value={`${formatPercent(periodAnalytics?.negotiationPct ?? negotiationPct)}%`}
+              detail={`${formatNumber(periodAnalytics?.stageCounts.negotiation ?? negotiationTouched)} negociações sobre ${formatNumber(periodAnalytics?.stageCounts["mql-agendado"] ?? scheduledTouched)} reuniões agendadas no período.`}
             />
             <PortalMiniMetric
               label="Negociação -> Cliente ganho"
-              value={`${formatPercent(wonPct)}%`}
-              detail={`${formatNumber(wonTouched)} clientes ganhos sobre ${formatNumber(negotiationTouched)} negociações no mês.`}
+              value={`${formatPercent(periodAnalytics?.wonPct ?? wonPct)}%`}
+              detail={`${formatNumber(periodAnalytics?.stageCounts.won ?? wonTouched)} clientes ganhos sobre ${formatNumber(periodAnalytics?.stageCounts.negotiation ?? negotiationTouched)} negociações no período.`}
             />
           </div>
         </section>
@@ -440,97 +501,156 @@ function PortalPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Atividade por canal</h2>
+              <h2 className="text-sm font-semibold text-display">Conversão por canal no recorte</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Leitura gerencial do que já está observável por canal, sem inventar disparo onde a telemetria ainda não foi homologada.
+                Leitura do período selecionado por canal operacional predominante do registro.
               </p>
             </div>
-            <Activity className="h-3.5 w-3.5 text-primary" />
+            <ChartColumn className="h-3.5 w-3.5 text-primary" />
           </div>
 
           <div className="grid gap-3 xl:grid-cols-3">
             <ChannelActivityCard
-              title="WhatsApp"
-              icon={MessageCircle}
-              detail={
-                evolutionRow
-                  ? "Canal com contagem viva da Evolution por operação nas últimas 24 horas."
-                  : "Canal já visível no runtime, mas sem linha viva consolidada da Evolution neste recorte."
-              }
+              title="E-mail"
+              icon={Mail}
+              detail="Canal medido por estágio atualizado no período, com apoio da telemetria operacional do n8n."
               metrics={[
                 {
-                  label: "Envios 24h",
-                  value: evolutionRow ? formatNumber(evolutionRow.outbound24h) : "n/d",
+                  label: "Prospects tocados",
+                  value: formatNumber(periodAnalytics?.channels.email.touched ?? 0),
                 },
                 {
-                  label: "Respostas 24h",
-                  value: evolutionRow ? formatNumber(evolutionRow.replies24h) : "n/d",
+                  label: "1º interesse",
+                  value: `${formatPercent(periodAnalytics?.channels.email.firstInterestPct ?? 0)}%`,
                 },
                 {
-                  label: "Entregues 24h",
-                  value: evolutionRow ? formatNumber(evolutionRow.delivered24h) : "n/d",
+                  label: "MQL agendado",
+                  value: formatNumber(periodAnalytics?.channels.email.mqlAgendado ?? 0),
                 },
                 {
-                  label: "Erros 24h",
-                  value: evolutionRow ? formatNumber(evolutionRow.errors24h) : "n/d",
+                  label: "Execuções n8n 7d",
+                  value: formatNumber(emailWorkflowExec7d),
                 },
               ]}
-              footer={
-                evolutionRow?.snapshotAt
-                  ? `Última leitura viva: ${new Date(evolutionRow.snapshotAt).toLocaleString("pt-BR")}`
-                  : "Sem snapshot vivo da Evolution para esta operação."
-              }
+              footer={`Hoje: ${formatNumber(emailWorkflowExecToday)} execuções de e-mail no n8n. Waiting atual: ${emailWaitingMetric}.`}
             />
 
             <ChannelActivityCard
-              title="E-mail"
-              icon={Mail}
-              detail="Aqui entram sinais operacionais já observáveis; a contagem viva de disparos por operação ainda não está homologada nesta tela."
+              title="WhatsApp"
+              icon={MessageCircle}
+              detail="Canal medido por estágio atualizado no período, com apoio da telemetria viva da Evolution."
               metrics={[
                 {
-                  label: "Workflows ativos",
-                  value: emailChannel ? `${emailChannel.activeWorkflows}/${emailChannel.totalWorkflows}` : "n/d",
+                  label: "Prospects tocados",
+                  value: formatNumber(periodAnalytics?.channels.whatsapp.touched ?? 0),
                 },
                 {
-                  label: "Waiting",
-                  value: emailWaitingMetric,
+                  label: "1º interesse",
+                  value: `${formatPercent(periodAnalytics?.channels.whatsapp.firstInterestPct ?? 0)}%`,
                 },
                 {
-                  label: "Throughput",
-                  value: emailThroughputMetric,
+                  label: "MQL agendado",
+                  value: formatNumber(periodAnalytics?.channels.whatsapp.mqlAgendado ?? 0),
                 },
                 {
-                  label: "Leitura",
-                  value: "operacional",
+                  label: "Envios Evolution 7d",
+                  value: formatNumber(evolutionOutbound7d),
                 },
               ]}
-              footer="Disparos de e-mail por operação entram só quando a telemetria viva estiver aterrada com verdade."
+              footer={evolutionRow?.snapshotAt
+                ? `24h: ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas, ${formatNumber(evolutionRow.errors24h)} erros.`
+                : "Sem snapshot vivo da Evolution para esta operação."}
             />
 
             <ChannelActivityCard
               title="LinkedIn"
               icon={Workflow}
-              detail="Camada complementar da operação; hoje o Portal mostra atividade observada e não volume vivo de disparos por operação."
+              detail="Canal medido por estágio atualizado no período, com apoio da cadência operacional do n8n."
               metrics={[
                 {
-                  label: "Workflows ativos",
-                  value: linkedinChannel ? `${linkedinChannel.activeWorkflows}/${linkedinChannel.totalWorkflows}` : "n/d",
+                  label: "Prospects tocados",
+                  value: formatNumber(periodAnalytics?.channels.linkedin.touched ?? 0),
                 },
                 {
-                  label: "Saúde",
-                  value: linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d",
+                  label: "1º interesse",
+                  value: `${formatPercent(periodAnalytics?.channels.linkedin.firstInterestPct ?? 0)}%`,
                 },
                 {
-                  label: "Leitura",
-                  value: "assistida",
+                  label: "MQL agendado",
+                  value: formatNumber(periodAnalytics?.channels.linkedin.mqlAgendado ?? 0),
                 },
                 {
-                  label: "Papel",
-                  value: "social selling",
+                  label: "Execuções n8n 7d",
+                  value: formatNumber(linkedinWorkflowExec7d),
                 },
               ]}
-              footer="Disparos e respostas de LinkedIn por operação ainda dependem de camada histórica própria."
+              footer={`Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções ligadas ao LinkedIn no n8n. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
             />
+          </div>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-2">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Funil do recorte</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Etapas atualizadas dentro do período selecionado.
+                </p>
+              </div>
+              <ChartColumn className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <ChartContainer
+              config={{
+                value: {
+                  label: "Volume",
+                  color: "hsl(var(--primary))",
+                },
+              }}
+              className="h-[260px] w-full"
+            >
+              <BarChart data={chartStageData}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="stage" tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="value" radius={[10, 10, 0, 0]} fill="var(--color-value)" />
+              </BarChart>
+            </ChartContainer>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Ritmo diário do recorte</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Movimentação diária das principais viradas do funil no período.
+                </p>
+              </div>
+              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <ChartContainer
+              config={{
+                prospecting: { label: "Prospect", color: "#d4a373" },
+                leadInteressado: { label: "Lead interessado", color: "#588157" },
+                mqlAgendado: { label: "MQL agendado", color: "#457b9d" },
+                won: { label: "Cliente ganho", color: "#1d3557" },
+              }}
+              className="h-[260px] w-full"
+            >
+              <LineChart data={chartTimelineData}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                <Line type="monotone" dataKey="prospecting" stroke="var(--color-prospecting)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="leadInteressado" stroke="var(--color-leadInteressado)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="mqlAgendado" stroke="var(--color-mqlAgendado)" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="won" stroke="var(--color-won)" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ChartContainer>
           </div>
         </section>
 
