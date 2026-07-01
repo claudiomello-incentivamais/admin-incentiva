@@ -100,6 +100,67 @@ function trimDetail(value: string | null | undefined, fallback: string, max = 16
   return `${normalized.slice(0, max - 1)}…`;
 }
 
+function isCommercialWorkflowFamily(workflowFamily: string) {
+  return [
+    "email_fup",
+    "retorno_email",
+    "whatsapp_fup",
+    "linkedin_conexao",
+    "linkedin_fup",
+    "reativacao",
+  ].includes(workflowFamily);
+}
+
+function isCommercialWorkflow(workflow: {
+  workflowFamily: string;
+  workflowName: string;
+}) {
+  if (isCommercialWorkflowFamily(workflow.workflowFamily)) return true;
+  if (
+    ["agente_conversa", "sync_crm", "other"].includes(workflow.workflowFamily) &&
+    /prospec[cç][aã]o ativa/i.test(workflow.workflowName)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function summarizeWorkflowSet(
+  workflows: Array<{
+    active: boolean;
+    execToday: number;
+    exec7d: number;
+    errorToday: number;
+    error7d: number;
+    waitingToday: number;
+    waiting7d: number;
+  }>,
+) {
+  return workflows.reduce(
+    (summary, workflow) => {
+      summary.total += 1;
+      summary.active += workflow.active ? 1 : 0;
+      summary.execToday += workflow.execToday;
+      summary.exec7d += workflow.exec7d;
+      summary.errorToday += workflow.errorToday;
+      summary.error7d += workflow.error7d;
+      summary.waitingToday += workflow.waitingToday;
+      summary.waiting7d += workflow.waiting7d;
+      return summary;
+    },
+    {
+      total: 0,
+      active: 0,
+      execToday: 0,
+      exec7d: 0,
+      errorToday: 0,
+      error7d: 0,
+      waitingToday: 0,
+      waiting7d: 0,
+    },
+  );
+}
+
 function formatPipelineStageLabel(stageId: string) {
   if (stageId === "prospecting") return "Prospect";
   if (stageId === "lead-interessado") return "Lead Interessado";
@@ -189,8 +250,10 @@ function PortalPage() {
   const linkedinChannel = currentCockpit.channels.find((channel) => channel.id === "linkedin") ?? null;
   const n8nOperation = n8n.operations.find((row) => row.operationId === portalOperation.id) ?? null;
   const n8nWorkflows = n8n.workflows.filter((row) => row.operationId === portalOperation.id);
+  const commercialN8nWorkflows = n8nWorkflows.filter(isCommercialWorkflow);
+  const commercialN8nSummary = summarizeWorkflowSet(commercialN8nWorkflows);
   const topN8nWorkflow =
-    [...n8nWorkflows].sort(
+    [...(commercialN8nWorkflows.length > 0 ? commercialN8nWorkflows : n8nWorkflows)].sort(
       (a, b) =>
         b.errorToday - a.errorToday ||
         b.waitingToday - a.waitingToday ||
@@ -262,8 +325,8 @@ function PortalPage() {
       n8n.source !== "live" || !n8nOperation
         ? "A leitura viva do n8n não carregou nesta operação."
         : topN8nWorkflow
-          ? `${formatNumber(n8nOperation.errorToday)} erro(s) hoje, ${formatNumber(n8nOperation.waitingToday)} waiting hoje. Workflow foco: ${topN8nWorkflow.workflowName}. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
-          : `Sem workflow foco consolidado. Hoje: ${formatNumber(n8nOperation.execToday)} execuções, ${formatNumber(n8nOperation.errorToday)} erro(s) e ${formatNumber(n8nOperation.waitingToday)} waiting.`,
+          ? `${formatNumber(commercialN8nSummary.errorToday)} erro(s) e ${formatNumber(commercialN8nSummary.waitingToday)} waiting hoje no runtime comercial. Workflow foco: ${topN8nWorkflow.workflowName}. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
+          : `Sem workflow foco consolidado. Hoje: ${formatNumber(commercialN8nSummary.execToday)} execuções, ${formatNumber(commercialN8nSummary.errorToday)} erro(s) e ${formatNumber(commercialN8nSummary.waitingToday)} waiting no runtime comercial.`,
     lastSync:
       n8n.source === "live"
         ? n8n.snapshotLabel
@@ -274,16 +337,16 @@ function PortalPage() {
       {
         label: "Ativos",
         value: n8nOperation
-          ? `${formatNumber(n8nOperation.activeWorkflowCount)}/${formatNumber(n8nOperation.workflowCount)}`
+          ? `${formatNumber(commercialN8nSummary.active)}/${formatNumber(commercialN8nSummary.total)}`
           : "Sem leitura",
       },
       {
         label: "Execuções hoje",
-        value: n8nOperation ? formatNumber(n8nOperation.execToday) : "Sem leitura",
+        value: n8nOperation ? formatNumber(commercialN8nSummary.execToday) : "Sem leitura",
       },
       {
         label: "Execuções 7d",
-        value: n8nOperation ? formatNumber(n8nOperation.exec7d) : "Sem leitura",
+        value: n8nOperation ? formatNumber(commercialN8nSummary.exec7d) : "Sem leitura",
       },
       {
         label: "Erro foco",
@@ -295,7 +358,7 @@ function PortalPage() {
         ? "Restabelecer a telemetria viva do n8n antes de usar este bloco para decisão."
         : topN8nWorkflow && (topN8nWorkflow.errorToday > 0 || topN8nWorkflow.waitingToday > 0 || topN8nWorkflow.error7d > 0)
           ? `Abrir ${topN8nWorkflow.workflowName} e tratar ${topN8nWorkflow.errorToday > 0 ? "erro" : "waiting"} com base na última mensagem registrada.`
-          : "Sem erro material agora; acompanhar throughput e waiting pela janela técnica.",
+          : "Sem erro material agora; acompanhar throughput e waiting dos workflows comerciais pela janela técnica.",
   };
   const evolutionLiveCard = {
     id: "evolution" as const,
@@ -314,7 +377,7 @@ function PortalPage() {
       evolution.source !== "live" || !evolutionRow
         ? "A leitura viva da Evolution não carregou nesta operação."
         : topEvolutionInstance
-          ? `${topEvolutionInstance.instanceName} está em ${topEvolutionInstance.severity}. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
+          ? `${topEvolutionInstance.instanceName} está em ${topEvolutionInstance.severity}. 24h: ${formatNumber(topEvolutionInstance.outbound24h)} envios, ${formatNumber(topEvolutionInstance.inbound24h)} inbound, ${formatNumber(topEvolutionInstance.replyContacts24h)} contatos com resposta, ${formatNumber(topEvolutionInstance.errors24h)} erro(s) e ${formatNumber(topEvolutionInstance.stalled24h)} item(ns) parados. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
           : `Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
     lastSync:
       evolution.source === "live"
@@ -334,8 +397,8 @@ function PortalPage() {
         value: evolutionRow ? formatNumber(evolutionRow.outbound24h) : "Sem leitura",
       },
       {
-        label: "Respostas 24h",
-        value: evolutionRow ? formatNumber(evolutionRow.replies24h) : "Sem leitura",
+        label: "Inbound 24h",
+        value: topEvolutionInstance ? formatNumber(topEvolutionInstance.inbound24h) : "Sem leitura",
       },
       {
         label: "Instância foco",
@@ -827,7 +890,10 @@ function PortalPage() {
                 />
               </div>
               <div className="mt-3">
-                <ChannelAttributionNote unattributedCount={periodAnalytics.unattributedStageCount} />
+                <ChannelAttributionNote
+                  unattributedCount={periodAnalytics.unattributedStageCount}
+                  fallbackCount={periodAnalytics.attributionFallbackCount}
+                />
               </div>
             </>
           ) : (
@@ -1141,14 +1207,19 @@ function ChannelActivityCard({
 
 function ChannelAttributionNote({
   unattributedCount,
+  fallbackCount,
 }: {
   unattributedCount: number;
+  fallbackCount: number;
 }) {
   return (
     <div className="rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
       Atribuição por canal prioriza o campo <span className="font-medium text-foreground">Canal</span> do registro.
       Quando ele não existe, o Portal usa também sinais das colunas de `status_email`, `status_linkedin`,
-      `status_whatsapp` e do `Disparo Mensagem` para não zerar canal por falta de marcação perfeita.
+      `status_whatsapp`, do `Disparo Mensagem` e, quando possível, fallback por empresa para não zerar canal por falta de marcação perfeita.
+      {fallbackCount > 0
+        ? ` Neste recorte, ${formatNumber(fallbackCount)} viradas precisaram desse fallback por empresa.`
+        : ""}
       {unattributedCount > 0
         ? ` Neste recorte, ${formatNumber(unattributedCount)} viradas ficaram fora da conversão por canal por falta de atribuição clara.`
         : " Neste recorte, não houve viradas excluídas por ambiguidade de canal."}

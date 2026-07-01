@@ -84,6 +84,7 @@ export interface PortalPeriodSummary {
   negotiationPct: number;
   wonPct: number;
   channels: Record<ChannelId, PortalChannelPeriodSummary>;
+  attributionFallbackCount: number;
   unattributedStageCount: number;
   timeline: PortalTimelinePoint[];
 }
@@ -371,6 +372,7 @@ function createPeriodSummary(period: PortalPeriodPreset): PortalPeriodSummary {
       linkedin: createChannelSummary("linkedin"),
       whatsapp: createChannelSummary("whatsapp"),
     },
+    attributionFallbackCount: 0,
     unattributedStageCount: 0,
     timeline: [],
   };
@@ -443,12 +445,22 @@ export async function loadPortalAnalytics(params: {
   ]);
 
   const baseMaps = new Map<string, Map<string, LeadsBaseRow>>();
+  const companyBaseMaps = new Map<string, Map<string, LeadsBaseRow[]>>();
   leadRows.forEach((row) => {
     const leadKey = normalizeLeadKey(row.nome, row.empresa);
     if (!leadKey) return;
     const current = baseMaps.get(row.operation_name) ?? new Map<string, LeadsBaseRow>();
     current.set(leadKey, row);
     baseMaps.set(row.operation_name, current);
+
+    const normalizedCompany = normalizeText(row.empresa);
+    if (!normalizedCompany) return;
+    const operationCompanyMap =
+      companyBaseMaps.get(row.operation_name) ?? new Map<string, LeadsBaseRow[]>();
+    const companyRows = operationCompanyMap.get(normalizedCompany) ?? [];
+    companyRows.push(row);
+    operationCompanyMap.set(normalizedCompany, companyRows);
+    companyBaseMaps.set(row.operation_name, operationCompanyMap);
   });
 
   const snapshotMaps = new Map<string, Map<string, NotionSnapshotRow>>();
@@ -468,6 +480,8 @@ export async function loadPortalAnalytics(params: {
     ) as Record<PortalPeriodPreset, PortalPeriodSummary>;
 
     const operationBaseMap = baseMaps.get(operation.name) ?? new Map<string, LeadsBaseRow>();
+    const operationCompanyMap =
+      companyBaseMaps.get(operation.name) ?? new Map<string, LeadsBaseRow[]>();
     const operationSnapshotMap = snapshotMaps.get(operation.name) ?? new Map<string, NotionSnapshotRow>();
 
     notionRows
@@ -478,7 +492,18 @@ export async function loadPortalAnalytics(params: {
         const editedAt = new Date(row.last_edited_at);
         if (Number.isNaN(editedAt.getTime())) return;
         const leadKey = normalizeLeadKey(row.nome, row.empresa);
-        const baseRow = leadKey ? operationBaseMap.get(leadKey) ?? null : null;
+        let baseRow = leadKey ? operationBaseMap.get(leadKey) ?? null : null;
+        let usedCompanyFallback = false;
+        if (!baseRow) {
+          const normalizedCompany = normalizeText(row.empresa);
+          const companyRows = normalizedCompany
+            ? operationCompanyMap.get(normalizedCompany) ?? []
+            : [];
+          if (companyRows.length === 1) {
+            [baseRow] = companyRows;
+            usedCompanyFallback = true;
+          }
+        }
         const snapshotRow =
           (row.page_id ? operationSnapshotMap.get(row.page_id) : null) ??
           (leadKey ? operationSnapshotMap.get(leadKey) ?? null : null);
@@ -502,6 +527,9 @@ export async function loadPortalAnalytics(params: {
           if (editedAt < periodStart(period, now)) return;
           const summary = operationPeriods[period];
           summary.stageCounts[stageId] += 1;
+          if (usedCompanyFallback) {
+            summary.attributionFallbackCount += 1;
+          }
 
           if (dispatchChannel) {
             summary.channels[dispatchChannel].dispatches += 1;
