@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Building2,
-  ChevronRight,
   Info,
   MessageSquareShare,
   SquareKanban,
@@ -19,7 +18,6 @@ import {
 import { Topbar } from "@/components/admin/Topbar";
 import { ActionPacketCard } from "@/components/admin/action-packet-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   useAdminFilters,
   formatPeriodLabel,
@@ -133,6 +131,8 @@ function AdminGlobal() {
     filteredDistribution.monitor +
     filteredDistribution.risk +
     filteredDistribution.critical;
+  const topPriority = executiveQueue[0] ?? null;
+  const topFocusArea = executiveFocusAreas[0] ?? null;
   const actionPackets =
     activeOperation && activeActionPlan
       ? [
@@ -196,8 +196,7 @@ function AdminGlobal() {
               Visão Consolidada de Operações
             </h1>
             <p className="text-sm text-muted-foreground max-w-xl">
-              Governança operacional e performance comercial consolidadas com leitura por operação,
-              score explicável e próximo passo sugerido.
+              Painel executivo para identificar onde a carteira está travando e qual ação deve abrir primeiro.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -218,44 +217,52 @@ function AdminGlobal() {
         <section className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="surface-card p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge
-                variant="outline"
-                className="h-5 text-[10px] uppercase tracking-[0.16em]"
-              >
+              <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
                 {formatVisibilityModeLabel(selectedVisibilityMode)}
               </Badge>
-              <Badge
-                variant="outline"
-                className="h-5 text-[10px] uppercase tracking-[0.16em]"
-              >
+              <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
                 {dashboard.source === "live" ? "Live" : "Snapshot"}
               </Badge>
             </div>
-            <h2 className="mt-3 text-sm font-semibold text-display">
-              Leitura ativa deste cockpit
+            <div className="mt-3 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Prioridade dominante
+            </div>
+            <h2 className="mt-1 text-sm font-semibold text-display">
+              {topPriority?.title ?? "Sem prioridade crítica aberta neste recorte"}
             </h2>
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              {selectedVisibilityMode === "internal"
-                ? "Interno completo mantém contexto executivo, checkpoints sensíveis, gargalos e ação prática da operação."
-                : "Cliente-safe preserva o recorte apresentável para leitura externa, sem abrir governança interna e bastidor de execução."}
+              {topPriority?.detail ??
+                "O recorte atual não publicou um bloqueio dominante novo. Use a fila abaixo para aprofundar."}
             </p>
+            {topPriority ? (
+              <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Próximo passo
+                </div>
+                <div className="mt-1 text-[12px] leading-relaxed text-foreground">
+                  {topPriority.nextStep}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="surface-card p-4">
             <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Fonte de leitura
+              Alavanca transversal
             </div>
             <h2 className="mt-3 text-sm font-semibold text-display">
-              {dashboard.source === "live"
-                ? "Esta visão já está apoiada em leitura viva da governança."
-                : "Esta visão ainda está em snapshot fallback governado."}
+              {topFocusArea?.headline ?? "Sem alavanca transversal dominante neste corte"}
             </h2>
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              {dashboard.source === "live"
-                ? "O painel já conseguiu puxar a view ativa do Supabase para consolidar carteira, score, cobertura e reconciliação."
-                : "Quando a leitura viva não sobe, o painel mantém um retrato seguro para não te deixar cego, mas sem prometer tempo real onde ele ainda não existe."}{" "}
-              O período atual já recorta a leitura desta tela.
+              {topFocusArea?.detail ??
+                "Conforme as operações forem sendo filtradas, esta área passa a mostrar a frente com maior impacto cruzado."}
             </p>
+            {topFocusArea ? (
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-3 py-3 text-[12px]">
+                <span className="text-muted-foreground">{topFocusArea.owner}</span>
+                <span className="font-medium text-foreground">{topFocusArea.channel}</span>
+              </div>
+            ) : null}
           </div>
         </section>
 
@@ -317,9 +324,9 @@ function AdminGlobal() {
           <section className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Camada de ação prática</h2>
+                <h2 className="text-sm font-semibold text-display">Ações prontas</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Pacotes prontos para transformar leitura em ação sem perder contexto na transição.
+                  Textos e registros já mastigados para transformar leitura em execução.
                 </p>
               </div>
               <Target className="h-3.5 w-3.5 text-primary" />
@@ -343,12 +350,9 @@ function AdminGlobal() {
                 <p className="text-[11px] text-muted-foreground mt-0.5">
                   {isSingleOperationView
                     ? "Recorte exclusivo da operação filtrada"
-                    : "Ordenado por score crescente · pior performance primeiro"}
+                    : "Ordenado por score crescente para mostrar primeiro onde a carteira mais exige intervenção"}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-muted-foreground">
-                Ver tudo <ChevronRight className="h-3 w-3" />
-              </Button>
             </div>
 
             <div className="overflow-x-auto">
@@ -476,12 +480,12 @@ function ExecutiveCommandCenter({
   queue: ExecutiveCommandItem[];
 }) {
   return (
-    <div className="surface-card p-5">
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-sm font-semibold text-display">Fila Executiva de Ação</h2>
+          <div className="surface-card p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+          <h2 className="text-sm font-semibold text-display">Fila prioritária</h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            O que já deveria estar aberto como ação prática agora
+            O que já deveria estar aberto agora na operação ou no Trello.
           </p>
         </div>
         <Badge variant="secondary" className="text-[10px] text-mono h-5">
@@ -551,11 +555,11 @@ function ExecutiveFocusBoard({
 }) {
   return (
     <div className="surface-card p-5">
-      <div className="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-sm font-semibold text-display">Alavancas Transversais</h2>
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div>
+          <h2 className="text-sm font-semibold text-display">Frentes transversais</h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Onde o admin já consegue coordenar a próxima rodada
+            Temas que puxam melhoria em mais de uma operação ao mesmo tempo.
           </p>
         </div>
         <Target className="h-3.5 w-3.5 text-primary" />
@@ -609,7 +613,7 @@ function OperationDiagnosticCard({
         <div>
           <h2 className="text-sm font-semibold text-display">Diagnóstico acionável</h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Clique na operação no ranking para entender o score e o próximo passo.
+            Clique na operação no ranking para ver o que está puxando o score e qual ação abrir.
           </p>
         </div>
         <Badge variant="outline" className="text-[10px] uppercase tracking-[0.16em] h-5">
@@ -917,7 +921,7 @@ function ExecutiveInsights({
         <div>
           <h2 className="text-sm font-semibold text-display">Resumo Executivo</h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Alertas e tendências priorizadas
+            Alertas e tendências que realmente merecem atenção agora.
           </p>
         </div>
         <Badge variant="secondary" className="text-[10px] text-mono h-5">
