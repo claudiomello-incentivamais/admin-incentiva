@@ -148,7 +148,6 @@ function buildHeaders(config: SupabaseClientConfig, extra?: HeadersInit) {
     apikey: config.accessKey,
     Authorization: `Bearer ${config.accessKey}`,
     Accept: "application/json",
-    "Accept-Profile": "governance",
     ...extra,
   };
 }
@@ -159,7 +158,7 @@ async function fetchAllRows<T>(
   select: string,
   operationNames: string[],
 ): Promise<T[]> {
-  const pageSize = 2000;
+  const pageSize = 1000;
   let offset = 0;
   const rows: T[] = [];
 
