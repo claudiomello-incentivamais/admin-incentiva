@@ -34,7 +34,6 @@ import {
 } from "@/lib/admin-auth-rpc";
 import { cn } from "@/lib/utils";
 import {
-  ACCESS_DIRECTORY,
   ACCESS_PACKAGE_LABELS,
   ACCESS_ROUTE_PACKAGES,
   ACCESS_REGISTRY_STATUS_LABELS,
@@ -47,7 +46,6 @@ import {
   defaultOperationScopeForProfile,
   defaultVisibilityForProfile,
   formatAllowedRouteLabels,
-  formatAccessStatusLabel,
   type AccessInvitePreview,
   type AccessRegistrySnapshot,
   type AccessScopeMode,
@@ -134,27 +132,33 @@ const settings = {
   profiles: [
     {
       title: "Direção",
-      scope: "Carteira inteira + governança + suporte + faturamento",
-      publish: "Pode ver tudo",
-      portal: "Não usa portal; usa admin completo",
+      scope: "Vê a carteira inteira e a camada executiva do sistema.",
+      publish: "Acompanha o todo",
+      portal: "Não depende de recorte por conta",
     },
     {
       title: "Claw/main",
-      scope: "Leitura e edição estrutural do sistema",
-      publish: "Pode validar corte e publish",
-      portal: "Pode preparar e homologar o portal",
+      scope: "Opera integrações, governança e ajustes estruturais.",
+      publish: "Homologa e corrige",
+      portal: "Prepara e valida o recorte",
     },
     {
       title: "Sales Ops",
-      scope: "Só operações atribuídas e suas frentes de execução",
-      publish: "Leitura autenticada por escopo",
-      portal: "Pode operar o portal da própria carteira",
+      scope: "Vê a carteira inteira em visão operacional.",
+      publish: "Opera sem abrir a camada técnica",
+      portal: "Acompanha o recorte das contas",
+    },
+    {
+      title: "SDR",
+      scope: "Vê somente as operações explicitamente liberadas.",
+      publish: "Não herda a carteira inteira",
+      portal: "Entra no recorte operacional do que foi liberado",
     },
     {
       title: "Cliente",
-      scope: "Só a própria operação e leitura externa homologada",
-      publish: "Leitura privada e limitada",
-      portal: "Consome o portal da própria conta",
+      scope: "Vê somente a própria conta, em leitura externa controlada.",
+      publish: "Não acessa o admin interno",
+      portal: "Entra na área da própria conta",
     },
   ],
   publishStages: [
@@ -295,14 +299,19 @@ function SettingsPage() {
   const [isRegistryLoading, setIsRegistryLoading] = useState(false);
   const [revokingRegistryId, setRevokingRegistryId] = useState<string | null>(null);
 
-  const effectiveInviteScopeMode =
-    inviteProfileId === "direcao" || inviteProfileId === "claw" ? "all" : inviteScopeMode;
+  const isFullPortfolioProfile =
+    inviteProfileId === "direcao" || inviteProfileId === "claw" || inviteProfileId === "sales_ops";
+  const effectiveInviteScopeMode = isFullPortfolioProfile
+    ? "all"
+    : inviteProfileId === "cliente"
+      ? "single"
+      : "multi";
 
   const inviteOperationScope =
     effectiveInviteScopeMode === "all" ? "all" : inviteOperationIds;
 
   const inviteMessage = inviteResult
-    ? `Acesso liberado para ${inviteResult.name}\nPerfil: ${ACCESS_PROFILE_LABELS[inviteResult.profileId]}\nNível: ${ACCESS_SCOPE_LABELS[resolveAccessScopeMode(inviteResult.operationIds)]}\nPacote: ${ACCESS_PACKAGE_LABELS[inviteResult.accessPackageId]}\nOperações: ${formatOperationScope(inviteResult.operationIds)}\nLink: ${inviteResult.inviteUrl}\nValidade: ${new Date(inviteResult.expiresAt).toLocaleString("pt-BR")}`
+    ? `Acesso liberado para ${inviteResult.name}\nE-mail: ${inviteResult.email}\nPerfil: ${ACCESS_PROFILE_LABELS[inviteResult.profileId]}\nEscopo: ${formatOperationScope(inviteResult.operationIds)}\nVisão liberada: ${ACCESS_PACKAGE_LABELS[inviteResult.accessPackageId]}\nLink: ${inviteResult.inviteUrl}\nValidade: ${new Date(inviteResult.expiresAt).toLocaleString("pt-BR")}`
     : "";
 
   useEffect(() => {
@@ -367,8 +376,8 @@ function SettingsPage() {
     }
 
     const nextOperationIds =
-      defaultScope.length > 0 ? defaultScope : ["incentiva"];
-    setInviteScopeMode(profileId === "cliente" ? "single" : nextOperationIds.length > 1 ? "multi" : "single");
+      defaultScope.length > 0 ? defaultScope : profileId === "cliente" ? ["incentiva"] : [];
+    setInviteScopeMode(profileId === "cliente" ? "single" : "multi");
     setInviteOperationIds(nextOperationIds);
   };
 
@@ -589,145 +598,37 @@ function SettingsPage() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-[1fr_1fr] gap-4">
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Perfis e visibilidade</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Base material do Bloco 4 para separar direção, operação e leitura cliente.
-                </p>
-              </div>
-              <UserRoundCog className="h-3.5 w-3.5 text-primary" />
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Perfis de acesso</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                O perfil define automaticamente o que a pessoa pode ver e quantas operações ela pode abrir.
+              </p>
             </div>
-
-            <div className="space-y-3">
-              {settings.profiles.map((profile) => (
-                <div key={profile.title} className="rounded-xl border border-border bg-surface p-4">
-                  <div className="text-sm font-medium">{profile.title}</div>
-                  <div className="mt-2 space-y-2 text-[12px] text-muted-foreground">
-                    <p><span className="text-foreground font-medium">Escopo:</span> {profile.scope}</p>
-                    <p><span className="text-foreground font-medium">Publish:</span> {profile.publish}</p>
-                    <p><span className="text-foreground font-medium">Portal:</span> {profile.portal}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <UserRoundCog className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Diretório de acessos</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Primeira camada concreta para sair de chave compartilhada e evoluir para acesso por pessoa e por conta.
-                </p>
-              </div>
-              <KeyRound className="h-3.5 w-3.5 text-primary" />
-            </div>
-
-            <div className="space-y-3">
-              {ACCESS_DIRECTORY.map((entry) => (
-                <div key={entry.id} className="rounded-xl border border-border bg-surface p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-medium">{entry.name}</div>
-                      <div className="mt-1 text-[12px] text-muted-foreground">{entry.email}</div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
-                        {ACCESS_PROFILE_LABELS[entry.profileId]}
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className="h-5 text-[10px] uppercase tracking-[0.16em] border-primary/30 text-primary"
-                      >
-                        {formatAccessStatusLabel(entry.status)}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Escopo
-                      </div>
-                      <div className="mt-1 text-[12px] text-foreground">{entry.scopeLabel}</div>
-                    </div>
-                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Operações
-                      </div>
-                      <div className="mt-1 text-[12px] text-foreground">
-                        {formatOperationScope(entry.operationIds)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Audiência
-                      </div>
-                      <div className="mt-1 text-[12px] text-foreground">{entry.audienceLabel}</div>
-                    </div>
-                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Modo padrão
-                      </div>
-                      <div className="mt-1 text-[12px] text-foreground">
-                        {entry.defaultVisibility === "internal" ? "Interno completo" : "Cliente-safe"}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Nível de acesso
-                      </div>
-                      <div className="mt-1 text-[12px] text-foreground">
-                        {ACCESS_SCOPE_LABELS[resolveAccessScopeMode(entry.operationIds)]}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Pacote
-                      </div>
-                      <div className="mt-1 text-[12px] text-foreground">
-                        {ACCESS_PACKAGE_LABELS[entry.accessPackageId]}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 rounded-lg border border-border bg-background/80 px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Módulos liberados
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {formatAllowedRouteLabels(entry.allowedRoutes).map((label) => (
-                        <Badge key={`${entry.id}-${label}`} variant="secondary" className="h-5 text-[10px]">
-                          {label}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
-                    {entry.notes}
-                  </p>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {settings.profiles.map((profile) => (
+              <div key={profile.title} className="rounded-xl border border-border bg-surface p-4">
+                <div className="text-sm font-medium">{profile.title}</div>
+                <div className="mt-2 space-y-2 text-[12px] text-muted-foreground">
+                  <p>{profile.scope}</p>
+                  <p>{profile.publish}</p>
+                  <p>{profile.portal}</p>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
         </section>
 
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Administração de convites</h2>
+              <h2 className="text-sm font-semibold text-display">Convidar acesso</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Direção e Claw já podem emitir link com perfil, escopo e validade para abrir a sessão restrita sem depender de chave compartilhada.
+                Aqui você gera um link de acesso e envia para a pessoa por WhatsApp ou e-mail. Hoje o convite abre uma sessão controlada; ainda não existe senha própria por usuário nesta etapa.
               </p>
             </div>
             <KeyRound className="h-3.5 w-3.5 text-primary" />
@@ -741,21 +642,24 @@ function SettingsPage() {
             <>
               <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
                 <div className="rounded-2xl border border-border bg-surface p-4">
+                <div className="mb-4 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-[12px] text-muted-foreground">
+                  Fluxo: você informa <span className="text-foreground font-medium">nome</span>, <span className="text-foreground font-medium">e-mail real</span>, escolhe o <span className="text-foreground font-medium">perfil</span>, define as <span className="text-foreground font-medium">operações</span> quando fizer sentido e gera um <span className="text-foreground font-medium">link</span> para enviar.
+                </div>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Nome
+                      Nome da pessoa
                     </label>
                     <Input
                       value={inviteName}
                       onChange={(event) => setInviteName(event.target.value)}
-                      placeholder="Ex.: SDR Prime Action"
+                      placeholder="Ex.: João Silva"
                       className="bg-background"
                     />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      E-mail
+                      E-mail real
                     </label>
                     <Input
                       type="email"
@@ -767,7 +671,7 @@ function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                       Perfil
@@ -778,7 +682,8 @@ function SettingsPage() {
                       className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     >
                       <option value="cliente">Cliente</option>
-                      <option value="sales">Sales Ops / SDR</option>
+                      <option value="sdr">SDR</option>
+                      <option value="sales_ops">Sales Ops</option>
                       <option value="direcao">Direção</option>
                       <option value="claw">Claw/main</option>
                     </select>
@@ -786,67 +691,12 @@ function SettingsPage() {
 
                   <div className="space-y-2">
                     <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Modo padrão
+                      Regra de acesso
                     </label>
-                    <select
-                      value={inviteVisibility}
-                      onChange={(event) => setInviteVisibility(event.target.value as VisibilityMode)}
-                      disabled={inviteProfileId === "cliente"}
-                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <option value="internal">Interno completo</option>
-                      <option value="client">Cliente-safe</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Pacote de acesso
-                    </label>
-                    <select
-                      value={inviteAccessPackageId}
-                      onChange={(event) => setInviteAccessPackageId(event.target.value as keyof typeof ACCESS_ROUTE_PACKAGES)}
-                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      {Object.entries(ACCESS_ROUTE_PACKAGES).map(([packageId, pkg]) => (
-                        <option key={packageId} value={packageId}>
-                          {pkg.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      {ACCESS_ROUTE_PACKAGES[inviteAccessPackageId].description}
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                      Nível de acesso
-                    </label>
-                    <select
-                      value={effectiveInviteScopeMode}
-                      onChange={(event) => {
-                        const nextMode = event.target.value as AccessScopeMode;
-                        setInviteScopeMode(nextMode);
-                        if (nextMode === "single") {
-                          setInviteOperationIds((current) => [current[0] ?? "incentiva"]);
-                        }
-                      }}
-                      disabled={inviteProfileId === "direcao" || inviteProfileId === "claw"}
-                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {inviteProfileId === "direcao" || inviteProfileId === "claw" ? (
-                        <option value="all">{ACCESS_SCOPE_LABELS.all}</option>
-                      ) : (
-                        <>
-                          <option value="single">{ACCESS_SCOPE_LABELS.single}</option>
-                          <option value="multi">{ACCESS_SCOPE_LABELS.multi}</option>
-                        </>
-                      )}
-                    </select>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground">
-                      {ACCESS_SCOPE_DESCRIPTIONS[effectiveInviteScopeMode]}
-                    </p>
+                    <div className="rounded-xl border border-input bg-background px-3 py-2 text-sm text-foreground min-h-10 flex items-center">
+                      {ACCESS_SCOPE_LABELS[effectiveInviteScopeMode]}
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">{ACCESS_SCOPE_DESCRIPTIONS[effectiveInviteScopeMode]}</p>
                   </div>
 
                   <div className="space-y-2">
@@ -872,14 +722,14 @@ function SettingsPage() {
                   </div>
                   {inviteOperationScope === "all" ? (
                     <p className="mt-2 text-[12px] text-muted-foreground">
-                      Este perfil herda carteira inteira.
+                      Este perfil já enxerga a carteira inteira por padrão.
                     </p>
                   ) : (
                     <div className="mt-3">
                       <p className="mb-3 text-[12px] text-muted-foreground">
                         {effectiveInviteScopeMode === "single"
-                          ? "Selecione a operação exclusiva que esta pessoa poderá abrir."
-                          : "Selecione o conjunto de operações que ficará liberado para esta pessoa."}
+                          ? "Escolha a única operação que esta pessoa poderá abrir."
+                          : "Escolha uma ou mais operações liberadas para esta pessoa."}
                       </p>
                       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                       {ACCESS_OPERATION_OPTIONS.map((operation) => {
@@ -910,44 +760,9 @@ function SettingsPage() {
                   )}
                 </div>
 
-                <div className="mt-4 rounded-xl border border-border bg-background/80 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    Módulos liberados
-                  </div>
-                  <p className="mt-2 text-[12px] text-muted-foreground">
-                    {inviteProfileId === "direcao" || inviteProfileId === "claw"
-                      ? "Para direção e Claw, o pacote sobe completo."
-                      : "Escolha quais telas deste pacote ficam liberadas para esta pessoa."}
-                  </p>
-                  <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    {ACCESS_ROUTE_PACKAGES[inviteAccessPackageId].allowedRoutes.map((route) => {
-                      const checked = inviteAllowedRoutes.includes(route);
-                      const label = formatAllowedRouteLabels([route])[0];
-                      return (
-                        <label
-                          key={`invite-route-${route}`}
-                          className={cn(
-                            "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] transition-colors",
-                            checked
-                              ? "border-primary/40 bg-primary/5 text-foreground"
-                              : "border-border bg-background text-muted-foreground",
-                            inviteProfileId === "direcao" || inviteProfileId === "claw"
-                              ? "cursor-not-allowed opacity-75"
-                              : "cursor-pointer",
-                          )}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleAllowedRoute(route)}
-                            disabled={inviteProfileId === "direcao" || inviteProfileId === "claw"}
-                            className="h-3.5 w-3.5"
-                          />
-                          <span>{label}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                <div className="mt-4 rounded-xl border border-border bg-background/80 p-4 text-[12px] text-muted-foreground">
+                  <span className="text-foreground font-medium">Visão liberada:</span>{" "}
+                  {ACCESS_PACKAGE_LABELS[inviteAccessPackageId]}. O sistema define isso automaticamente com base no perfil para evitar erro de configuração.
                 </div>
 
                 {inviteError && (
@@ -962,7 +777,7 @@ function SettingsPage() {
                     onClick={handleCreateInvite}
                     disabled={isInviteSubmitting}
                   >
-                    {isInviteSubmitting ? "Gerando convite..." : "Gerar convite governado"}
+                    {isInviteSubmitting ? "Gerando link..." : "Gerar link de acesso"}
                   </Button>
                   <Button
                     type="button"
@@ -978,9 +793,7 @@ function SettingsPage() {
               </div>
 
               <div className="rounded-2xl border border-border bg-surface p-4">
-                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  Saída pronta
-                </div>
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">Link pronto para envio</div>
                 {inviteResult ? (
                   <div className="mt-3 space-y-4">
                     <div className="rounded-xl border border-border bg-background/80 p-4">
@@ -999,7 +812,7 @@ function SettingsPage() {
                         </div>
                         <div>
                           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Escopo
+                            Operações
                           </div>
                           <div className="mt-1 text-[12px] text-foreground">
                             {formatOperationScope(inviteResult.operationIds)}
@@ -1015,22 +828,10 @@ function SettingsPage() {
                         </div>
                         <div className="md:col-span-2">
                           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Pacote de acesso
+                            Visão liberada
                           </div>
                           <div className="mt-1 text-[12px] text-foreground">
                             {ACCESS_PACKAGE_LABELS[inviteResult.accessPackageId]}
-                          </div>
-                        </div>
-                        <div className="md:col-span-2">
-                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                            Módulos liberados
-                          </div>
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {formatAllowedRouteLabels(inviteResult.allowedRoutes).map((label) => (
-                              <Badge key={`${inviteResult.identityId}-${label}`} variant="secondary" className="h-5 text-[10px]">
-                                {label}
-                              </Badge>
-                            ))}
                           </div>
                         </div>
                       </div>
@@ -1048,7 +849,7 @@ function SettingsPage() {
 
                     <div className="space-y-2">
                       <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                        Texto pronto para e-mail ou WhatsApp
+                        Texto pronto para enviar
                       </label>
                       <Textarea readOnly value={inviteMessage} className="min-h-[150px] bg-background text-[12px]" />
                     </div>
@@ -1066,7 +867,7 @@ function SettingsPage() {
                   </div>
                 ) : (
                   <div className="mt-3 rounded-xl border border-dashed border-border bg-background/60 p-4 text-[12px] text-muted-foreground">
-                    Gere um convite para receber aqui o link de acesso, o resumo do perfil e um texto pronto para distribuição.
+                    Gere um link para receber aqui o resumo do acesso e um texto pronto para distribuição.
                   </div>
                 )}
                 </div>
@@ -1075,9 +876,9 @@ function SettingsPage() {
               <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold text-display">Registry persistido</div>
+                  <div className="text-sm font-semibold text-display">Acessos emitidos</div>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    Camada para listar, revogar e acompanhar convites emitidos fora da sessão assinada local.
+                    Aqui aparecem apenas convites reais emitidos. Nada de e-mail exemplo ou diretório fictício.
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1114,11 +915,11 @@ function SettingsPage() {
 
               {!registrySnapshot?.configured ? (
                 <div className="mt-4 rounded-xl border border-dashed border-border bg-background/60 p-4 text-[12px] text-muted-foreground">
-                  O fluxo de convite segue funcionando, mas a persistência server-side ainda não está ligada. Quando a chave de serviço estiver configurada, esta área passa a mostrar histórico, aceite e revogação real.
+                  O link funciona, mas o histórico ainda não está salvo no backend.
                 </div>
               ) : registrySnapshot.entries.length === 0 ? (
                 <div className="mt-4 rounded-xl border border-dashed border-border bg-background/60 p-4 text-[12px] text-muted-foreground">
-                  Nenhum convite persistido apareceu ainda no registry.
+                  Nenhum acesso foi emitido ainda.
                 </div>
               ) : (
                 <div className="mt-4 space-y-3">
@@ -1156,7 +957,7 @@ function SettingsPage() {
                             label="Nível"
                             value={ACCESS_SCOPE_LABELS[resolveAccessScopeMode(entry.operationIds)]}
                           />
-                          <RegistryMeta label="Pacote" value={ACCESS_PACKAGE_LABELS[entry.accessPackageId]} />
+                          <RegistryMeta label="Visão" value={ACCESS_PACKAGE_LABELS[entry.accessPackageId]} />
                           <RegistryMeta label="Operações" value={formatOperationScope(entry.operationIds)} />
                           <RegistryMeta
                             label="Emitido em"
@@ -1166,14 +967,6 @@ function SettingsPage() {
                             label="Expira em"
                             value={new Date(entry.inviteExpiresAt).toLocaleString("pt-BR")}
                           />
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {formatAllowedRouteLabels(entry.allowedRoutes).map((label) => (
-                            <Badge key={`${entry.id}-route-${label}`} variant="secondary" className="h-5 text-[10px]">
-                              {label}
-                            </Badge>
-                          ))}
                         </div>
 
                         <div className="mt-3 text-[12px] text-muted-foreground">
@@ -1212,9 +1005,9 @@ function SettingsPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Pacotes e cascata de permissão</h2>
+              <h2 className="text-sm font-semibold text-display">Visões de acesso</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Aqui fica explícito o que cada pacote abre hoje no console, para não depender de memória ou leitura implícita de rota.
+                Resumo do que cada tipo de acesso libera hoje no produto.
               </p>
             </div>
             <ShieldCheck className="h-3.5 w-3.5 text-primary" />
@@ -1243,9 +1036,9 @@ function SettingsPage() {
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Privacidade de publish</h2>
+                <h2 className="text-sm font-semibold text-display">Abertura externa</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Evolução esperada da publicação até virar software governado por papel.
+                  O que já está controlado e o que ainda depende de evolução do produto.
                 </p>
               </div>
               <GlobeLock className="h-3.5 w-3.5 text-primary" />
@@ -1261,9 +1054,9 @@ function SettingsPage() {
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Modelo de ativação</h2>
+                <h2 className="text-sm font-semibold text-display">Como o link funciona</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Como esta frente deve evoluir até chegar em convite, senha própria e gestão por conta.
+                  Nesta etapa, o acesso acontece por link controlado.
                 </p>
               </div>
               <ShieldCheck className="h-3.5 w-3.5 text-primary" />
@@ -1271,16 +1064,16 @@ function SettingsPage() {
 
             <div className="space-y-3">
               <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
-                1. Sair de chaves compartilhadas e ativar identidades nominadas por papel relevante.
+                1. Você informa o nome e o e-mail real da pessoa.
               </div>
               <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
-                2. Consolidar escopo por operação para Lucas, SDRs e clientes sem abrir a carteira inteira.
+                2. O sistema define o escopo pelo perfil e pelas operações liberadas.
               </div>
               <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
-                3. Trocar passcode estático por senha própria, reset e convite governado.
+                3. Você envia o link por WhatsApp ou e-mail.
               </div>
               <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
-                4. Permitir módulos customizados por conta no portal, preservando um shell único de produto.
+                4. A pessoa abre o link e ativa a sessão controlada para aquele acesso.
               </div>
             </div>
           </div>

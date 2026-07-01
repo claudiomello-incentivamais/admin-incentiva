@@ -256,7 +256,7 @@ function sanitizeInviteDraft(draft: AccessInviteDraft): AuthIdentityPublic {
     operationIds = Array.from(new Set(operationIds.map((value) => value.trim()).filter(Boolean)));
   }
 
-  if ((profileId === "sales" || profileId === "cliente") && operationIds !== "all" && operationIds.length === 0) {
+  if ((profileId === "sdr" || profileId === "cliente") && operationIds !== "all" && operationIds.length === 0) {
     throw new Error("Selecione pelo menos uma operação para esse perfil.");
   }
 

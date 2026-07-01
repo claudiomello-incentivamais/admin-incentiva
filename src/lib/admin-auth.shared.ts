@@ -1,4 +1,4 @@
-export type AccessProfileId = "direcao" | "claw" | "sales" | "cliente";
+export type AccessProfileId = "direcao" | "claw" | "sales_ops" | "sdr" | "cliente";
 export type VisibilityMode = "internal" | "client";
 export type AccessDirectoryStatus = "active" | "pilot" | "planned";
 export type AccessRegistryInviteStatus = "issued" | "accepted" | "revoked" | "expired";
@@ -117,15 +117,16 @@ const operationLabelMap: Record<string, string> = {
 export const ACCESS_PROFILE_LABELS: Record<AccessProfileId, string> = {
   direcao: "Direção",
   claw: "Claw/main",
-  sales: "Sales Ops / SDR",
+  sales_ops: "Sales Ops",
+  sdr: "SDR",
   cliente: "Cliente",
 };
 
 export const ACCESS_PACKAGE_LABELS: Record<AccessPackageId, string> = {
-  admin_full: "Admin completo",
-  executivo_publish: "Executivo publish",
-  operacional_safe: "Operacional seguro",
-  portal_private: "Portal privado",
+  admin_full: "Console completo",
+  executivo_publish: "Visão executiva",
+  operacional_safe: "Visão operacional",
+  portal_private: "Área do cliente",
 };
 
 export const ADMIN_ROUTE_LABELS: Record<string, string> = {
@@ -184,17 +185,17 @@ export const ACCESS_ROUTE_PACKAGES: Record<
   },
   executivo_publish: {
     label: ACCESS_PACKAGE_LABELS.executivo_publish,
-    description: "Leitura executiva com publish, integrações e faturamento.",
+    description: "Visão executiva com foco em leitura gerencial.",
     allowedRoutes: ["/", "/performance", "/clientes", "/portal", "/faturamento", "/integracoes"],
   },
   operacional_safe: {
     label: ACCESS_PACKAGE_LABELS.operacional_safe,
-    description: "Leitura operacional segura para Sales Ops e SDR.",
+    description: "Visão operacional para rotina comercial sem abrir a camada administrativa.",
     allowedRoutes: ["/", "/performance", "/clientes", "/portal"],
   },
   portal_private: {
     label: ACCESS_PACKAGE_LABELS.portal_private,
-    description: "Acesso restrito ao portal privado da conta.",
+    description: "Recorte do cliente com leitura limitada à própria conta.",
     allowedRoutes: ["/portal"],
   },
 };
@@ -238,15 +239,15 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     id: "salesops-carteira",
     name: "Sales Ops",
     email: "salesops@incentivamais.com",
-    profileId: "sales",
+    profileId: "sales_ops",
     accessPackageId: "operacional_safe",
     allowedRoutes: ACCESS_ROUTE_PACKAGES.operacional_safe.allowedRoutes,
-    operationIds: ["incentiva", "prime-action", "nimbus", "acelerato"],
+    operationIds: "all",
     defaultVisibility: "internal",
     status: "active",
     audienceLabel: "Operação interna",
-    scopeLabel: "Carteira homologada do time comercial",
-    notes: "Hoje entra com visão interna e troca para client-safe quando necessário.",
+    scopeLabel: "Carteira inteira da operação comercial",
+    notes: "Hoje entra com visão operacional em toda a carteira.",
     signInEnabled: true,
   },
   {
@@ -283,7 +284,7 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     id: "sdr-incentiva",
     name: "SDR Incentiva",
     email: "sdr.incentiva@incentivamais.com",
-    profileId: "sales",
+    profileId: "sdr",
     accessPackageId: "operacional_safe",
     allowedRoutes: ACCESS_ROUTE_PACKAGES.operacional_safe.allowedRoutes,
     operationIds: ["incentiva"],
@@ -331,12 +332,12 @@ export function defaultVisibilityForProfile(profileId: AccessProfileId): Visibil
 }
 
 export function defaultOperationScopeForProfile(profileId: AccessProfileId): string[] | "all" {
-  return profileId === "direcao" || profileId === "claw" ? "all" : [];
+  return profileId === "direcao" || profileId === "claw" || profileId === "sales_ops" ? "all" : [];
 }
 
 export function defaultAccessPackageForProfile(profileId: AccessProfileId): AccessPackageId {
   if (profileId === "cliente") return "portal_private";
-  if (profileId === "sales") return "operacional_safe";
+  if (profileId === "sales_ops" || profileId === "sdr") return "operacional_safe";
   return "admin_full";
 }
 

@@ -72,7 +72,7 @@ export const createAccessInviteServerFn = createServerFn({ method: "POST" })
     z.object({
       name: z.string().min(1),
       email: z.string().email(),
-      profileId: z.enum(["direcao", "claw", "sales", "cliente"]),
+      profileId: z.enum(["direcao", "claw", "sales_ops", "sdr", "cliente"]),
       accessPackageId: z.enum([
         "admin_full",
         "executivo_publish",
