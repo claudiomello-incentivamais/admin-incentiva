@@ -30,6 +30,7 @@ import {
   buildExecutiveCommandQueue,
   buildExecutiveFocusAreas,
   buildOperationActionPlan,
+  buildOperationActionPackets,
   getScoreDrivers,
   priorityMeta,
   statusMeta,
@@ -139,41 +140,7 @@ function AdminGlobal() {
     filteredDistribution.critical;
   const topPriority = executiveQueue[0] ?? null;
   const topFocusArea = executiveFocusAreas[0] ?? null;
-  const actionPackets =
-    activeOperation && activeActionPlan
-      ? [
-          {
-            channel: "discord" as const,
-            title: `${activeOperation.name} · acionamento no Discord`,
-            detail: "Texto pronto para acionar a operação sem reescrever o diagnóstico.",
-            content: activeActionPlan.discordMessage,
-            owner: "Sales Ops + Claw",
-          },
-          {
-            channel: "trello" as const,
-            title: `${activeOperation.name} · abertura de card`,
-            detail: "Título e escopo mínimo para abrir a execução no Trello.",
-            content:
-              `${activeActionPlan.trelloCardTitle}\n\n` +
-              `Contexto: ${activeActionPlan.headline}\n` +
-              `Causas:\n- ${activeActionPlan.causes.join("\n- ")}\n` +
-              `Próximos passos:\n- ${activeActionPlan.actions.join("\n- ")}`,
-            owner: "Ricardo / Claw",
-          },
-          {
-            channel: "admin" as const,
-            title: `${activeOperation.name} · registro executivo`,
-            detail: "Resumo pronto para registrar estado, dono e critério de saída no admin.",
-            content:
-              `Operação: ${activeOperation.name}\n` +
-              `Status: ${statusMeta[activeOperation.health].label}\n` +
-              `Foco: ${activeOperation.focus}\n` +
-              `Dono sugerido: ${activeOperation.owner}\n` +
-              `Próximo passo: ${activeActionPlan.actions[0]}`,
-            owner: "Claw/main",
-          },
-        ]
-      : [];
+  const actionPackets = activeOperation ? buildOperationActionPackets(activeOperation) : [];
   const adminDrilldowns = useMemo(() => {
     const allowedRoutes = new Set(session?.allowedRoutes ?? []);
     return [
@@ -487,13 +454,31 @@ function AdminGlobal() {
           <ExecutiveFocusBoard areas={executiveFocusAreas} />
         </section>
 
+        <section className="grid gap-4 xl:grid-cols-3">
+          <OperationalCadenceCard
+            title="Leitura técnica"
+            value="Até 5 min"
+            detail="n8n VPS e Evolution sincronizam a telemetria operacional para o Supabase em janelas de até 5 minutos."
+          />
+          <OperationalCadenceCard
+            title="Leitura comercial"
+            value="Na carga do admin"
+            detail="Base, prioridade, cobertura e conversão são recalculadas quando o Admin Global carrega, usando o estado atual disponível."
+          />
+          <OperationalCadenceCard
+            title="Modo de execução"
+            value="Assistido"
+            detail="O admin já entrega o pacote pronto para Discord, Trello e registro executivo, mas não dispara essas ações sozinho."
+          />
+        </section>
+
         {actionPackets.length > 0 ? (
           <section className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm font-semibold text-display">Ações prontas</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Pacotes copiáveis para execução imediata, agora em modo compacto.
+                  Pacotes copiáveis para transformar prioridade em execução real sem reescrever o raciocínio.
                 </p>
               </div>
               <Target className="h-3.5 w-3.5 text-primary" />
@@ -712,6 +697,24 @@ function ExecutiveCommandCenter({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function OperationalCadenceCard({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="surface-card p-5">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{title}</div>
+      <div className="mt-1 text-lg font-semibold text-display">{value}</div>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
     </div>
   );
 }

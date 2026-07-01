@@ -22,6 +22,7 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "rec
 import { z } from "zod";
 
 import { Topbar } from "@/components/admin/Topbar";
+import { ActionPacketCard } from "@/components/admin/action-packet-card";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
 import {
   buildOperationActionPlan,
+  buildOperationActionPackets,
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationNotionView,
@@ -127,6 +129,7 @@ function PortalPage() {
   const cockpit = currentCockpit;
   const cadenceView = buildOperationCadenceView(portalOperation, cockpit, dashboard.source);
   const actionPlan = buildOperationActionPlan(portalOperation);
+  const actionPackets = buildOperationActionPackets(portalOperation);
   const notionView = buildOperationNotionView(portalOperation, cockpit, dashboard.source);
   const trelloView = buildOperationTrelloView(portalOperation, cockpit);
   const runtimeView = buildOperationRuntimeView(
@@ -351,6 +354,48 @@ function PortalPage() {
                 icon={ArrowRight}
               />
             ))}
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Como isso vira trabalho real</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Cadência de atualização da leitura e pacotes prontos para transformar prioridade em execução.
+              </p>
+            </div>
+            <Target className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <PortalNarrativeCard
+              label="Atualização técnica"
+              title="n8n + Evolution até 5 min"
+              detail="A saúde técnica desta tela é sincronizada para o Supabase em janelas de até 5 minutos antes de refletir no Portal."
+            />
+            <PortalNarrativeCard
+              label="Atualização comercial"
+              title="Recalcula na carga"
+              detail="Base, conversão e prioridade são recalculadas quando o Portal abre, usando o estado atual disponível em Supabase, Notion e views de governança."
+            />
+            <PortalNarrativeCard
+              label="Se subir lista nova"
+              title="A prioridade pode virar"
+              detail="Quando sobe a cobertura de não iniciados, o foco sai de reposição de base e pode migrar para saneamento de dado ou gargalo comercial."
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3 xl:grid-cols-3">
+            {actionPackets.map((packet) => (
+              <ActionPacketCard key={packet.channel} {...packet} />
+            ))}
+          </div>
+
+          <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
+            Hoje o Portal já fecha o diagnóstico e a recomendação com dono sugerido, mas a execução segue em
+            modo <span className="font-medium text-foreground">assistido</span>: o pacote fica pronto para
+            disparar no Discord, abrir no Trello e registrar no admin sem reescrever a análise.
           </div>
         </section>
 

@@ -563,6 +563,14 @@ export interface OperationActionPlan {
   trelloCardTitle: string;
 }
 
+export interface OperationActionPacket {
+  channel: "discord" | "trello" | "admin";
+  title: string;
+  detail: string;
+  content: string;
+  owner: string;
+}
+
 export interface ExecutiveCommandItem {
   id: string;
   operationId: string;
@@ -2408,6 +2416,51 @@ export function buildOperationActionPlan(operation: Operation): OperationActionP
       `e conversão mensal ${operation.monthlyConversion.toFixed(1)}%. Próximo passo sugerido: ${actions[0]}`,
     trelloCardTitle: `${operation.name} · plano de ação operacional`,
   };
+}
+
+export function buildOperationActionPackets(operation: Operation): OperationActionPacket[] {
+  const actionPlan = buildOperationActionPlan(operation);
+  const primaryOwner =
+    operation.baseCoverage < 60
+      ? "Bruna + Sales Ops"
+      : operation.dataReconciliation < 85
+        ? "Claw + Sales Ops"
+        : "Sales Ops";
+
+  return [
+    {
+      channel: "discord",
+      title: `${operation.name} · acionamento no Discord`,
+      detail: "Texto pronto para abrir a frente certa no canal da operação sem reescrever o diagnóstico.",
+      content: actionPlan.discordMessage,
+      owner: primaryOwner,
+    },
+    {
+      channel: "trello",
+      title: `${operation.name} · abertura de card`,
+      detail: "Título e escopo mínimo para transformar a prioridade em execução rastreável no Trello.",
+      content:
+        `${actionPlan.trelloCardTitle}\n\n` +
+        `Contexto: ${actionPlan.headline}\n` +
+        `Dono sugerido: ${primaryOwner}\n` +
+        `Causas:\n- ${actionPlan.causes.join("\n- ")}\n` +
+        `Próximos passos:\n- ${actionPlan.actions.join("\n- ")}`,
+      owner: "Ricardo / Claw",
+    },
+    {
+      channel: "admin",
+      title: `${operation.name} · registro executivo`,
+      detail: "Resumo pronto para registrar dono, critério de saída e próxima revisão do tema.",
+      content:
+        `Operação: ${operation.name}\n` +
+        `Status: ${statusMeta[operation.health].label}\n` +
+        `Foco: ${operation.focus}\n` +
+        `Dono sugerido: ${primaryOwner}\n` +
+        `Critério de saída: ${actionPlan.actions[2]}\n` +
+        `Próximo passo: ${actionPlan.actions[0]}`,
+      owner: "Claw/main",
+    },
+  ];
 }
 
 export function buildExecutiveCommandQueue(operations: Operation[]): ExecutiveCommandItem[] {
