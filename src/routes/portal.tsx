@@ -32,7 +32,6 @@ import {
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationNotionView,
-  buildOperationRuntimeView,
   buildOperationTrelloView,
   statusMeta,
 } from "@/lib/admin-data";
@@ -79,6 +78,25 @@ function formatPercent(value: number) {
 function ratioPct(numerator: number, denominator: number) {
   if (denominator <= 0) return 0;
   return (numerator / denominator) * 100;
+}
+
+function formatDateTimeLabel(value: string | null | undefined) {
+  if (!value) return "Leitura indisponível";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Leitura indisponível";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function trimDetail(value: string | null | undefined, fallback: string, max = 160) {
+  const normalized = value?.replace(/\s+/g, " ").trim();
+  if (!normalized) return fallback;
+  if (normalized.length <= max) return normalized;
+  return `${normalized.slice(0, max - 1)}…`;
 }
 
 function formatPipelineStageLabel(stageId: string) {
@@ -131,11 +149,6 @@ function PortalPage() {
   const actionPlan = buildOperationActionPlan(portalOperation);
   const notionView = buildOperationNotionView(portalOperation, cockpit, dashboard.source);
   const trelloView = buildOperationTrelloView(portalOperation, cockpit);
-  const runtimeView = buildOperationRuntimeView(
-    portalOperation,
-    cockpit,
-    dashboard.source,
-  );
   const openNotionAction = notionView.actions.find((action) => action.id === "open-notion");
   const openBoardAction = trelloView.actions.find((action) => action.id === "open-board");
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/portal"]);
@@ -160,9 +173,6 @@ function PortalPage() {
   const scheduledPct = ratioPct(scheduledTouched, leadTouched);
   const negotiationPct = ratioPct(negotiationTouched, scheduledTouched);
   const wonPct = ratioPct(wonTouched, negotiationTouched);
-  const runtimePortalCards = runtimeView.cards.filter((card) =>
-    ["n8n", "evolution"].includes(card.id),
-  );
   const periodAnalytics =
     analytics.operations.find((operation) => operation.operationId === portalOperation.id)?.periods[
       selectedPeriod
@@ -174,6 +184,27 @@ function PortalPage() {
   const linkedinChannel = currentCockpit.channels.find((channel) => channel.id === "linkedin") ?? null;
   const n8nOperation = n8n.operations.find((row) => row.operationId === portalOperation.id) ?? null;
   const n8nWorkflows = n8n.workflows.filter((row) => row.operationId === portalOperation.id);
+  const topN8nWorkflow =
+    [...n8nWorkflows].sort(
+      (a, b) =>
+        b.errorToday - a.errorToday ||
+        b.waitingToday - a.waitingToday ||
+        b.error7d - a.error7d ||
+        b.waiting7d - a.waiting7d ||
+        b.execToday - a.execToday ||
+        b.exec7d - a.exec7d,
+    )[0] ?? null;
+  const topEvolutionInstance =
+    [...evolutionInstances].sort((a, b) => {
+      const severityWeight = (severity: string) =>
+        severity === "critical" ? 3 : severity === "attention" ? 2 : severity === "insufficient" ? 1 : 0;
+      return (
+        severityWeight(b.severity) - severityWeight(a.severity) ||
+        b.errors24h - a.errors24h ||
+        b.stalled24h - a.stalled24h ||
+        b.outbound24h - a.outbound24h
+      );
+    })[0] ?? null;
   const emailWaitingMetric =
     currentCockpit.emailHealth.metrics.find((metric) => metric.id === "email-waiting")?.value ?? "0";
   const emailWorkflowExecToday = n8nWorkflows
@@ -207,6 +238,111 @@ function PortalPage() {
   const hasTimelineChartData = chartTimelineData.some((item) =>
     item.prospecting > 0 || item.leadInteressado > 0 || item.mqlAgendado > 0 || item.won > 0,
   );
+  const n8nLiveCard = {
+    id: "n8n" as const,
+    title: "n8n VPS",
+    health:
+      n8n.source !== "live"
+        ? ("monitor" as const)
+        : n8nOperation && (n8nOperation.errorToday > 0 || n8nOperation.waitingToday > 0)
+          ? ("risk" as const)
+          : n8nOperation && (n8nOperation.error7d > 0 || n8nOperation.waiting7d > 0)
+            ? ("monitor" as const)
+            : ("healthy" as const),
+    mode: (n8n.source === "live" ? "live" : "snapshot") as "live" | "snapshot",
+    headline: "Telemetria técnica própria do n8n, em janela operacional de hoje e 7 dias.",
+    detail:
+      n8n.source !== "live" || !n8nOperation
+        ? "A leitura viva do n8n não carregou nesta operação."
+        : topN8nWorkflow
+          ? `${formatNumber(n8nOperation.errorToday)} erro(s) hoje, ${formatNumber(n8nOperation.waitingToday)} waiting hoje. Workflow foco: ${topN8nWorkflow.workflowName}. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
+          : `Sem workflow foco consolidado. Hoje: ${formatNumber(n8nOperation.execToday)} execuções, ${formatNumber(n8nOperation.errorToday)} erro(s) e ${formatNumber(n8nOperation.waitingToday)} waiting.`,
+    lastSync:
+      n8n.source === "live"
+        ? n8n.snapshotLabel
+        : "A seção técnica do n8n está em fallback e não deve ser usada como verdade operacional.",
+    ctaLabel: "Janela técnica",
+    ctaValue: "Hoje + 7 dias",
+    facts: [
+      {
+        label: "Ativos",
+        value: n8nOperation
+          ? `${formatNumber(n8nOperation.activeWorkflowCount)}/${formatNumber(n8nOperation.workflowCount)}`
+          : "Sem leitura",
+      },
+      {
+        label: "Execuções hoje",
+        value: n8nOperation ? formatNumber(n8nOperation.execToday) : "Sem leitura",
+      },
+      {
+        label: "Execuções 7d",
+        value: n8nOperation ? formatNumber(n8nOperation.exec7d) : "Sem leitura",
+      },
+      {
+        label: "Erro foco",
+        value: topN8nWorkflow?.workflowName ?? "Sem workflow foco",
+      },
+    ],
+    nextStep:
+      n8n.source !== "live" || !n8nOperation
+        ? "Restabelecer a telemetria viva do n8n antes de usar este bloco para decisão."
+        : topN8nWorkflow && (topN8nWorkflow.errorToday > 0 || topN8nWorkflow.waitingToday > 0 || topN8nWorkflow.error7d > 0)
+          ? `Abrir ${topN8nWorkflow.workflowName} e tratar ${topN8nWorkflow.errorToday > 0 ? "erro" : "waiting"} com base na última mensagem registrada.`
+          : "Sem erro material agora; acompanhar throughput e waiting pela janela técnica.",
+  };
+  const evolutionLiveCard = {
+    id: "evolution" as const,
+    title: "Evolution API",
+    health:
+      evolution.source !== "live"
+        ? ("monitor" as const)
+        : evolutionRow && evolutionRow.criticalInstances > 0
+          ? ("risk" as const)
+          : evolutionRow && (evolutionRow.attentionInstances > 0 || evolutionRow.errors24h > 0 || evolutionRow.stalled24h > 0)
+            ? ("monitor" as const)
+            : ("healthy" as const),
+    mode: (evolution.source === "live" ? "live" : "snapshot") as "live" | "snapshot",
+    headline: "Telemetria técnica própria da Evolution, em janela operacional de 24h e 7 dias.",
+    detail:
+      evolution.source !== "live" || !evolutionRow
+        ? "A leitura viva da Evolution não carregou nesta operação."
+        : topEvolutionInstance
+          ? `${topEvolutionInstance.instanceName} está em ${topEvolutionInstance.severity}. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
+          : `Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
+    lastSync:
+      evolution.source === "live"
+        ? evolution.snapshotLabel
+        : "A seção técnica da Evolution está em fallback e não deve ser usada como verdade operacional.",
+    ctaLabel: "Janela técnica",
+    ctaValue: "24h + 7 dias",
+    facts: [
+      {
+        label: "Instâncias",
+        value: evolutionRow
+          ? `${formatNumber(evolutionRow.healthyInstances)}/${formatNumber(evolutionRow.instanceCount)} saudáveis`
+          : "Sem leitura",
+      },
+      {
+        label: "Envios 24h",
+        value: evolutionRow ? formatNumber(evolutionRow.outbound24h) : "Sem leitura",
+      },
+      {
+        label: "Respostas 24h",
+        value: evolutionRow ? formatNumber(evolutionRow.replies24h) : "Sem leitura",
+      },
+      {
+        label: "Instância foco",
+        value: topEvolutionInstance?.instanceName ?? "Sem instância foco",
+      },
+    ],
+    nextStep:
+      evolution.source !== "live" || !evolutionRow
+        ? "Restabelecer a telemetria viva da Evolution antes de usar este bloco para decisão."
+        : topEvolutionInstance && topEvolutionInstance.severity !== "healthy"
+          ? `Checar ${topEvolutionInstance.instanceName}, webhook e motivo '${topEvolutionInstance.reason}'.`
+          : "Sem pressão técnica material agora; acompanhar entrega, reply e erros pela janela técnica.",
+  };
+  const runtimePortalCards = [n8nLiveCard, evolutionLiveCard];
   const primaryOwner =
     portalOperation.baseCoverage < 60
       ? "Bruna + Sales Ops"
@@ -785,8 +921,8 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Saúde técnica da operação</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Leitura executiva do runtime da operação, focada no que pode travar ou sustentar a
-                execução agora.
+                Leitura executiva do runtime da operação, em janela técnica própria. Este bloco não
+                segue o filtro comercial de 7d/30d/90d/mês.
               </p>
             </div>
             <Badge
