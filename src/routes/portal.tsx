@@ -449,17 +449,17 @@ function PortalPage() {
 
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Janelas de acompanhamento
+                Tendência recente
               </div>
               <div className="mt-1 text-base font-semibold text-display">
-                7d, 30d, 90d e mês acumulado
+                Curto prazo vs tendência
               </div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                Essas janelas ajudam a diferenciar oscilação curta de tendência estrutural sem depender só de sensação de operação.
+                Leitura resumida para separar oscilação curta de tendência de operação.
               </p>
 
               <div className="mt-4 grid gap-3">
-                {cadenceView.windows.map((window) => (
+                {cadenceView.windows.slice(0, 2).map((window) => (
                   <PortalNarrativeCard
                     key={window.id}
                     label={window.label}
@@ -514,12 +514,12 @@ function PortalPage() {
                 <PortalMiniMetric
                   label="Exposição"
                   value={notionView.exposureLabel}
-                  detail="Quão seguro está o recorte para leitura externa."
+                  detail="Segurança da leitura desta operação."
                 />
                 <PortalMiniMetric
                   label="Sync"
                   value={notionView.syncLabel}
-                  detail="Última leitura útil desta camada."
+                  detail="Última atualização útil."
                 />
               </div>
 

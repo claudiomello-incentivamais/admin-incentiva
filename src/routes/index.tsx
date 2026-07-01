@@ -197,10 +197,12 @@ function AdminGlobal() {
               </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
-              Visão Consolidada de Operações
+              {isSingleOperationView ? "Painel Administrativo da Operação" : "Visão Consolidada de Operações"}
             </h1>
             <p className="text-sm text-muted-foreground max-w-xl">
-              Painel executivo para identificar onde a carteira está travando e qual ação deve abrir primeiro.
+              {isSingleOperationView
+                ? "Leitura administrativa focada na operação filtrada, sem forçar comparativos que só fazem sentido em multioperação."
+                : "Painel executivo para identificar onde a carteira está travando e qual ação deve abrir primeiro."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -224,42 +226,77 @@ function AdminGlobal() {
           <div className="surface-card p-5">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Radar rápido da carteira</h2>
+                <h2 className="text-sm font-semibold text-display">
+                  {isSingleOperationView ? "Radar rápido da operação" : "Radar rápido da carteira"}
+                </h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Leitura curta para bater o olho em pressão, cobertura e conversão.
+                  {isSingleOperationView
+                    ? "Leitura curta para bater o olho nos sinais centrais desta conta."
+                    : "Leitura curta para bater o olho em pressão, cobertura e conversão."}
                 </p>
               </div>
               <Target className="h-3.5 w-3.5 text-primary" />
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <CompactMetric
-                label="Operações sob pressão"
-                value={`${filteredDistribution.risk + filteredDistribution.critical}`}
-                detail="risk + critical"
-                tone="warning"
-              />
-              <CompactMetric
-                label="Conversão média"
-                value={`${blendedConversionRate.toFixed(1)}%`}
-                detail="recorte atual"
-                tone="success"
-              />
-              <CompactMetric
-                label="Cobertura média"
-                value={`${effectiveKpis.baseCoverage}%`}
-                detail="base ativa"
-                tone="info"
-              />
-              <CompactMetric
-                label="Tema cruzado"
-                value={topFocusArea ? topFocusArea.count.toString() : "0"}
-                detail={topFocusArea?.label ?? "sem frente dominante"}
-                tone="default"
-              />
+              {isSingleOperationView && activeOperation ? (
+                <>
+                  <CompactMetric
+                    label="Score operacional"
+                    value={String(activeOperation.score)}
+                    detail={activeOperation.focus}
+                    tone="warning"
+                  />
+                  <CompactMetric
+                    label="Conversão mensal"
+                    value={`${activeOperation.monthlyConversion.toFixed(1)}%`}
+                    detail="leitura da operação"
+                    tone="success"
+                  />
+                  <CompactMetric
+                    label="Cobertura"
+                    value={`${activeOperation.baseCoverage.toFixed(1)}%`}
+                    detail="base ativa"
+                    tone="info"
+                  />
+                  <CompactMetric
+                    label="Reconciliação"
+                    value={`${activeOperation.dataReconciliation.toFixed(1)}%`}
+                    detail="consistência operacional"
+                    tone="default"
+                  />
+                </>
+              ) : (
+                <>
+                  <CompactMetric
+                    label="Operações sob pressão"
+                    value={`${filteredDistribution.risk + filteredDistribution.critical}`}
+                    detail="risk + critical"
+                    tone="warning"
+                  />
+                  <CompactMetric
+                    label="Conversão média"
+                    value={`${blendedConversionRate.toFixed(1)}%`}
+                    detail="recorte atual"
+                    tone="success"
+                  />
+                  <CompactMetric
+                    label="Cobertura média"
+                    value={`${effectiveKpis.baseCoverage}%`}
+                    detail="base ativa"
+                    tone="info"
+                  />
+                  <CompactMetric
+                    label="Tema cruzado"
+                    value={topFocusArea ? topFocusArea.count.toString() : "0"}
+                    detail={topFocusArea?.label ?? "sem frente dominante"}
+                    tone="default"
+                  />
+                </>
+              )}
             </div>
 
-            {topFocusArea ? (
+            {!isSingleOperationView && topFocusArea ? (
               <div className="mt-4 rounded-xl border border-border bg-surface px-4 py-3">
                 <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   Tema transversal em observação
@@ -402,8 +439,8 @@ function AdminGlobal() {
         ) : null}
 
         {/* Ranking + insights */}
-        <section className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          {/* Ranking table */}
+        <section className={cn("grid grid-cols-1 gap-4", isSingleOperationView ? "xl:grid-cols-1" : "xl:grid-cols-3")}>
+          {!isSingleOperationView ? (
           <div className="surface-card overflow-hidden xl:col-span-2">
             <div className="flex items-center justify-between px-5 py-4 border-b border-border">
               <div>
@@ -516,8 +553,8 @@ function AdminGlobal() {
               </table>
             </div>
           </div>
+          ) : null}
 
-          {/* Status distribution + insights stacked */}
           <div className="space-y-4">
             {activeOperation && activeActionPlan ? (
               <OperationDiagnosticCard
@@ -526,7 +563,9 @@ function AdminGlobal() {
                 actionPlan={activeActionPlan}
               />
             ) : null}
-            <StatusDistribution distribution={filteredDistribution} total={totalOps} />
+            {!isSingleOperationView ? (
+              <StatusDistribution distribution={filteredDistribution} total={totalOps} />
+            ) : null}
           </div>
         </section>
       </main>
