@@ -513,8 +513,8 @@ function PortalPage() {
             <ChannelActivityCard
               title="E-mail"
               icon={Mail}
-              sourceLabel="cadência"
-              detail="Conversão comercial do recorte com apoio da cadência observada no n8n. Aqui a leitura operacional mostra execução, não envio final comprovado."
+              sourceLabel="disparo"
+              detail="Conversão comercial do recorte com apoio do campo de disparo registrado no Notion. A camada operacional do n8n segue como apoio de cadência."
               metrics={[
                 {
                   label: "Prospects no canal",
@@ -529,22 +529,22 @@ function PortalPage() {
                   value: formatNumber(periodAnalytics?.channels.email.mqlAgendado ?? 0),
                 },
                 {
+                  label: "Disparos confirmados",
+                  value: formatNumber(periodAnalytics?.channels.email.dispatches ?? 0),
+                },
+                {
                   label: "Respostas no recorte",
                   value: formatNumber(periodAnalytics?.channels.email.replies ?? 0),
                 },
-                {
-                  label: "Cadências n8n 7d",
-                  value: formatNumber(emailWorkflowExec7d),
-                },
               ]}
-              footer={`Hoje: ${formatNumber(emailWorkflowExecToday)} execuções ligadas a e-mail no n8n. Waiting atual: ${emailWaitingMetric}.`}
+              footer={`Apoio operacional: ${formatNumber(emailWorkflowExec7d)} cadências de e-mail em 7 dias no n8n. Hoje: ${formatNumber(emailWorkflowExecToday)} execuções. Waiting atual: ${emailWaitingMetric}.`}
             />
 
             <ChannelActivityCard
               title="WhatsApp"
               icon={MessageCircle}
               sourceLabel="disparo"
-              detail="Conversão comercial do recorte com apoio da telemetria viva da Evolution. Aqui o volume operacional já é leitura de envio medido."
+              detail="Conversão comercial do recorte com apoio do disparo registrado no Notion, cruzado com a telemetria viva da Evolution."
               metrics={[
                 {
                   label: "Prospects no canal",
@@ -559,24 +559,24 @@ function PortalPage() {
                   value: formatNumber(periodAnalytics?.channels.whatsapp.mqlAgendado ?? 0),
                 },
                 {
+                  label: "Disparos confirmados",
+                  value: formatNumber(periodAnalytics?.channels.whatsapp.dispatches ?? 0),
+                },
+                {
                   label: "Respostas no recorte",
                   value: formatNumber(periodAnalytics?.channels.whatsapp.replies ?? 0),
                 },
-                {
-                  label: "Envios medidos 7d",
-                  value: formatNumber(evolutionOutbound7d),
-                },
               ]}
               footer={evolutionRow?.snapshotAt
-                ? `24h: ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas, ${formatNumber(evolutionRow.errors24h)} erros.`
+                ? `Telemetria viva: ${formatNumber(evolutionOutbound7d)} envios em 7 dias. Nas últimas 24h: ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas, ${formatNumber(evolutionRow.errors24h)} erros.`
                 : "Sem snapshot vivo da Evolution para esta operação."}
             />
 
             <ChannelActivityCard
               title="LinkedIn"
               icon={Workflow}
-              sourceLabel="cadência"
-              detail="Conversão comercial do recorte com apoio da cadência operacional do n8n. Aqui a leitura operacional mostra execução, não mensagem final confirmada."
+              sourceLabel="sinal"
+              detail="Conversão comercial do recorte com apoio de sinal operacional de LinkedIn na base. Aqui a leitura usa status do canal e execução do n8n como evidência."
               metrics={[
                 {
                   label: "Prospects no canal",
@@ -591,15 +591,15 @@ function PortalPage() {
                   value: formatNumber(periodAnalytics?.channels.linkedin.mqlAgendado ?? 0),
                 },
                 {
+                  label: "Sinais confirmados",
+                  value: formatNumber(periodAnalytics?.channels.linkedin.dispatches ?? 0),
+                },
+                {
                   label: "Respostas no recorte",
                   value: formatNumber(periodAnalytics?.channels.linkedin.replies ?? 0),
                 },
-                {
-                  label: "Cadências n8n 7d",
-                  value: formatNumber(linkedinWorkflowExec7d),
-                },
               ]}
-              footer={`Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções ligadas ao LinkedIn no n8n. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
+              footer={`Apoio operacional: ${formatNumber(linkedinWorkflowExec7d)} cadências ligadas ao LinkedIn em 7 dias no n8n. Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
             />
           </div>
           <div className="mt-3">

@@ -26,11 +26,23 @@ type LeadsBaseRow = {
 
 type NotionCanonicalRow = {
   operation_name: string;
+  page_id: string | null;
   nome: string | null;
   empresa: string | null;
   last_edited_at: string | null;
   canonical_stage: string | null;
   canal: string | null;
+};
+
+type NotionSnapshotRow = {
+  operation_name: string;
+  page_id: string | null;
+  nome: string | null;
+  empresa: string | null;
+  status: string | null;
+  canal: string | null;
+  last_edited_at: string | null;
+  raw_properties: unknown;
 };
 
 export interface PortalTimelinePoint {
@@ -46,6 +58,7 @@ export interface PortalTimelinePoint {
 export interface PortalChannelPeriodSummary {
   channel: ChannelId;
   touched: number;
+  dispatches: number;
   leadInteressado: number;
   mqlAgendado: number;
   mqlRealizado: number;
@@ -282,10 +295,44 @@ function ratioPct(numerator: number, denominator: number) {
   return (numerator / denominator) * 100;
 }
 
+function flattenUnknownText(value: unknown, depth = 0): string[] {
+  if (depth > 4 || value == null) return [];
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return [String(value)];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => flattenUnknownText(item, depth + 1));
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>).flatMap((item) =>
+      flattenUnknownText(item, depth + 1),
+    );
+  }
+  return [];
+}
+
+function extractDispatchChannelFromRawProperties(rawProperties: unknown): ChannelId | null {
+  if (!rawProperties || typeof rawProperties !== "object") return null;
+  const entries = Object.entries(rawProperties as Record<string, unknown>);
+  const dispatchEntry = entries.find(([key]) => {
+    const normalizedKey = normalizeText(key);
+    return normalizedKey.includes("disparo mensagem") || normalizedKey.includes("mensagem disparo");
+  });
+  if (!dispatchEntry) return null;
+  const values = flattenUnknownText(dispatchEntry[1]).map(normalizeText).filter(Boolean);
+  for (const value of values) {
+    if (value.includes("whats") || value.includes("wpp")) return "whatsapp";
+    if (value.includes("linkedin")) return "linkedin";
+    if (value.includes("mail")) return "email";
+  }
+  return null;
+}
+
 function createChannelSummary(channel: ChannelId): PortalChannelPeriodSummary {
   return {
     channel,
     touched: 0,
+    dispatches: 0,
     leadInteressado: 0,
     mqlAgendado: 0,
     mqlRealizado: 0,
@@ -365,7 +412,7 @@ export async function loadPortalAnalytics(params: {
 
   const operationNames = params.operationScope.map((operation) => operation.name);
 
-  const [leadRows, notionRows] = await Promise.all([
+  const [leadRows, notionRows, notionSnapshotRows] = await Promise.all([
     fetchAllRows<LeadsBaseRow>(
       config,
       "leads_base_v1",
@@ -375,7 +422,13 @@ export async function loadPortalAnalytics(params: {
     fetchAllRows<NotionCanonicalRow>(
       config,
       "notion_funnel_canonical_v1",
-      "operation_name,nome,empresa,last_edited_at,canonical_stage,canal",
+      "operation_name,page_id,nome,empresa,last_edited_at,canonical_stage,canal",
+      operationNames,
+    ),
+    fetchAllRows<NotionSnapshotRow>(
+      config,
+      "notion_leads_snapshot_v1",
+      "operation_name,page_id,nome,empresa,status,canal,last_edited_at,raw_properties",
       operationNames,
     ),
   ]);
@@ -389,6 +442,15 @@ export async function loadPortalAnalytics(params: {
     baseMaps.set(row.operation_name, current);
   });
 
+  const snapshotMaps = new Map<string, Map<string, NotionSnapshotRow>>();
+  notionSnapshotRows.forEach((row) => {
+    const snapshotKey = row.page_id ?? normalizeLeadKey(row.nome, row.empresa);
+    if (!snapshotKey) return;
+    const current = snapshotMaps.get(row.operation_name) ?? new Map<string, NotionSnapshotRow>();
+    current.set(snapshotKey, row);
+    snapshotMaps.set(row.operation_name, current);
+  });
+
   const periods: PortalPeriodPreset[] = ["mtd", "7d", "30d", "90d"];
   const now = new Date();
   const operations = params.operationScope.map((operation) => {
@@ -397,6 +459,7 @@ export async function loadPortalAnalytics(params: {
     ) as Record<PortalPeriodPreset, PortalPeriodSummary>;
 
     const operationBaseMap = baseMaps.get(operation.name) ?? new Map<string, LeadsBaseRow>();
+    const operationSnapshotMap = snapshotMaps.get(operation.name) ?? new Map<string, NotionSnapshotRow>();
 
     notionRows
       .filter((row) => row.operation_name === operation.name)
@@ -407,14 +470,24 @@ export async function loadPortalAnalytics(params: {
         if (Number.isNaN(editedAt.getTime())) return;
         const leadKey = normalizeLeadKey(row.nome, row.empresa);
         const baseRow = leadKey ? operationBaseMap.get(leadKey) ?? null : null;
+        const snapshotRow =
+          (row.page_id ? operationSnapshotMap.get(row.page_id) : null) ??
+          (leadKey ? operationSnapshotMap.get(leadKey) ?? null : null);
         const primaryChannel =
           (baseRow ? inferPrimaryChannel(baseRow) : null) ??
           mapRawChannel(row.canal);
+        const dispatchChannel =
+          extractDispatchChannelFromRawProperties(snapshotRow?.raw_properties) ??
+          (baseRow?.status_linkedin && primaryChannel === "linkedin" ? "linkedin" : null);
 
         periods.forEach((period) => {
           if (editedAt < periodStart(period, now)) return;
           const summary = operationPeriods[period];
           summary.stageCounts[stageId] += 1;
+
+          if (dispatchChannel) {
+            summary.channels[dispatchChannel].dispatches += 1;
+          }
 
           if (primaryChannel) {
             const channelSummary = summary.channels[primaryChannel];
