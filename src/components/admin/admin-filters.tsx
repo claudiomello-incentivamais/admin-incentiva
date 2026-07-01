@@ -8,11 +8,8 @@ import {
 } from "react";
 
 import { fetchOperations, type Operation } from "@/lib/admin-data";
-import {
-  useAdminAuth,
-  type AccessProfileId,
-  type VisibilityMode,
-} from "@/components/admin/auth-context";
+import { useAdminAuth, type AccessProfileId, type VisibilityMode } from "@/components/admin/auth-context";
+import { ACCESS_SCOPE_LABELS, resolveAccessScopeMode } from "@/lib/admin-auth.shared";
 
 export type PeriodPreset = "mtd" | "7d" | "30d" | "90d";
 
@@ -23,6 +20,7 @@ type AdminFiltersContextValue = {
   selectedVisibilityMode: VisibilityMode;
   operationOptions: OperationFilterOption[];
   accessProfileOptions: AccessProfileOption[];
+  selectedAccessScopeLabel: string;
   selectedOperation: OperationFilterOption | null;
   selectedOperationRecord: Operation | null;
   selectedAccessProfile: AccessProfileOption;
@@ -184,6 +182,9 @@ export function AdminFiltersProvider({ children }: { children: ReactNode }) {
   const selectedAccessProfile =
     accessProfileOptions.find((option) => option.id === session?.profileId) ??
     accessProfileOptions[0];
+  const selectedAccessScopeLabel = ACCESS_SCOPE_LABELS[
+    resolveAccessScopeMode(session?.operationIds ?? "all")
+  ];
 
   return (
     <AdminFiltersContext.Provider
@@ -194,6 +195,7 @@ export function AdminFiltersProvider({ children }: { children: ReactNode }) {
         selectedVisibilityMode,
         operationOptions,
         accessProfileOptions,
+        selectedAccessScopeLabel,
         selectedOperation,
         selectedOperationRecord,
         selectedAccessProfile,

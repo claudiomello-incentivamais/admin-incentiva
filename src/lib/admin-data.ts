@@ -1,6 +1,8 @@
 // Mock data layer grounded in the current governance snapshot.
 // Replace these functions with real API calls later — component layer should not change.
 
+import type { Api4ComTelemetryDashboard } from "./admin-api4com.shared";
+
 export type OperationStatus = "healthy" | "monitor" | "risk" | "critical";
 export type Priority = "P0" | "P1" | "P2" | "P3";
 
@@ -3051,6 +3053,210 @@ export async function loadGlobalDashboard(): Promise<GlobalDashboardData> {
       insights: fetchInsights(),
     };
   }
+}
+
+export async function loadScopedGlobalDashboard(params?: {
+  operationIds?: string[] | "all";
+}): Promise<GlobalDashboardData> {
+  const dashboard = await loadGlobalDashboard();
+  const operationIds = params?.operationIds ?? "all";
+
+  if (operationIds === "all") {
+    return dashboard;
+  }
+
+  const scopedOperations = dashboard.operations.filter((operation) =>
+    operationIds.includes(operation.id),
+  );
+  const scopedDistribution = scopedOperations.reduce(
+    (acc, operation) => {
+      acc[operation.health] += 1;
+      return acc;
+    },
+    { healthy: 0, monitor: 0, risk: 0, critical: 0 } as Record<OperationStatus, number>,
+  );
+  const scopedInsights = dashboard.insights.filter(
+    (insight) => !insight.operationId || operationIds.includes(insight.operationId),
+  );
+
+  return {
+    ...dashboard,
+    operations: scopedOperations,
+    distribution: scopedDistribution,
+    insights: scopedInsights,
+    kpis: buildScopedKpis(dashboard.kpis, scopedOperations, dashboard.operations, "mtd"),
+  };
+}
+
+export async function loadScopedIntegrationHub(params?: {
+  operationIds?: string[] | "all";
+  api4com?: Api4ComTelemetryDashboard;
+}): Promise<IntegrationHubData> {
+  const dashboard = await loadScopedGlobalDashboard({
+    operationIds: params?.operationIds ?? "all",
+  });
+  const api4com = params?.api4com;
+  const scopedOperations = dashboard.operations;
+  const sourceMode: IntegrationHubData["source"] =
+    dashboard.source === "live" || api4com?.source === "live" ? "live" : "snapshot";
+  const operationsLabel =
+    scopedOperations.length === 0
+      ? "sem operações visíveis"
+      : scopedOperations.length === 1
+        ? scopedOperations[0]!.name
+        : `${scopedOperations.length} operações visíveis`;
+
+  const liveReads = [
+    dashboard.source === "live" ? "Supabase" : null,
+    "Notion",
+    "Trello",
+    "n8n VPS",
+    "Evolution API",
+    api4com?.source === "live" ? "API4Com" : null,
+  ].filter(Boolean);
+
+  const connectedLayersValue = api4com?.source === "live" ? "10" : "9";
+  const manualCheckpoints = api4com?.source === "live" ? "2" : "3";
+  const actionTargets = scopedOperations.length <= 1 ? "4" : "5";
+
+  const sources = integrationHub.sources.map((source) => {
+    if (source.id === "api4com") {
+      const calls = api4com?.summary.callsTotal ?? 0;
+      const connectionRate = api4com?.summary.connectionRate ?? 0;
+      return {
+        ...source,
+        health:
+          api4com?.source === "live"
+            ? calls > 0 && connectionRate >= 25
+              ? "healthy"
+              : calls > 0
+                ? "monitor"
+                : "risk"
+            : source.health,
+        syncStatus: api4com?.source === "live" ? "live" : source.syncStatus,
+        lastSync: api4com?.source === "live" ? api4com.currentWindowLabel : source.lastSync,
+        headline:
+          api4com?.source === "live"
+            ? `API4Com já sobe com ${calls} ligações e ${connectionRate.toFixed(1)}% de conexão em ${operationsLabel}.`
+            : source.headline,
+        detail:
+          api4com?.source === "live"
+            ? `A camada de voz agora entra viva no admin com ${api4com.summary.activeSdrs} SDRs ativos, ${api4com.summary.connectionsTotal} conexões e ${api4com.summary.talkMinutes} min falados na janela ${api4com.currentWindowLabel}.`
+            : source.detail,
+        powers:
+          api4com?.source === "live"
+            ? [
+                "Volume e conexão por SDR",
+                "Sinal compartilhado por operação",
+                "Comparativo D-1",
+                "Pressão de higienização da base por hangup",
+              ]
+            : source.powers,
+      };
+    }
+
+    if (source.id === "n8n") {
+      return {
+        ...source,
+        headline:
+          dashboard.source === "live"
+            ? `n8n VPS já aterrissa como telemetria viva para ${operationsLabel}, separando execução, erro, waiting e workflow foco.`
+            : source.headline,
+      };
+    }
+
+    if (source.id === "evolution") {
+      return {
+        ...source,
+        headline:
+          dashboard.source === "live"
+            ? `Evolution já entra como health técnico vivo do WhatsApp dentro do admin para ${operationsLabel}.`
+            : source.headline,
+      };
+    }
+
+    return source;
+  });
+
+  const bridges = integrationHub.bridges.map((bridge) => {
+    if (bridge.id === "api4com-admin") {
+      return {
+        ...bridge,
+        health: api4com?.source === "live" ? "healthy" : bridge.health,
+        detail:
+          api4com?.source === "live"
+            ? `A ponte API4Com -> Admin já saiu do report lateral e agora sobe como leitura viva de ligação, conexão e tempo falado para ${operationsLabel}.`
+            : bridge.detail,
+        nextStep:
+          api4com?.source === "live"
+            ? "Cruzar o SDR de voz com estágio, cadência e conversão por operação, reduzindo a dependência de leitura solta em DM."
+            : bridge.nextStep,
+      };
+    }
+    return bridge;
+  });
+
+  const actionLanes = integrationHub.actionLanes.map((lane) => {
+    if (lane.id === "lane-api4com") {
+      return {
+        ...lane,
+        health: api4com?.source === "live" ? "healthy" : lane.health,
+        detail:
+          api4com?.source === "live"
+            ? `API4Com já entrou viva no admin; o próximo passo é aprofundar a atribuição por operação sem perder o contexto de SDR pool compartilhado.`
+            : lane.detail,
+        nextStep:
+          api4com?.source === "live"
+            ? "Abrir drill-down por SDR, operação e janela horária, mantendo o recorte seguro por perfil."
+            : lane.nextStep,
+      };
+    }
+    return lane;
+  });
+
+  return {
+    source: sourceMode,
+    snapshotLabel:
+      api4com?.source === "live"
+        ? `${dashboard.snapshotLabel} · API4Com ${api4com.currentWindowLabel}`
+        : dashboard.snapshotLabel,
+    metrics: [
+      {
+        id: "connected-layers",
+        label: "Camadas conectadas",
+        value: connectedLayersValue,
+        tone: "success",
+        detail: `Supabase, Notion, Trello, n8n, Evolution e ${api4com?.source === "live" ? "API4Com" : "camadas auxiliares"} já entram no mapa central para ${operationsLabel}.`,
+      },
+      {
+        id: "live-reads",
+        label: "Leituras vivas",
+        value: String(liveReads.length),
+        tone: sourceMode === "live" ? "healthy" : "monitor",
+        detail: `${liveReads.join(", ")} já aparecem com leitura útil dentro do admin no recorte atual.`,
+      },
+      {
+        id: "manual-checkpoints",
+        label: "Checkpoints manuais",
+        value: manualCheckpoints,
+        tone: api4com?.source === "live" ? "monitor" : "risk",
+        detail:
+          api4com?.source === "live"
+            ? "API4Com saiu do report lateral; os checkpoints manuais agora ficam concentrados em publish, saneamento fino e fontes ainda parcialmente guardadas."
+            : "Publish, API4Com e parte do Trello ainda pedem checkpoint manual para fechar a centralização.",
+      },
+      {
+        id: "action-targets",
+        label: "Blocos críticos",
+        value: actionTargets,
+        tone: "monitor",
+        detail: `As próximas entregas continuam concentradas em UX, publish privado, aprofundamento de operação e fontes vivas mais finas para ${operationsLabel}.`,
+      },
+    ],
+    sources,
+    bridges,
+    actionLanes,
+  };
 }
 
 const integrationHub: IntegrationHubData = {

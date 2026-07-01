@@ -24,7 +24,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  loadIntegrationHub,
   statusMeta,
   type IntegrationActionLane,
   type IntegrationBridge,
@@ -32,11 +31,12 @@ import {
   type IntegrationSource,
   type OperationStatus,
 } from "@/lib/admin-data";
+import { loadScopedIntegrationHubServerFn } from "@/lib/admin-integration-rpc";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/integracoes")({
   head: () => ({ meta: [{ title: "Integrações — Console Incentiva" }] }),
-  loader: async () => loadIntegrationHub(),
+  loader: async () => loadScopedIntegrationHubServerFn(),
   component: IntegrationsPage,
 });
 

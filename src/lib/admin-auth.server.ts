@@ -4,16 +4,48 @@ import {
   ACCESS_DIRECTORY,
   AUTH_IDENTITIES_PUBLIC,
   type AuthIdentityPublic,
+  type AccessInviteDraft,
+  type AccessInvitePreview,
   type AuthSession,
+  canManageAccessProfile,
+  defaultAccessPackageForProfile,
+  defaultOperationScopeForProfile,
+  defaultVisibilityForProfile,
+  resolveAllowedRoutes,
 } from "./admin-auth.shared";
+import {
+  isAccessRegistryConfigured,
+  markAccessInviteAccepted,
+  persistAccessInviteRecord,
+  readInviteRegistryState,
+} from "./admin-access-registry.server";
 
 type AuthIdentityRecord = AuthIdentityPublic & {
   passcode?: string;
 };
 
-type SessionCookiePayload = {
+type EmbeddedSessionIdentity = AuthIdentityPublic;
+
+type SessionCookiePayload =
+  | {
+      v: 1;
+      identityId: string;
+      iat: number;
+      exp: number;
+    }
+  | {
+      v: 2;
+      session: EmbeddedSessionIdentity;
+      iat: number;
+      exp: number;
+    };
+
+type InviteTokenPayload = {
   v: 1;
-  identityId: string;
+  type: "invite";
+  invitedByIdentityId: string;
+  invitedByName: string;
+  identity: EmbeddedSessionIdentity;
   iat: number;
   exp: number;
 };
@@ -65,6 +97,8 @@ const authIdentityRecords: AuthIdentityRecord[] = ACCESS_DIRECTORY.map((entry) =
     name: entry.name,
     email: entry.email,
     profileId: entry.profileId,
+    accessPackageId: entry.accessPackageId,
+    allowedRoutes: entry.allowedRoutes,
     operationIds: entry.operationIds,
     defaultVisibility: entry.defaultVisibility,
     passcode: passcodeOverrides[entry.id] ?? seed?.passcode,
@@ -131,6 +165,26 @@ async function encodeSessionCookie(identityId: string) {
   return `${payloadEncoded}.${signature}`;
 }
 
+async function encodeEmbeddedSessionCookie(identity: EmbeddedSessionIdentity) {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const payload: SessionCookiePayload = {
+    v: 2,
+    session: identity,
+    iat: issuedAt,
+    exp: issuedAt + AUTH_COOKIE_MAX_AGE_SECONDS,
+  };
+
+  const payloadEncoded = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = await signValue(payloadEncoded);
+  return `${payloadEncoded}.${signature}`;
+}
+
+async function encodeInviteToken(payload: InviteTokenPayload) {
+  const payloadEncoded = bytesToBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = await signValue(payloadEncoded);
+  return `${payloadEncoded}.${signature}`;
+}
+
 async function decodeSessionCookie(value: string | null | undefined) {
   if (!value) return null;
 
@@ -145,7 +199,7 @@ async function decodeSessionCookie(value: string | null | undefined) {
       new TextDecoder().decode(base64UrlToBytes(payloadEncoded)),
     ) as SessionCookiePayload;
 
-    if (payload.v !== 1 || payload.exp * 1000 <= Date.now()) {
+    if ((payload.v !== 1 && payload.v !== 2) || payload.exp * 1000 <= Date.now()) {
       return null;
     }
 
@@ -159,17 +213,144 @@ function getIdentityById(identityId: string) {
   return authIdentityRecords.find((identity) => identity.id === identityId) ?? null;
 }
 
-function mapIdentityToSession(identity: AuthIdentityPublic, issuedAtSeconds: number, expiresAtSeconds: number): AuthSession {
+function mapIdentityToSession(
+  identity: AuthIdentityPublic,
+  issuedAtSeconds: number,
+  expiresAtSeconds: number,
+): AuthSession {
   return {
     identityId: identity.id,
     name: identity.name,
     email: identity.email,
     profileId: identity.profileId,
+    accessPackageId: identity.accessPackageId,
+    allowedRoutes: identity.allowedRoutes,
     operationIds: identity.operationIds,
     defaultVisibility: identity.defaultVisibility,
     signedAt: new Date(issuedAtSeconds * 1000).toISOString(),
     expiresAt: new Date(expiresAtSeconds * 1000).toISOString(),
   };
+}
+
+function getLandingPathForProfile(profileId: AuthIdentityPublic["profileId"]) {
+  return profileId === "cliente" ? "/portal" : "/";
+}
+
+function getRequestOrigin(request: Request) {
+  return new URL(request.url).origin;
+}
+
+function sanitizeInviteDraft(draft: AccessInviteDraft): AuthIdentityPublic {
+  const trimmedName = draft.name.trim();
+  const trimmedEmail = draft.email.trim().toLowerCase();
+  const profileId = draft.profileId;
+  const accessPackageId = draft.accessPackageId || defaultAccessPackageForProfile(profileId);
+  const packageAllowedRoutes = resolveAllowedRoutes(accessPackageId);
+
+  let operationIds = draft.operationIds;
+  if (profileId === "direcao" || profileId === "claw") {
+    operationIds = "all";
+  } else if (operationIds === "all") {
+    operationIds = defaultOperationScopeForProfile(profileId);
+  } else {
+    operationIds = Array.from(new Set(operationIds.map((value) => value.trim()).filter(Boolean)));
+  }
+
+  if ((profileId === "sales" || profileId === "cliente") && operationIds !== "all" && operationIds.length === 0) {
+    throw new Error("Selecione pelo menos uma operação para esse perfil.");
+  }
+
+  const defaultVisibility =
+    profileId === "cliente"
+      ? "client"
+      : draft.defaultVisibility ?? defaultVisibilityForProfile(profileId);
+
+  let allowedRoutes =
+    Array.isArray(draft.allowedRoutes) && draft.allowedRoutes.length > 0
+      ? Array.from(new Set(draft.allowedRoutes.filter((route) => packageAllowedRoutes.includes(route))))
+      : packageAllowedRoutes;
+
+  if (profileId === "direcao" || profileId === "claw") {
+    allowedRoutes = packageAllowedRoutes;
+  }
+
+  if (allowedRoutes.length === 0) {
+    throw new Error("Selecione pelo menos um módulo para esse convite.");
+  }
+
+  const baseIdentityId = `${trimmedName || trimmedEmail || profileId}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+
+  return {
+    id: `invite-${baseIdentityId || profileId}`,
+    name: trimmedName,
+    email: trimmedEmail,
+    profileId,
+    accessPackageId,
+    allowedRoutes,
+    operationIds,
+    defaultVisibility,
+  };
+}
+
+function buildInvitePreview(
+  request: Request,
+  payload: InviteTokenPayload,
+  token: string,
+): AccessInvitePreview {
+  const landingPath = getLandingPathForProfile(payload.identity.profileId);
+  const inviteUrl = `${getRequestOrigin(request)}${landingPath}?invite=${encodeURIComponent(token)}`;
+
+  return {
+    token,
+    inviteUrl,
+    invitedByIdentityId: payload.invitedByIdentityId,
+    invitedByName: payload.invitedByName,
+    identityId: payload.identity.id,
+    allowedRoutes: payload.identity.allowedRoutes,
+    name: payload.identity.name,
+    email: payload.identity.email,
+    profileId: payload.identity.profileId,
+    operationIds: payload.identity.operationIds,
+    defaultVisibility: payload.identity.defaultVisibility,
+    expiresInHours: Math.max(1, Math.round((payload.exp - payload.iat) / 3600)),
+    issuedAt: new Date(payload.iat * 1000).toISOString(),
+    expiresAt: new Date(payload.exp * 1000).toISOString(),
+    landingPath,
+  };
+}
+
+async function decodeInviteToken(token: string | null | undefined) {
+  if (!token) return null;
+
+  const [payloadEncoded, signature] = token.split(".");
+  if (!payloadEncoded || !signature) return null;
+
+  const expectedSignature = await signValue(payloadEncoded);
+  if (expectedSignature !== signature) return null;
+
+  try {
+    const payload = JSON.parse(
+      new TextDecoder().decode(base64UrlToBytes(payloadEncoded)),
+    ) as InviteTokenPayload;
+
+    if (
+      payload.v !== 1 ||
+      payload.type !== "invite" ||
+      payload.exp * 1000 <= Date.now()
+    ) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 export async function readAuthSessionFromRequest(request: Request): Promise<AuthSession | null> {
@@ -179,6 +360,10 @@ export async function readAuthSessionFromRequest(request: Request): Promise<Auth
   const cookies = parse(cookieHeader);
   const payload = await decodeSessionCookie(cookies[AUTH_COOKIE_NAME]);
   if (!payload) return null;
+
+  if (payload.v === 2) {
+    return mapIdentityToSession(payload.session, payload.iat, payload.exp);
+  }
 
   const identity = getIdentityById(payload.identityId);
   if (!identity) return null;
@@ -216,6 +401,134 @@ export async function signInIdentity(params: {
   return {
     ok: true as const,
     session: currentSession,
+    cookie: serialize(AUTH_COOKIE_NAME, cookieValue, {
+      httpOnly: true,
+      secure: new URL(params.request.url).protocol === "https:",
+      sameSite: "lax",
+      path: "/",
+      maxAge: AUTH_COOKIE_MAX_AGE_SECONDS,
+    }),
+  };
+}
+
+export async function createAccessInvite(params: {
+  invitedBy: AuthSession;
+  draft: AccessInviteDraft;
+  request: Request;
+}) {
+  if (!canManageAccessProfile(params.invitedBy.profileId)) {
+    return { ok: false as const, error: "A sessão atual não pode emitir convites." };
+  }
+
+  const expiresInHours = Math.min(24 * 30, Math.max(1, Math.floor(params.draft.expiresInHours || 72)));
+
+  let identity: AuthIdentityPublic;
+  try {
+    identity = sanitizeInviteDraft({
+      ...params.draft,
+      expiresInHours,
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: error instanceof Error ? error.message : "Falha ao validar o convite.",
+    };
+  }
+
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const payload: InviteTokenPayload = {
+    v: 1,
+    type: "invite",
+    invitedByIdentityId: params.invitedBy.identityId,
+    invitedByName: params.invitedBy.name,
+    identity,
+    iat: issuedAt,
+    exp: issuedAt + expiresInHours * 3600,
+  };
+
+  const token = await encodeInviteToken(payload);
+  const invite = buildInvitePreview(params.request, payload, token);
+  const registry = await persistAccessInviteRecord({
+    invite,
+    invitedBy: params.invitedBy,
+  });
+
+  return {
+    ok: true as const,
+    invite,
+    registry,
+  };
+}
+
+export async function verifyAccessInviteToken(params: {
+  token: string;
+  request: Request;
+}) {
+  const payload = await decodeInviteToken(params.token);
+  if (!payload) {
+    return { ok: false as const, error: "Convite inválido, expirado ou já inutilizável." };
+  }
+
+  if (isAccessRegistryConfigured()) {
+    const registryState = await readInviteRegistryState(params.token);
+    if (!registryState.ok) {
+      return { ok: false as const, error: registryState.error };
+    }
+
+    if (!registryState.entry) {
+      return { ok: false as const, error: "Convite não encontrado no registry persistido." };
+    }
+
+    if (registryState.entry.inviteStatus === "revoked") {
+      return { ok: false as const, error: "Convite revogado pela administração." };
+    }
+
+    if (registryState.entry.inviteStatus === "accepted") {
+      return { ok: false as const, error: "Convite já utilizado." };
+    }
+
+    if (new Date(registryState.entry.inviteExpiresAt).getTime() <= Date.now()) {
+      return { ok: false as const, error: "Convite expirado." };
+    }
+  }
+
+  return {
+    ok: true as const,
+    invite: buildInvitePreview(params.request, payload, params.token),
+  };
+}
+
+export async function acceptAccessInvite(params: {
+  token: string;
+  request: Request;
+}) {
+  const verification = await verifyAccessInviteToken(params);
+  if (!verification.ok) {
+    return verification;
+  }
+
+  const payload = await decodeInviteToken(params.token);
+  if (!payload) {
+    return { ok: false as const, error: "Convite inválido, expirado ou já inutilizável." };
+  }
+
+  if (isAccessRegistryConfigured()) {
+    const acceptance = await markAccessInviteAccepted(params.token);
+    if (!acceptance.ok) {
+      return { ok: false as const, error: acceptance.error ?? "Falha ao registrar o aceite do convite." };
+    }
+  }
+
+  const cookieValue = await encodeEmbeddedSessionCookie(payload.identity);
+  const session = mapIdentityToSession(
+    payload.identity,
+    Math.floor(Date.now() / 1000),
+    Math.floor(Date.now() / 1000) + AUTH_COOKIE_MAX_AGE_SECONDS,
+  );
+
+  return {
+    ok: true as const,
+    session,
     cookie: serialize(AUTH_COOKIE_NAME, cookieValue, {
       httpOnly: true,
       secure: new URL(params.request.url).protocol === "https:",

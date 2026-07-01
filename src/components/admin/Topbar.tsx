@@ -47,6 +47,7 @@ export function Topbar({ breadcrumb }: TopbarProps) {
     selectedVisibilityMode,
     operationOptions,
     selectedAccessProfile,
+    selectedAccessScopeLabel,
     setSelectedOperationId,
     setSelectedPeriod,
     setSelectedVisibilityMode,
@@ -106,6 +107,12 @@ export function Topbar({ breadcrumb }: TopbarProps) {
               className="h-5 rounded-full border-primary/20 bg-primary/5 px-2 text-[10px] uppercase tracking-[0.16em] text-primary"
             >
               {formatVisibilityModeLabel(selectedVisibilityMode)}
+            </Badge>
+            <Badge
+              variant="outline"
+              className="h-5 rounded-full border-border bg-surface px-2 text-[10px] uppercase tracking-[0.16em]"
+            >
+              {selectedAccessScopeLabel}
             </Badge>
           </div>
         </div>
@@ -204,6 +211,9 @@ export function Topbar({ breadcrumb }: TopbarProps) {
                       ? "Interno completo mostra leitura executiva, bastidor operacional e checkpoints sensíveis."
                       : "Cliente-safe limita a visão ao recorte apresentável, sem expor governança interna."}
                   </p>
+                  <div className="mt-2 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    {selectedAccessScopeLabel}
+                  </div>
                 </div>
 
                 <div className="space-y-2">

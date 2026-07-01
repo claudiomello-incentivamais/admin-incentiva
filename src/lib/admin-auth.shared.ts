@@ -1,12 +1,26 @@
 export type AccessProfileId = "direcao" | "claw" | "sales" | "cliente";
 export type VisibilityMode = "internal" | "client";
 export type AccessDirectoryStatus = "active" | "pilot" | "planned";
+export type AccessRegistryInviteStatus = "issued" | "accepted" | "revoked" | "expired";
+export type AccessScopeMode = "all" | "multi" | "single";
+export type AccessPackageId =
+  | "admin_full"
+  | "executivo_publish"
+  | "operacional_safe"
+  | "portal_private";
+
+export interface AccessOperationOption {
+  id: string;
+  label: string;
+}
 
 export interface AuthIdentityPublic {
   id: string;
   name: string;
   email: string;
   profileId: AccessProfileId;
+  accessPackageId: AccessPackageId;
+  allowedRoutes: string[];
   operationIds: string[] | "all";
   defaultVisibility: VisibilityMode;
 }
@@ -24,10 +38,63 @@ export interface AuthSession {
   name: string;
   email: string;
   profileId: AccessProfileId;
+  accessPackageId: AccessPackageId;
+  allowedRoutes: string[];
   operationIds: string[] | "all";
   defaultVisibility: VisibilityMode;
   signedAt: string;
   expiresAt: string;
+}
+
+export interface AccessInviteDraft {
+  name: string;
+  email: string;
+  profileId: AccessProfileId;
+  accessPackageId: AccessPackageId;
+  allowedRoutes?: string[];
+  operationIds: string[] | "all";
+  defaultVisibility: VisibilityMode;
+  expiresInHours: number;
+}
+
+export interface AccessInvitePreview extends AccessInviteDraft {
+  token: string;
+  inviteUrl: string;
+  invitedByIdentityId: string;
+  invitedByName: string;
+  identityId: string;
+  allowedRoutes: string[];
+  issuedAt: string;
+  expiresAt: string;
+  landingPath: string;
+}
+
+export interface AccessRegistryEntrySummary {
+  id: string;
+  identityId: string;
+  name: string;
+  email: string;
+  profileId: AccessProfileId;
+  accessPackageId: AccessPackageId;
+  allowedRoutes: string[];
+  operationIds: string[] | "all";
+  defaultVisibility: VisibilityMode;
+  invitedByIdentityId: string;
+  invitedByName: string;
+  inviteIssuedAt: string;
+  inviteExpiresAt: string;
+  inviteStatus: AccessRegistryInviteStatus;
+  acceptedAt: string | null;
+  revokedAt: string | null;
+  revokedByIdentityId: string | null;
+  revokedReason: string | null;
+}
+
+export interface AccessRegistrySnapshot {
+  configured: boolean;
+  backendLabel: string;
+  entries: AccessRegistryEntrySummary[];
+  error?: string | null;
 }
 
 const operationLabelMap: Record<string, string> = {
@@ -54,12 +121,96 @@ export const ACCESS_PROFILE_LABELS: Record<AccessProfileId, string> = {
   cliente: "Cliente",
 };
 
+export const ACCESS_PACKAGE_LABELS: Record<AccessPackageId, string> = {
+  admin_full: "Admin completo",
+  executivo_publish: "Executivo publish",
+  operacional_safe: "Operacional seguro",
+  portal_private: "Portal privado",
+};
+
+export const ADMIN_ROUTE_LABELS: Record<string, string> = {
+  "/": "Admin Global",
+  "/operacoes": "Operações",
+  "/performance": "Performance",
+  "/governanca": "Governança",
+  "/pipelines": "Pipelines",
+  "/clientes": "Clientes",
+  "/portal": "Portal",
+  "/faturamento": "Faturamento",
+  "/integracoes": "Integrações",
+  "/configuracoes": "Configurações",
+  "/suporte": "Suporte",
+};
+
+export const ACCESS_SCOPE_LABELS: Record<AccessScopeMode, string> = {
+  all: "Admin completo",
+  multi: "Carteira parcial",
+  single: "Acesso exclusivo",
+};
+
+export const ACCESS_SCOPE_DESCRIPTIONS: Record<AccessScopeMode, string> = {
+  all: "Vê a carteira inteira e pode alternar livremente entre operações.",
+  multi: "Vê somente o conjunto de operações explicitamente liberado no convite.",
+  single: "Vê apenas uma operação específica, sem mistura com outras contas.",
+};
+
+export const ACCESS_REGISTRY_STATUS_LABELS: Record<AccessRegistryInviteStatus, string> = {
+  issued: "Emitido",
+  accepted: "Aceito",
+  revoked: "Revogado",
+  expired: "Expirado",
+};
+
+export const ACCESS_ROUTE_PACKAGES: Record<
+  AccessPackageId,
+  { label: string; description: string; allowedRoutes: string[] }
+> = {
+  admin_full: {
+    label: ACCESS_PACKAGE_LABELS.admin_full,
+    description: "Acesso total ao console administrativo.",
+    allowedRoutes: [
+      "/",
+      "/operacoes",
+      "/performance",
+      "/governanca",
+      "/pipelines",
+      "/clientes",
+      "/portal",
+      "/faturamento",
+      "/integracoes",
+      "/configuracoes",
+      "/suporte",
+    ],
+  },
+  executivo_publish: {
+    label: ACCESS_PACKAGE_LABELS.executivo_publish,
+    description: "Leitura executiva com publish, integrações e faturamento.",
+    allowedRoutes: ["/", "/performance", "/clientes", "/portal", "/faturamento", "/integracoes"],
+  },
+  operacional_safe: {
+    label: ACCESS_PACKAGE_LABELS.operacional_safe,
+    description: "Leitura operacional segura para Sales Ops e SDR.",
+    allowedRoutes: ["/", "/performance", "/clientes", "/portal"],
+  },
+  portal_private: {
+    label: ACCESS_PACKAGE_LABELS.portal_private,
+    description: "Acesso restrito ao portal privado da conta.",
+    allowedRoutes: ["/portal"],
+  },
+};
+
+export const ACCESS_OPERATION_OPTIONS: AccessOperationOption[] = Object.entries(operationLabelMap)
+  .map(([id, label]) => ({ id, label }))
+  .sort((left, right) => left.label.localeCompare(right.label, "pt-BR"));
+
 export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
   {
     id: "claudio-direcao",
     name: "Claudio",
     email: "claudio@incentivamais.com",
     profileId: "direcao",
+    accessPackageId: "admin_full",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.admin_full.allowedRoutes,
     operationIds: "all",
     defaultVisibility: "internal",
     status: "active",
@@ -73,6 +224,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     name: "Claw/main",
     email: "main@incentivamais.com",
     profileId: "claw",
+    accessPackageId: "admin_full",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.admin_full.allowedRoutes,
     operationIds: "all",
     defaultVisibility: "internal",
     status: "active",
@@ -86,6 +239,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     name: "Sales Ops",
     email: "salesops@incentivamais.com",
     profileId: "sales",
+    accessPackageId: "operacional_safe",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.operacional_safe.allowedRoutes,
     operationIds: ["incentiva", "prime-action", "nimbus", "acelerato"],
     defaultVisibility: "internal",
     status: "active",
@@ -99,6 +254,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     name: "Cliente Incentiva",
     email: "cliente.incentiva@incentivamais.com",
     profileId: "cliente",
+    accessPackageId: "portal_private",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.portal_private.allowedRoutes,
     operationIds: ["incentiva"],
     defaultVisibility: "client",
     status: "active",
@@ -112,6 +269,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     name: "Lucas Visnadi",
     email: "lucas@incentivamais.com",
     profileId: "direcao",
+    accessPackageId: "admin_full",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.admin_full.allowedRoutes,
     operationIds: "all",
     defaultVisibility: "internal",
     status: "pilot",
@@ -125,6 +284,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     name: "SDR Incentiva",
     email: "sdr.incentiva@incentivamais.com",
     profileId: "sales",
+    accessPackageId: "operacional_safe",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.operacional_safe.allowedRoutes,
     operationIds: ["incentiva"],
     defaultVisibility: "internal",
     status: "pilot",
@@ -138,6 +299,8 @@ export const ACCESS_DIRECTORY: AccessDirectoryEntry[] = [
     name: "Cliente Prime Action",
     email: "cliente.primeaction@incentivamais.com",
     profileId: "cliente",
+    accessPackageId: "portal_private",
+    allowedRoutes: ACCESS_ROUTE_PACKAGES.portal_private.allowedRoutes,
     operationIds: ["prime-action"],
     defaultVisibility: "client",
     status: "planned",
@@ -161,4 +324,40 @@ export function formatAccessStatusLabel(status: AccessDirectoryStatus) {
   if (status === "active") return "Ativo";
   if (status === "pilot") return "Piloto";
   return "Planejado";
+}
+
+export function defaultVisibilityForProfile(profileId: AccessProfileId): VisibilityMode {
+  return profileId === "cliente" ? "client" : "internal";
+}
+
+export function defaultOperationScopeForProfile(profileId: AccessProfileId): string[] | "all" {
+  return profileId === "direcao" || profileId === "claw" ? "all" : [];
+}
+
+export function defaultAccessPackageForProfile(profileId: AccessProfileId): AccessPackageId {
+  if (profileId === "cliente") return "portal_private";
+  if (profileId === "sales") return "operacional_safe";
+  return "admin_full";
+}
+
+export function resolveAllowedRoutes(accessPackageId: AccessPackageId) {
+  return ACCESS_ROUTE_PACKAGES[accessPackageId].allowedRoutes;
+}
+
+export function formatAllowedRouteLabels(allowedRoutes: string[]) {
+  return allowedRoutes.map((route) => ADMIN_ROUTE_LABELS[route] ?? route);
+}
+
+export function canManageAccessProfile(profileId: AccessProfileId) {
+  return profileId === "direcao" || profileId === "claw";
+}
+
+export function resolveEffectiveInviteStatus(entry: Pick<AccessRegistryEntrySummary, "inviteStatus" | "inviteExpiresAt">) {
+  if (entry.inviteStatus !== "issued") return entry.inviteStatus;
+  return new Date(entry.inviteExpiresAt).getTime() <= Date.now() ? "expired" : "issued";
+}
+
+export function resolveAccessScopeMode(operationIds: string[] | "all"): AccessScopeMode {
+  if (operationIds === "all") return "all";
+  return operationIds.length <= 1 ? "single" : "multi";
 }

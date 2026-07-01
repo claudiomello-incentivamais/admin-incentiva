@@ -28,19 +28,19 @@ import {
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationRuntimeView,
-  loadGlobalDashboard,
   priorityMeta,
   statusMeta,
   type Operation,
   type OperationStatus,
   type Priority,
 } from "@/lib/admin-data";
+import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
 import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/clientes")({
   head: () => ({ meta: [{ title: "Clientes — Console Incentiva" }] }),
-  loader: async () => loadGlobalDashboard(),
+  loader: async () => loadScopedGlobalDashboardServerFn(),
   component: ClientsPage,
 });
 
@@ -644,7 +644,7 @@ function PortalReadinessCard({
 function PortalOperationCard({
   operation,
 }: {
-  operation: (Awaited<ReturnType<typeof loadGlobalDashboard>>)["operations"][number];
+  operation: (Awaited<ReturnType<typeof loadScopedGlobalDashboardServerFn>>)["operations"][number];
 }) {
   const meta = statusMeta[operation.health];
   const exposure = portalExposureRule(operation.health);

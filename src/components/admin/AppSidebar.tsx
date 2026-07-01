@@ -56,13 +56,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p));
-  const allowedRoutes = new Set(
-    session?.profileId === "cliente"
-      ? ["/portal"]
-      : session?.profileId === "sales"
-        ? ["/", "/operacoes", "/performance", "/pipelines", "/clientes", "/portal", "/suporte"]
-        : ["/", "/operacoes", "/performance", "/governanca", "/pipelines", "/clientes", "/portal", "/faturamento", "/integracoes", "/configuracoes", "/suporte"],
-  );
+  const allowedRoutes = new Set(session?.allowedRoutes ?? ["/"]);
 
   const renderGroup = (label: string, items: typeof global) => (
     <SidebarGroup>

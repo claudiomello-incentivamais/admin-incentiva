@@ -39,9 +39,9 @@ import {
   buildPortalLiveSourceCards,
   buildPortalPublishPacket,
   getScoreDrivers,
-  loadGlobalDashboard,
   statusMeta,
 } from "@/lib/admin-data";
+import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
 import { applyPeriodToCockpit, applyPeriodToOperation } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +50,7 @@ export const Route = createFileRoute("/portal")({
   validateSearch: z.object({
     operationId: z.string().optional(),
   }),
-  loader: async () => loadGlobalDashboard(),
+  loader: async () => loadScopedGlobalDashboardServerFn(),
   component: PortalPage,
 });
 

@@ -29,17 +29,17 @@ import {
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationRuntimeView,
-  loadGlobalDashboard,
   statusMeta,
   type Operation,
   type OperationStatus,
 } from "@/lib/admin-data";
+import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
 import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/performance")({
   head: () => ({ meta: [{ title: "Performance — Console Incentiva" }] }),
-  loader: async () => loadGlobalDashboard(),
+  loader: async () => loadScopedGlobalDashboardServerFn(),
   component: PerformancePage,
 });
 

@@ -32,7 +32,6 @@ import {
   buildExecutiveFocusAreas,
   buildOperationActionPlan,
   getScoreDrivers,
-  loadGlobalDashboard,
   priorityMeta,
   statusMeta,
   type ExecutiveCommandItem,
@@ -41,6 +40,7 @@ import {
   type Operation,
   type OperationStatus,
 } from "@/lib/admin-data";
+import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
 import { applyPeriodToOperation, buildScopedKpis } from "@/lib/admin-period";
 
 export const Route = createFileRoute("/")({
@@ -54,7 +54,7 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  loader: async () => loadGlobalDashboard(),
+  loader: async () => loadScopedGlobalDashboardServerFn(),
   component: AdminGlobal,
 });
 

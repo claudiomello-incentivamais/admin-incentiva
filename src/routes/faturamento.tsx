@@ -18,193 +18,19 @@ import {
 } from "@/components/admin/admin-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { fetchOperations } from "@/lib/admin-data";
+import {
+  billingOperationIdByClient,
+  type BillingAccount,
+  type BillingTone,
+} from "@/lib/admin-billing-data";
+import { loadScopedBillingDashboardServerFn } from "@/lib/admin-billing-rpc";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/faturamento")({
   head: () => ({ meta: [{ title: "Faturamento — Console Incentiva" }] }),
+  loader: async () => loadScopedBillingDashboardServerFn(),
   component: BillingPage,
 });
-
-type BillingTone = "success" | "info" | "monitor" | "warning" | "risk";
-
-type BillingAccount = {
-  client: string;
-  vertical: string;
-  ticket: number;
-  delivery: string;
-  sdr: string;
-  cycleMonths: number | null;
-  contractSignal: string;
-  loyaltySignal: string;
-  reading: string;
-  risk: BillingTone;
-};
-
-const billingSnapshot = {
-  snapshotLabel: "Análise de Performance · coluna D (Ticket)",
-  sourceLabel: "Snapshot local da planilha",
-  accounts: [
-    {
-      client: "Iamit",
-      vertical: "TI",
-      ticket: 6500,
-      delivery: "Outbound",
-      sdr: "Ana Livia",
-      cycleMonths: 14,
-      contractSignal: "Aviso prévio",
-      loyaltySignal: "Sem fidelidade ativa",
-      reading: "Maior ticket da carteira atual; pede retenção e execução consistente.",
-      risk: "monitor",
-    },
-    {
-      client: "Nimbus",
-      vertical: "Meteorologia",
-      ticket: 5346.09,
-      delivery: "Outbound",
-      sdr: "Ester",
-      cycleMonths: 31,
-      contractSignal: "Aviso prévio",
-      loyaltySignal: "Sem fidelidade ativa",
-      reading: "Conta madura e relevante para caixa, mas com sinal contratual que merece atenção.",
-      risk: "monitor",
-    },
-    {
-      client: "Prime Action",
-      vertical: "Consultoria",
-      ticket: 5000,
-      delivery: "Funil em Y",
-      sdr: "Karen",
-      cycleMonths: 31,
-      contractSignal: "Aviso prévio",
-      loyaltySignal: "Sem fidelidade ativa",
-      reading: "Receita alta com operação já mais estruturada; vale blindar expansão e renovação.",
-      risk: "monitor",
-    },
-    {
-      client: "Acelerato",
-      vertical: "Varejo",
-      ticket: 4000,
-      delivery: "Outbound",
-      sdr: "Ana Livia",
-      cycleMonths: 7,
-      contractSignal: "Abr/26",
-      loyaltySignal: "Fidelidade até jan/26",
-      reading: "Conta pagante importante, ainda relativamente nova e com espaço para ganhar tração.",
-      risk: "info",
-    },
-    {
-      client: "Lima Duarte Alimentos",
-      vertical: "Varejo",
-      ticket: 4000,
-      delivery: "Outbound",
-      sdr: "Ana Livia",
-      cycleMonths: 4,
-      contractSignal: "Aviso prévio",
-      loyaltySignal: "Fidelidade até abr/26",
-      reading: "Conta nova na carteira; receita já relevante, mas ainda em fase de consolidação.",
-      risk: "info",
-    },
-    {
-      client: "Trial Ambiental",
-      vertical: "Eng. Ambiental",
-      ticket: 4000,
-      delivery: "Outbound",
-      sdr: "João",
-      cycleMonths: 2,
-      contractSignal: "Mar/27",
-      loyaltySignal: "Fidelidade até set/26",
-      reading: "Boa previsibilidade contratual no curto prazo; o foco aqui é provar valor rápido.",
-      risk: "success",
-    },
-    {
-      client: "We9",
-      vertical: "Shopping Center",
-      ticket: 4000,
-      delivery: "Outbound",
-      sdr: "João",
-      cycleMonths: 1,
-      contractSignal: "Sem data registrada",
-      loyaltySignal: "Sem fidelidade registrada",
-      reading: "Receita relevante, mas ainda muito jovem; governança e evolução precisam ficar próximas.",
-      risk: "warning",
-    },
-    {
-      client: "Plan Idiomas",
-      vertical: "Educação",
-      ticket: 3000,
-      delivery: "Outbound",
-      sdr: "Ester",
-      cycleMonths: 15,
-      contractSignal: "Aviso prévio",
-      loyaltySignal: "Sem fidelidade ativa",
-      reading: "Ticket intermediário com boa maturidade operacional; vale proteger margem e estabilidade.",
-      risk: "monitor",
-    },
-    {
-      client: "InMeta",
-      vertical: "A confirmar",
-      ticket: 3000,
-      delivery: "Outbound",
-      sdr: "-",
-      cycleMonths: null,
-      contractSignal: "Cliente novo no recorte atual",
-      loyaltySignal: "A confirmar",
-      reading: "Conta nova adicionada à carteira real depois do snapshot local anterior; entra para corrigir a leitura de receita.",
-      risk: "info",
-    },
-    {
-      client: "DocSeg",
-      vertical: "Jurídico",
-      ticket: 2500,
-      delivery: "Outbound",
-      sdr: "Ana Livia",
-      cycleMonths: 9,
-      contractSignal: "Aviso prévio",
-      loyaltySignal: "Fidelidade até jan/26",
-      reading: "Menor ticket pagante; leitura útil para churn, eficiência e potencial de expansão.",
-      risk: "info",
-    },
-    {
-      client: "Incentiva",
-      vertical: "Inside Sales",
-      ticket: 0,
-      delivery: "Funil em Y",
-      sdr: "Karen",
-      cycleMonths: null,
-      contractSignal: "Uso interno",
-      loyaltySignal: "N/A",
-      reading: "Conta interna/referência operacional; não entra no caixa da carteira.",
-      risk: "success",
-    },
-    {
-      client: "Café Fazenda",
-      vertical: "Café",
-      ticket: 0,
-      delivery: "Outbound",
-      sdr: "Ester",
-      cycleMonths: 39,
-      contractSignal: "Sem ticket registrado",
-      loyaltySignal: "N/A",
-      reading: "Conta ativa no snapshot, mas sem valor refletido na coluna D; precisa de saneamento comercial.",
-      risk: "risk",
-    },
-  ] satisfies BillingAccount[],
-};
-
-const billingOperationIdByClient: Record<string, string> = {
-  Iamit: "iamit",
-  Nimbus: "nimbus",
-  "Prime Action": "prime-action",
-  Acelerato: "acelerato",
-  "Lima Duarte Alimentos": "lima-duarte",
-  "Trial Ambiental": "trial-ambiental",
-  We9: "we9",
-  "Plan Idiomas": "plan-idiomas",
-  Incentiva: "incentiva",
-  DocSeg: "docseg",
-  "Café Fazenda": "cafe-fazenda-brasil",
-};
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", {
@@ -222,12 +48,17 @@ function formatPercent(value: number) {
 }
 
 function BillingPage() {
+  const billingDashboard = Route.useLoaderData();
   const { selectedOperationId, selectedOperation, selectedPeriod } = useAdminFilters();
-  const operationIds = new Set(fetchOperations().map((operation) => operation.id));
+  const operationIds = new Set(
+    billingDashboard.accounts
+      .map((account) => account.operationId)
+      .filter((value): value is string => !!value),
+  );
   const filteredAccounts =
     selectedOperationId === "all"
-      ? billingSnapshot.accounts
-      : billingSnapshot.accounts.filter(
+      ? billingDashboard.accounts
+      : billingDashboard.accounts.filter(
           (account) =>
             billingOperationIdByClient[account.client] === selectedOperationId ||
             (!operationIds.has(selectedOperationId) && account.client === selectedOperation?.label),
@@ -284,10 +115,10 @@ function BillingPage() {
                 Receita e previsibilidade
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
-                {billingSnapshot.snapshotLabel}
+                {billingDashboard.snapshotLabel}
               </span>
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
-                {billingSnapshot.sourceLabel}
+                {billingDashboard.sourceLabel}
               </Badge>
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {formatPeriodLabel(selectedPeriod)}
@@ -463,6 +294,7 @@ function BillingPage() {
                   <th className="text-right font-medium px-3 py-2.5">Ciclo</th>
                   <th className="text-left font-medium px-3 py-2.5">Contrato</th>
                   <th className="text-left font-medium px-3 py-2.5">Fidelidade</th>
+                  <th className="text-left font-medium px-3 py-2.5">API4Com</th>
                   <th className="text-left font-medium px-4 py-2.5">Leitura</th>
                 </tr>
               </thead>
@@ -571,6 +403,11 @@ function BillingRow({ account }: { account: BillingAccount }) {
         </div>
       </td>
       <td className="px-3 py-3.5 text-muted-foreground">{account.loyaltySignal}</td>
+      <td className="px-3 py-3.5 text-muted-foreground">
+        <div className="max-w-[220px] text-[12px] leading-relaxed">
+          {account.api4comSnapshot ?? "Sem leitura viva"}
+        </div>
+      </td>
       <td className="px-4 py-3.5">
         <div className="flex items-start gap-2">
           <div className={cn("mt-1 h-2.5 w-2.5 rounded-full shrink-0", toneDotClass[account.risk])} />

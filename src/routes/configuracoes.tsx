@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   CheckCircle2,
+  Copy,
   Database,
   Eye,
   Filter,
@@ -9,6 +11,7 @@ import {
   KeyRound,
   Layers3,
   Lock,
+  RefreshCcw,
   ShieldCheck,
   Settings2,
   SlidersHorizontal,
@@ -19,14 +22,40 @@ import {
 } from "lucide-react";
 
 import { Topbar } from "@/components/admin/Topbar";
+import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  createAccessInviteServerFn,
+  listAccessRegistryServerFn,
+  revokeAccessInviteServerFn,
+} from "@/lib/admin-auth-rpc";
 import { cn } from "@/lib/utils";
 import {
   ACCESS_DIRECTORY,
+  ACCESS_PACKAGE_LABELS,
+  ACCESS_ROUTE_PACKAGES,
+  ACCESS_REGISTRY_STATUS_LABELS,
+  ACCESS_SCOPE_DESCRIPTIONS,
+  ACCESS_SCOPE_LABELS,
+  ACCESS_OPERATION_OPTIONS,
   ACCESS_PROFILE_LABELS,
+  canManageAccessProfile,
+  defaultAccessPackageForProfile,
+  defaultOperationScopeForProfile,
+  defaultVisibilityForProfile,
+  formatAllowedRouteLabels,
   formatAccessStatusLabel,
+  type AccessInvitePreview,
+  type AccessRegistrySnapshot,
+  type AccessScopeMode,
+  type AccessProfileId,
   formatOperationScope,
+  resolveAccessScopeMode,
+  resolveEffectiveInviteStatus,
+  type VisibilityMode,
 } from "@/lib/admin-auth.shared";
 
 export const Route = createFileRoute("/configuracoes")({
@@ -243,6 +272,189 @@ const settings = {
 };
 
 function SettingsPage() {
+  const { session } = useAdminAuth();
+  const canManageAccess = !!session && canManageAccessProfile(session.profileId);
+  const [inviteName, setInviteName] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteProfileId, setInviteProfileId] = useState<AccessProfileId>("cliente");
+  const [inviteAccessPackageId, setInviteAccessPackageId] = useState(
+    defaultAccessPackageForProfile("cliente"),
+  );
+  const [inviteAllowedRoutes, setInviteAllowedRoutes] = useState<string[]>(
+    ACCESS_ROUTE_PACKAGES[defaultAccessPackageForProfile("cliente")].allowedRoutes,
+  );
+  const [inviteScopeMode, setInviteScopeMode] = useState<AccessScopeMode>("single");
+  const [inviteVisibility, setInviteVisibility] = useState<VisibilityMode>("client");
+  const [inviteExpiresInHours, setInviteExpiresInHours] = useState("168");
+  const [inviteOperationIds, setInviteOperationIds] = useState<string[]>(["incentiva"]);
+  const [inviteResult, setInviteResult] = useState<AccessInvitePreview | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isInviteSubmitting, setIsInviteSubmitting] = useState(false);
+  const [registrySnapshot, setRegistrySnapshot] = useState<AccessRegistrySnapshot | null>(null);
+  const [registryError, setRegistryError] = useState<string | null>(null);
+  const [isRegistryLoading, setIsRegistryLoading] = useState(false);
+  const [revokingRegistryId, setRevokingRegistryId] = useState<string | null>(null);
+
+  const effectiveInviteScopeMode =
+    inviteProfileId === "direcao" || inviteProfileId === "claw" ? "all" : inviteScopeMode;
+
+  const inviteOperationScope =
+    effectiveInviteScopeMode === "all" ? "all" : inviteOperationIds;
+
+  const inviteMessage = inviteResult
+    ? `Acesso liberado para ${inviteResult.name}\nPerfil: ${ACCESS_PROFILE_LABELS[inviteResult.profileId]}\nNível: ${ACCESS_SCOPE_LABELS[resolveAccessScopeMode(inviteResult.operationIds)]}\nPacote: ${ACCESS_PACKAGE_LABELS[inviteResult.accessPackageId]}\nOperações: ${formatOperationScope(inviteResult.operationIds)}\nLink: ${inviteResult.inviteUrl}\nValidade: ${new Date(inviteResult.expiresAt).toLocaleString("pt-BR")}`
+    : "";
+
+  useEffect(() => {
+    const packageRoutes = ACCESS_ROUTE_PACKAGES[inviteAccessPackageId].allowedRoutes;
+    setInviteAllowedRoutes((current) => {
+      const scoped = current.filter((route) => packageRoutes.includes(route));
+      return scoped.length > 0 ? scoped : packageRoutes;
+    });
+  }, [inviteAccessPackageId]);
+
+  const loadRegistry = async () => {
+    if (!canManageAccess) return;
+
+    setIsRegistryLoading(true);
+    setRegistryError(null);
+
+    const response = await listAccessRegistryServerFn();
+    const payload = (await response.json()) as
+      | { ok: true; snapshot: AccessRegistrySnapshot }
+      | { ok: false; error?: string };
+
+    setIsRegistryLoading(false);
+
+    if (!response.ok || !payload.ok) {
+      setRegistrySnapshot(null);
+      setRegistryError(payload.ok ? "Falha ao carregar o registry." : payload.error ?? "Falha ao carregar o registry.");
+      return;
+    }
+
+    setRegistrySnapshot(payload.snapshot);
+    setRegistryError(payload.snapshot.error ?? null);
+  };
+
+  useEffect(() => {
+    void loadRegistry();
+  }, [canManageAccess]);
+
+  const toggleOperation = (operationId: string) => {
+    setInviteOperationIds((current) => {
+      if (effectiveInviteScopeMode === "single") {
+        return current.includes(operationId) ? current : [operationId];
+      }
+
+      return current.includes(operationId)
+        ? current.filter((value) => value !== operationId)
+        : [...current, operationId];
+    });
+  };
+
+  const applyProfileDefaults = (profileId: AccessProfileId) => {
+    const nextPackageId = defaultAccessPackageForProfile(profileId);
+    setInviteProfileId(profileId);
+    setInviteAccessPackageId(nextPackageId);
+    setInviteAllowedRoutes(ACCESS_ROUTE_PACKAGES[nextPackageId].allowedRoutes);
+    setInviteVisibility(defaultVisibilityForProfile(profileId));
+
+    const defaultScope = defaultOperationScopeForProfile(profileId);
+    if (defaultScope === "all") {
+      setInviteScopeMode("all");
+      setInviteOperationIds([]);
+      return;
+    }
+
+    const nextOperationIds =
+      defaultScope.length > 0 ? defaultScope : ["incentiva"];
+    setInviteScopeMode(profileId === "cliente" ? "single" : nextOperationIds.length > 1 ? "multi" : "single");
+    setInviteOperationIds(nextOperationIds);
+  };
+
+  const toggleAllowedRoute = (route: string) => {
+    if (inviteProfileId === "direcao" || inviteProfileId === "claw") {
+      return;
+    }
+
+    const packageRoutes = ACCESS_ROUTE_PACKAGES[inviteAccessPackageId].allowedRoutes;
+    if (!packageRoutes.includes(route)) return;
+
+    setInviteAllowedRoutes((current) => {
+      const next = current.includes(route)
+        ? current.filter((value) => value !== route)
+        : [...current, route];
+      return next.length > 0 ? next : current;
+    });
+  };
+
+  const handleCreateInvite = async () => {
+    setIsInviteSubmitting(true);
+    setInviteError(null);
+
+    const response = await createAccessInviteServerFn({
+      data: {
+        name: inviteName.trim(),
+        email: inviteEmail.trim().toLowerCase(),
+        profileId: inviteProfileId,
+        accessPackageId: inviteAccessPackageId,
+        allowedRoutes: inviteAllowedRoutes,
+        operationIds: inviteOperationScope,
+        defaultVisibility: inviteVisibility,
+        expiresInHours: Number(inviteExpiresInHours) || 168,
+      },
+    });
+
+    const payload = (await response.json()) as
+      | { ok: true; invite: AccessInvitePreview; registry?: { persisted: boolean; backendLabel: string; error?: string | null } }
+      | { ok: false; error?: string };
+
+    setIsInviteSubmitting(false);
+
+    if (!response.ok || !payload.ok) {
+      setInviteResult(null);
+      setInviteError(payload.ok ? "Falha ao gerar o convite." : payload.error ?? "Falha ao gerar o convite.");
+      return;
+    }
+
+    setInviteResult(payload.invite);
+    if (payload.registry?.error) {
+      setRegistryError(payload.registry.error);
+    } else if (payload.registry?.persisted) {
+      await loadRegistry();
+    }
+  };
+
+  const handleRevokeInvite = async (registryId: string) => {
+    setRevokingRegistryId(registryId);
+    setRegistryError(null);
+
+    const response = await revokeAccessInviteServerFn({
+      data: {
+        registryId,
+        reason: "Revogado no admin",
+      },
+    });
+
+    const payload = (await response.json()) as
+      | { ok: true }
+      | { ok: false; error?: string };
+
+    setRevokingRegistryId(null);
+
+    if (!response.ok || !payload.ok) {
+      setRegistryError(payload.ok ? "Falha ao revogar convite." : payload.error ?? "Falha ao revogar convite.");
+      return;
+    }
+
+    await loadRegistry();
+  };
+
+  const copyText = async (value: string) => {
+    if (!value || typeof navigator === "undefined" || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(value);
+  };
+
   return (
     <>
       <Topbar breadcrumb={["Console Incentiva", "Configurações"]} />
@@ -469,12 +681,561 @@ function SettingsPage() {
                     </div>
                   </div>
 
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Nível de acesso
+                      </div>
+                      <div className="mt-1 text-[12px] text-foreground">
+                        {ACCESS_SCOPE_LABELS[resolveAccessScopeMode(entry.operationIds)]}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background/80 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Pacote
+                      </div>
+                      <div className="mt-1 text-[12px] text-foreground">
+                        {ACCESS_PACKAGE_LABELS[entry.accessPackageId]}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-lg border border-border bg-background/80 px-3 py-2">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Módulos liberados
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {formatAllowedRouteLabels(entry.allowedRoutes).map((label) => (
+                        <Badge key={`${entry.id}-${label}`} variant="secondary" className="h-5 text-[10px]">
+                          {label}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
                   <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
                     {entry.notes}
                   </p>
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Administração de convites</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Direção e Claw já podem emitir link com perfil, escopo e validade para abrir a sessão restrita sem depender de chave compartilhada.
+              </p>
+            </div>
+            <KeyRound className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          {!canManageAccess ? (
+            <div className="rounded-xl border border-border bg-surface p-4 text-[12px] text-muted-foreground">
+              Esta área fica disponível apenas para perfis de direção e Claw/main. Quando o Lucas entrar como direção, herda esta capacidade automaticamente.
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="rounded-2xl border border-border bg-surface p-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Nome
+                    </label>
+                    <Input
+                      value={inviteName}
+                      onChange={(event) => setInviteName(event.target.value)}
+                      placeholder="Ex.: SDR Prime Action"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      E-mail
+                    </label>
+                    <Input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="nome@empresa.com"
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Perfil
+                    </label>
+                    <select
+                      value={inviteProfileId}
+                      onChange={(event) => applyProfileDefaults(event.target.value as AccessProfileId)}
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="cliente">Cliente</option>
+                      <option value="sales">Sales Ops / SDR</option>
+                      <option value="direcao">Direção</option>
+                      <option value="claw">Claw/main</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Modo padrão
+                    </label>
+                    <select
+                      value={inviteVisibility}
+                      onChange={(event) => setInviteVisibility(event.target.value as VisibilityMode)}
+                      disabled={inviteProfileId === "cliente"}
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <option value="internal">Interno completo</option>
+                      <option value="client">Cliente-safe</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Pacote de acesso
+                    </label>
+                    <select
+                      value={inviteAccessPackageId}
+                      onChange={(event) => setInviteAccessPackageId(event.target.value as keyof typeof ACCESS_ROUTE_PACKAGES)}
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {Object.entries(ACCESS_ROUTE_PACKAGES).map(([packageId, pkg]) => (
+                        <option key={packageId} value={packageId}>
+                          {pkg.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      {ACCESS_ROUTE_PACKAGES[inviteAccessPackageId].description}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Nível de acesso
+                    </label>
+                    <select
+                      value={effectiveInviteScopeMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value as AccessScopeMode;
+                        setInviteScopeMode(nextMode);
+                        if (nextMode === "single") {
+                          setInviteOperationIds((current) => [current[0] ?? "incentiva"]);
+                        }
+                      }}
+                      disabled={inviteProfileId === "direcao" || inviteProfileId === "claw"}
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {inviteProfileId === "direcao" || inviteProfileId === "claw" ? (
+                        <option value="all">{ACCESS_SCOPE_LABELS.all}</option>
+                      ) : (
+                        <>
+                          <option value="single">{ACCESS_SCOPE_LABELS.single}</option>
+                          <option value="multi">{ACCESS_SCOPE_LABELS.multi}</option>
+                        </>
+                      )}
+                    </select>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                      {ACCESS_SCOPE_DESCRIPTIONS[effectiveInviteScopeMode]}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                      Validade
+                    </label>
+                    <select
+                      value={inviteExpiresInHours}
+                      onChange={(event) => setInviteExpiresInHours(event.target.value)}
+                      className="h-10 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="24">24 horas</option>
+                      <option value="72">3 dias</option>
+                      <option value="168">7 dias</option>
+                      <option value="720">30 dias</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-border bg-background/80 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Operações liberadas
+                  </div>
+                  {inviteOperationScope === "all" ? (
+                    <p className="mt-2 text-[12px] text-muted-foreground">
+                      Este perfil herda carteira inteira.
+                    </p>
+                  ) : (
+                    <div className="mt-3">
+                      <p className="mb-3 text-[12px] text-muted-foreground">
+                        {effectiveInviteScopeMode === "single"
+                          ? "Selecione a operação exclusiva que esta pessoa poderá abrir."
+                          : "Selecione o conjunto de operações que ficará liberado para esta pessoa."}
+                      </p>
+                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {ACCESS_OPERATION_OPTIONS.map((operation) => {
+                        const checked = inviteOperationIds.includes(operation.id);
+                        return (
+                          <label
+                            key={operation.id}
+                            className={cn(
+                              "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] transition-colors cursor-pointer",
+                              checked
+                                ? "border-primary/40 bg-primary/5 text-foreground"
+                                : "border-border bg-background text-muted-foreground",
+                            )}
+                          >
+                            <input
+                              type={effectiveInviteScopeMode === "single" ? "radio" : "checkbox"}
+                              name="invite-operation-scope"
+                              checked={checked}
+                              onChange={() => toggleOperation(operation.id)}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span>{operation.label}</span>
+                          </label>
+                        );
+                      })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 rounded-xl border border-border bg-background/80 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Módulos liberados
+                  </div>
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    {inviteProfileId === "direcao" || inviteProfileId === "claw"
+                      ? "Para direção e Claw, o pacote sobe completo."
+                      : "Escolha quais telas deste pacote ficam liberadas para esta pessoa."}
+                  </p>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {ACCESS_ROUTE_PACKAGES[inviteAccessPackageId].allowedRoutes.map((route) => {
+                      const checked = inviteAllowedRoutes.includes(route);
+                      const label = formatAllowedRouteLabels([route])[0];
+                      return (
+                        <label
+                          key={`invite-route-${route}`}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border px-3 py-2 text-[12px] transition-colors",
+                            checked
+                              ? "border-primary/40 bg-primary/5 text-foreground"
+                              : "border-border bg-background text-muted-foreground",
+                            inviteProfileId === "direcao" || inviteProfileId === "claw"
+                              ? "cursor-not-allowed opacity-75"
+                              : "cursor-pointer",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleAllowedRoute(route)}
+                            disabled={inviteProfileId === "direcao" || inviteProfileId === "claw"}
+                            className="h-3.5 w-3.5"
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {inviteError && (
+                  <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+                    {inviteError}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    onClick={handleCreateInvite}
+                    disabled={isInviteSubmitting}
+                  >
+                    {isInviteSubmitting ? "Gerando convite..." : "Gerar convite governado"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setInviteResult(null);
+                      setInviteError(null);
+                    }}
+                  >
+                    Limpar
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-surface p-4">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Saída pronta
+                </div>
+                {inviteResult ? (
+                  <div className="mt-3 space-y-4">
+                    <div className="rounded-xl border border-border bg-background/80 p-4">
+                      <div className="text-sm font-medium text-foreground">{inviteResult.name}</div>
+                      <div className="mt-1 text-[12px] text-muted-foreground">
+                        {inviteResult.email}
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Perfil
+                          </div>
+                          <div className="mt-1 text-[12px] text-foreground">
+                            {ACCESS_PROFILE_LABELS[inviteResult.profileId]}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Escopo
+                          </div>
+                          <div className="mt-1 text-[12px] text-foreground">
+                            {formatOperationScope(inviteResult.operationIds)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Nível
+                          </div>
+                          <div className="mt-1 text-[12px] text-foreground">
+                            {ACCESS_SCOPE_LABELS[resolveAccessScopeMode(inviteResult.operationIds)]}
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Pacote de acesso
+                          </div>
+                          <div className="mt-1 text-[12px] text-foreground">
+                            {ACCESS_PACKAGE_LABELS[inviteResult.accessPackageId]}
+                          </div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                            Módulos liberados
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {formatAllowedRouteLabels(inviteResult.allowedRoutes).map((label) => (
+                              <Badge key={`${inviteResult.identityId}-${label}`} variant="secondary" className="h-5 text-[10px]">
+                                {label}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-3 text-[12px] text-muted-foreground">
+                        Válido até {new Date(inviteResult.expiresAt).toLocaleString("pt-BR")}.
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Link de convite
+                      </label>
+                      <Input readOnly value={inviteResult.inviteUrl} className="bg-background text-[12px]" />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                        Texto pronto para e-mail ou WhatsApp
+                      </label>
+                      <Textarea readOnly value={inviteMessage} className="min-h-[150px] bg-background text-[12px]" />
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <Button type="button" variant="outline" onClick={() => void copyText(inviteResult.inviteUrl)}>
+                        <Copy className="mr-2 h-3.5 w-3.5" />
+                        Copiar link
+                      </Button>
+                      <Button type="button" variant="outline" onClick={() => void copyText(inviteMessage)}>
+                        <Copy className="mr-2 h-3.5 w-3.5" />
+                        Copiar texto
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-dashed border-border bg-background/60 p-4 text-[12px] text-muted-foreground">
+                    Gere um convite para receber aqui o link de acesso, o resumo do perfil e um texto pronto para distribuição.
+                  </div>
+                )}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-border bg-surface p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-display">Registry persistido</div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Camada para listar, revogar e acompanhar convites emitidos fora da sessão assinada local.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-5 text-[10px] uppercase tracking-[0.16em]",
+                      registrySnapshot?.configured
+                        ? "border-primary/30 text-primary"
+                        : "border-border text-muted-foreground",
+                    )}
+                  >
+                    {registrySnapshot?.backendLabel ?? "Carregando backend"}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-2"
+                    onClick={() => void loadRegistry()}
+                    disabled={isRegistryLoading}
+                  >
+                    <RefreshCcw className={cn("h-3.5 w-3.5", isRegistryLoading && "animate-spin")} />
+                    Atualizar
+                  </Button>
+                </div>
+              </div>
+
+              {registryError && (
+                <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 text-[12px] text-amber-700 dark:text-amber-300">
+                  {registryError}
+                </div>
+              )}
+
+              {!registrySnapshot?.configured ? (
+                <div className="mt-4 rounded-xl border border-dashed border-border bg-background/60 p-4 text-[12px] text-muted-foreground">
+                  O fluxo de convite segue funcionando, mas a persistência server-side ainda não está ligada. Quando a chave de serviço estiver configurada, esta área passa a mostrar histórico, aceite e revogação real.
+                </div>
+              ) : registrySnapshot.entries.length === 0 ? (
+                <div className="mt-4 rounded-xl border border-dashed border-border bg-background/60 p-4 text-[12px] text-muted-foreground">
+                  Nenhum convite persistido apareceu ainda no registry.
+                </div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {registrySnapshot.entries.map((entry) => {
+                    const effectiveStatus = resolveEffectiveInviteStatus(entry);
+                    const canRevoke = effectiveStatus === "issued";
+
+                    return (
+                      <div key={entry.id} className="rounded-xl border border-border bg-background/80 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-medium text-foreground">{entry.name}</div>
+                            <div className="mt-1 text-[12px] text-muted-foreground">{entry.email}</div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
+                              {ACCESS_PROFILE_LABELS[entry.profileId]}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "h-5 text-[10px] uppercase tracking-[0.16em]",
+                                effectiveStatus === "accepted" && "border-primary/30 text-primary",
+                                effectiveStatus === "revoked" && "border-destructive/30 text-destructive",
+                                effectiveStatus === "expired" && "border-amber-500/30 text-amber-700 dark:text-amber-300",
+                              )}
+                            >
+                              {ACCESS_REGISTRY_STATUS_LABELS[effectiveStatus]}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                          <RegistryMeta
+                            label="Nível"
+                            value={ACCESS_SCOPE_LABELS[resolveAccessScopeMode(entry.operationIds)]}
+                          />
+                          <RegistryMeta label="Pacote" value={ACCESS_PACKAGE_LABELS[entry.accessPackageId]} />
+                          <RegistryMeta label="Operações" value={formatOperationScope(entry.operationIds)} />
+                          <RegistryMeta
+                            label="Emitido em"
+                            value={new Date(entry.inviteIssuedAt).toLocaleString("pt-BR")}
+                          />
+                          <RegistryMeta
+                            label="Expira em"
+                            value={new Date(entry.inviteExpiresAt).toLocaleString("pt-BR")}
+                          />
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {formatAllowedRouteLabels(entry.allowedRoutes).map((label) => (
+                            <Badge key={`${entry.id}-route-${label}`} variant="secondary" className="h-5 text-[10px]">
+                              {label}
+                            </Badge>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 text-[12px] text-muted-foreground">
+                          Emitido por <span className="text-foreground font-medium">{entry.invitedByName}</span>
+                          {entry.acceptedAt
+                            ? ` • aceito em ${new Date(entry.acceptedAt).toLocaleString("pt-BR")}`
+                            : ""}
+                          {entry.revokedAt
+                            ? ` • revogado em ${new Date(entry.revokedAt).toLocaleString("pt-BR")}`
+                            : ""}
+                        </div>
+
+                        {canRevoke ? (
+                          <div className="mt-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => void handleRevokeInvite(entry.id)}
+                              disabled={revokingRegistryId === entry.id}
+                            >
+                              {revokingRegistryId === entry.id ? "Revogando..." : "Revogar convite"}
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              </div>
+            </>
+          )}
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Pacotes e cascata de permissão</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Aqui fica explícito o que cada pacote abre hoje no console, para não depender de memória ou leitura implícita de rota.
+              </p>
+            </div>
+            <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {Object.entries(ACCESS_ROUTE_PACKAGES).map(([packageId, pkg]) => (
+              <div key={packageId} className="rounded-xl border border-border bg-surface p-4">
+                <div className="text-sm font-medium text-foreground">{pkg.label}</div>
+                <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                  {pkg.description}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {formatAllowedRouteLabels(pkg.allowedRoutes).map((label) => (
+                    <Badge key={`${packageId}-${label}`} variant="secondary" className="h-5 text-[10px]">
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -676,6 +1437,15 @@ function SettingsPage() {
         </section>
       </main>
     </>
+  );
+}
+
+function RegistryMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2">
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+      <div className="mt-1 text-[12px] text-foreground">{value}</div>
+    </div>
   );
 }
 

@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "deploy:prebuilt": "npx nitro deploy --prebuilt",
     "verify:publish": "bash ./scripts/verify-publish.sh",
+    "verify:registry": "bash ./scripts/verify-access-registry.sh",
     "cutover:final": "bash ./scripts/final-cutover.sh",
     "lint": "eslint .",
     "format": "prettier --write ."
