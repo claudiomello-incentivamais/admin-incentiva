@@ -7,6 +7,8 @@ type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
 
+type RuntimeEnvMap = Record<string, unknown>;
+
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
@@ -37,9 +39,15 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   });
 }
 
+function attachRuntimeEnv(env: unknown) {
+  const runtimeEnv = env && typeof env === "object" ? (env as RuntimeEnvMap) : {};
+  (globalThis as { __env__?: RuntimeEnvMap }).__env__ = runtimeEnv;
+}
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      attachRuntimeEnv(env);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
