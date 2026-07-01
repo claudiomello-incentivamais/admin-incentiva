@@ -55,6 +55,17 @@ function formatPercent(value: number) {
   }).format(value);
 }
 
+function formatPipelineStageLabel(stageId: string) {
+  if (stageId === "prospecting") return "Prospect";
+  if (stageId === "lead-interessado") return "Lead Interessado";
+  if (stageId === "mql-agendado") return "MQL Agendado";
+  if (stageId === "mql-realizado") return "MQL Realizado";
+  if (stageId === "negotiation") return "Negociação";
+  if (stageId === "won") return "Cliente Ganho";
+  if (stageId === "lost") return "Perdido";
+  return stageId;
+}
+
 function PortalPage() {
   const dashboard = Route.useLoaderData();
   const search = Route.useSearch();
@@ -86,6 +97,7 @@ function PortalPage() {
   }
 
   const scopedPortalOperation = applyPeriodToOperation(portalOperation, selectedPeriod);
+  const currentCockpit = buildOperationCockpitFromOperation(portalOperation);
   const cockpit = applyPeriodToCockpit(
     buildOperationCockpitFromOperation(scopedPortalOperation),
     selectedPeriod,
@@ -104,6 +116,14 @@ function PortalPage() {
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/portal"]);
   const canAccessSettings = allowedRoutes.has("/configuracoes");
   const canAccessAdminViews = allowedRoutes.has("/clientes") || allowedRoutes.has("/");
+  const pipelineStages = currentCockpit.funnel.filter((stage) =>
+    ["prospecting", "lead-interessado", "mql-agendado", "mql-realizado", "negotiation", "won", "lost"].includes(
+      stage.id,
+    ),
+  );
+  const runtimePortalCards = runtimeView.cards.filter((card) =>
+    ["n8n", "evolution"].includes(card.id),
+  );
 
   return (
     <>
@@ -274,103 +294,48 @@ function PortalPage() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Acessos rápidos da operação</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Tudo que precisa ser aberto para tocar a conta sem caçar em outras telas.
-                </p>
-              </div>
-              <Activity className="h-3.5 w-3.5 text-primary" />
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Acessos rápidos da operação</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Tudo que precisa ser aberto para tocar a conta sem caçar em outras telas.
+              </p>
             </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {openBoardAction ? (
-                <LiveActionCard
-                  title="Abrir Trello da operação"
-                  detail="Entrada direta no quadro da operação para execução, follow-up e priorização."
-                  href={openBoardAction.href}
-                  external
-                  buttonLabel={openBoardAction.label}
-                />
-              ) : (
-                <PortalNarrativeCard
-                  label="Trello"
-                  title="Quadro ainda não homologado"
-                  detail={trelloView.availabilityLabel}
-                />
-              )}
-              {openNotionAction ? (
-                <LiveActionCard
-                  title={openNotionAction.title}
-                  detail="Entrada direta na base comercial da operação para owner, estágio e próximos passos."
-                  href={openNotionAction.href}
-                  external={openNotionAction.external}
-                  buttonLabel="Abrir Notion da operação"
-                />
-              ) : (
-                <PortalNarrativeCard
-                  label="Notion"
-                  title="Base ainda sem link direto"
-                  detail="A leitura comercial continua disponível no painel, mas o link direto da base ainda não foi homologado neste recorte."
-                />
-              )}
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <PortalMiniMetric
-                label="Quadro Trello"
-                value={trelloView.boardLabel}
-                detail={trelloView.syncLabel}
-              />
-              <PortalMiniMetric
-                label="Cards reais abertos"
-                value={trelloView.metrics[0]?.value ?? "0"}
-                detail="Cards do Trello já materializados para esta operação."
-              />
-              <PortalMiniMetric
-                label="Pipeline comercial"
-                value={notionView.stageLabel}
-                detail="Situação atual da leitura comercial no Notion."
-              />
-              <PortalMiniMetric
-                label="Última leitura útil"
-                value={notionView.syncLabel}
-                detail="Carimbo mais útil da leitura comercial desta operação."
-              />
-            </div>
+            <Activity className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Gargalos e oportunidades</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Onde a operação está puxando para cima ou travando resultado.
-                </p>
-              </div>
-              <TrendingUp className="h-3.5 w-3.5 text-primary" />
-            </div>
-
-            <div className="grid gap-3">
-              <PortalNarrativeCard
-                label="Cobertura"
-                title={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
-                detail="Quando esse número cai, a cadência perde fôlego e reposição de base vira prioridade."
+          <div className="grid gap-3 md:grid-cols-2">
+            {openBoardAction ? (
+              <LiveActionCard
+                title="Abrir Trello da operação"
+                detail="Entrada direta no quadro da operação para execução, follow-up e priorização."
+                href={openBoardAction.href}
+                external
+                buttonLabel={openBoardAction.label}
               />
+            ) : (
               <PortalNarrativeCard
-                label="Reconciliação"
-                title={`${formatPercent(scopedPortalOperation.dataReconciliation)}%`}
-                detail="Mostra o quanto as camadas operacionais estão coerentes para leitura e decisão."
+                label="Trello"
+                title="Quadro ainda não homologado"
+                detail={trelloView.availabilityLabel}
               />
+            )}
+            {openNotionAction ? (
+              <LiveActionCard
+                title={openNotionAction.title}
+                detail="Entrada direta na base comercial da operação para owner, estágio e próximos passos."
+                href={openNotionAction.href}
+                external={openNotionAction.external}
+                buttonLabel="Abrir Notion da operação"
+              />
+            ) : (
               <PortalNarrativeCard
-                label="Conversão mensal"
-                title={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
-                detail="Indica a capacidade atual da operação de transformar movimento comercial em avanço real."
+                label="Notion"
+                title="Base ainda sem link direto"
+                detail="A leitura comercial continua disponível no painel, mas o link direto da base ainda não foi homologado neste recorte."
               />
-            </div>
+            )}
           </div>
         </section>
 
@@ -388,16 +353,16 @@ function PortalPage() {
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-sm font-medium text-display">
-                Base e movimento comercial do recorte
+                Base e movimento comercial atual
               </div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                Leitura da base disponível, do volume movimentado e da distribuição atual do funil
-                comercial da operação.
+                Resumo do pipeline atual da operação com base no que já está refletido entre
+                Notion e Supabase, sem inventar etapa e sem misturar visual de backend.
               </p>
               <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {cadenceView.metrics.map((metric) => (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {cadenceView.metrics.slice(0, 3).map((metric) => (
                   <PortalMiniMetric
                     key={metric.id}
                     label={metric.label}
@@ -407,13 +372,13 @@ function PortalPage() {
                 ))}
               </div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {cadenceView.stages.map((stage) => (
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+                {pipelineStages.map((stage) => (
                   <PortalNarrativeCard
                     key={stage.id}
-                    label={stage.label}
+                    label={formatPipelineStageLabel(stage.id)}
                     title={formatNumber(stage.count)}
-                    detail={`${stage.shareLabel}. ${stage.conversionLabel}.`}
+                    detail="Volume atual nesta etapa do pipeline."
                   />
                 ))}
               </div>
@@ -421,10 +386,10 @@ function PortalPage() {
 
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Leitura rápida</div>
-              <div className="mt-1 text-base font-semibold text-display">Interpretação do recorte</div>
+              <div className="mt-1 text-base font-semibold text-display">Interpretação da operação</div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                Aqui fica só a leitura mais útil do recorte atual, sem janela sintética e sem
-                extrapolação artificial.
+                Aqui fica só a leitura mais útil da operação agora, sem janela sintética e sem
+                repetição desnecessária.
               </p>
 
               <div className="mt-4 grid gap-3">
@@ -453,7 +418,8 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Saúde técnica da operação</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Supabase, Notion, n8n VPS, Evolution API e API4Com em uma leitura única da conta.
+                Leitura executiva do runtime da operação, focada no que pode travar ou sustentar a
+                execução agora.
               </p>
             </div>
             <Badge
@@ -468,7 +434,7 @@ function PortalPage() {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            {runtimeView.cards.map((card) => (
+            {runtimePortalCards.map((card) => (
               <LiveSourceCard
                 key={card.id}
                 card={{
