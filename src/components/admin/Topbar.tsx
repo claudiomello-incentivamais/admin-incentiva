@@ -36,9 +36,10 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 
 interface TopbarProps {
   breadcrumb: string[];
+  hidePeriodFilter?: boolean;
 }
 
-export function Topbar({ breadcrumb }: TopbarProps) {
+export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
   const {
     selectedOperationId,
     selectedPeriod,
@@ -112,23 +113,25 @@ export function Topbar({ breadcrumb }: TopbarProps) {
           </div>
 
           <div className="hidden items-center gap-2 xl:flex">
-            <div className="relative">
-              <CalendarRange className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Select
-                value={selectedPeriod}
-                onValueChange={(value) => setSelectedPeriod(value as PeriodPreset)}
-              >
-                <SelectTrigger className="h-9 w-[170px] pl-8 bg-surface border-border text-xs">
-                  <SelectValue placeholder="Período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
-                  <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
-                  <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
-                  <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {!hidePeriodFilter ? (
+              <div className="relative">
+                <CalendarRange className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Select
+                  value={selectedPeriod}
+                  onValueChange={(value) => setSelectedPeriod(value as PeriodPreset)}
+                >
+                  <SelectTrigger className="h-9 w-[170px] pl-8 bg-surface border-border text-xs">
+                    <SelectValue placeholder="Período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
+                    <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
+                    <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
+                    <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
             <div className="relative">
               <Filter className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -187,25 +190,27 @@ export function Topbar({ breadcrumb }: TopbarProps) {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Período
-                  </label>
-                  <Select
-                    value={selectedPeriod}
-                    onValueChange={(value) => setSelectedPeriod(value as PeriodPreset)}
-                  >
-                    <SelectTrigger className="h-11 bg-surface border-border text-sm">
-                      <SelectValue placeholder="Período" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
-                      <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
-                      <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
-                      <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!hidePeriodFilter ? (
+                  <div className="space-y-2">
+                    <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      Período
+                    </label>
+                    <Select
+                      value={selectedPeriod}
+                      onValueChange={(value) => setSelectedPeriod(value as PeriodPreset)}
+                    >
+                      <SelectTrigger className="h-11 bg-surface border-border text-sm">
+                        <SelectValue placeholder="Período" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
+                        <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
+                        <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
+                        <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
 
                 <div className="space-y-2">
                   <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">

@@ -21,7 +21,7 @@ import { Topbar } from "@/components/admin/Topbar";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
+import { useAdminFilters } from "@/components/admin/admin-filters";
 import {
   buildOperationActionPlan,
   buildOperationCadenceView,
@@ -32,7 +32,6 @@ import {
   statusMeta,
 } from "@/lib/admin-data";
 import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
-import { applyPeriodToCockpit, applyPeriodToOperation } from "@/lib/admin-period";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal")({
@@ -70,7 +69,7 @@ function PortalPage() {
   const dashboard = Route.useLoaderData();
   const search = Route.useSearch();
   const { session } = useAdminAuth();
-  const { selectedOperationId, selectedPeriod } = useAdminFilters();
+  const { selectedOperationId } = useAdminFilters();
   const requestedOperationId = search.operationId;
 
   const portalOperation =
@@ -86,7 +85,7 @@ function PortalPage() {
   if (!portalOperation) {
     return (
       <>
-        <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
+        <Topbar breadcrumb={["Console Incentiva", "Portal"]} hidePeriodFilter />
         <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 py-4 md:px-6 md:py-6">
           <div className="surface-card p-6 text-sm text-muted-foreground">
             Nenhuma operação disponível para montar a visão de portal.
@@ -96,18 +95,14 @@ function PortalPage() {
     );
   }
 
-  const scopedPortalOperation = applyPeriodToOperation(portalOperation, selectedPeriod);
   const currentCockpit = buildOperationCockpitFromOperation(portalOperation);
-  const cockpit = applyPeriodToCockpit(
-    buildOperationCockpitFromOperation(scopedPortalOperation),
-    selectedPeriod,
-  );
-  const cadenceView = buildOperationCadenceView(scopedPortalOperation, cockpit, dashboard.source);
-  const actionPlan = buildOperationActionPlan(scopedPortalOperation);
-  const notionView = buildOperationNotionView(scopedPortalOperation, cockpit, dashboard.source);
-  const trelloView = buildOperationTrelloView(scopedPortalOperation, cockpit);
+  const cockpit = currentCockpit;
+  const cadenceView = buildOperationCadenceView(portalOperation, cockpit, dashboard.source);
+  const actionPlan = buildOperationActionPlan(portalOperation);
+  const notionView = buildOperationNotionView(portalOperation, cockpit, dashboard.source);
+  const trelloView = buildOperationTrelloView(portalOperation, cockpit);
   const runtimeView = buildOperationRuntimeView(
-    scopedPortalOperation,
+    portalOperation,
     cockpit,
     dashboard.source,
   );
@@ -127,14 +122,14 @@ function PortalPage() {
 
   return (
     <>
-      <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
+      <Topbar breadcrumb={["Console Incentiva", "Portal"]} hidePeriodFilter />
 
       <main className="flex-1 w-full max-w-[1600px] mx-auto space-y-6 px-4 py-4 md:px-6 md:py-6">
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
-                {formatPeriodLabel(selectedPeriod)}
+                Estado atual
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 Atualizado em {dashboard.snapshotLabel}
@@ -200,27 +195,27 @@ function PortalPage() {
             <PortalKpi
               label="Base monitorada"
               value={formatNumber(cockpit.summary.supabaseRecords)}
-              detail="Registros desta operação no recorte selecionado."
+              detail="Registros visíveis na última leitura útil desta operação."
               icon={Users}
               tone="info"
             />
             <PortalKpi
               label="Cobertura"
-              value={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
+              value={`${formatPercent(portalOperation.baseCoverage)}%`}
               detail="Percentual atual de base ainda disponível para sustentar a cadência."
               icon={Target}
               tone="monitor"
             />
             <PortalKpi
-              label="Conversão mensal"
-              value={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
-              detail="Conversão mensal da operação."
+              label="Conversão do mês"
+              value={`${formatPercent(portalOperation.monthlyConversion)}%`}
+              detail="Clientes ganhos sobre volume tocado no mês, conforme a última atualização útil."
               icon={TrendingUp}
               tone="success"
             />
             <PortalKpi
               label="Reconciliação"
-              value={`${formatPercent(scopedPortalOperation.dataReconciliation)}%`}
+              value={`${formatPercent(portalOperation.dataReconciliation)}%`}
               detail="Coerência atual entre as camadas operacionais da conta."
               icon={Building2}
               tone="info"
@@ -246,7 +241,7 @@ function PortalPage() {
                 {actionPlan.actions[0]}
               </div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                Foco atual em {scopedPortalOperation.focus.toLowerCase()}, com leitura consolidada
+                Foco atual em {portalOperation.focus.toLowerCase()}, com leitura consolidada
                 de cobertura, conversão e reconciliação.
               </p>
             </div>
@@ -254,18 +249,18 @@ function PortalPage() {
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <PortalNarrativeCard
                 label="Foco principal"
-                title={scopedPortalOperation.focus}
+                title={portalOperation.focus}
                 detail="Tema que mais influencia a priorização atual desta conta."
               />
               <PortalNarrativeCard
                 label="Cobertura atual"
-                title={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
+                title={`${formatPercent(portalOperation.baseCoverage)}%`}
                 detail="Mostra se ainda existe base suficiente para sustentar a cadência sem reposição imediata."
               />
               <PortalNarrativeCard
-                label="Conversão mensal"
-                title={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
-                detail="Leitura consolidada da conversão da operação no recorte mensal atual."
+                label="Conversão do mês"
+                title={`${formatPercent(portalOperation.monthlyConversion)}%`}
+                detail="Clientes ganhos sobre o volume tocado no mês até a última atualização útil."
               />
             </div>
           </div>
@@ -342,73 +337,42 @@ function PortalPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Cadência e conversão</h2>
+              <h2 className="text-sm font-semibold text-display">Base e movimento comercial</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Acompanhamento do ritmo comercial sem depender de leitura manual da operação.
+                Estado atual do pipeline na última leitura útil, sem recorte sintético por período.
               </p>
             </div>
             <Activity className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-            <div className="rounded-2xl border border-border bg-surface p-4">
-              <div className="text-sm font-medium text-display">
-                Base e movimento comercial atual
-              </div>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                Resumo do pipeline atual da operação com base no que já está refletido entre
-                Notion e Supabase, sem inventar etapa e sem misturar visual de backend.
-              </p>
-              <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <div className="text-sm font-medium text-display">Base e movimento comercial atual</div>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              Visão resumida do pipeline atual da operação com base na última leitura útil entre
+              Notion e Supabase.
+            </p>
+            <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {cadenceView.metrics.slice(0, 3).map((metric) => (
-                  <PortalMiniMetric
-                    key={metric.id}
-                    label={metric.label}
-                    value={metric.value}
-                    detail={metric.detail}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-                {pipelineStages.map((stage) => (
-                  <PortalNarrativeCard
-                    key={stage.id}
-                    label={formatPipelineStageLabel(stage.id)}
-                    title={formatNumber(stage.count)}
-                    detail="Volume atual nesta etapa do pipeline."
-                  />
-                ))}
-              </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {cadenceView.metrics.map((metric) => (
+                <PortalMiniMetric
+                  key={metric.id}
+                  label={metric.label}
+                  value={metric.value}
+                  detail={metric.detail}
+                />
+              ))}
             </div>
 
-            <div className="rounded-2xl border border-border bg-surface p-4">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Leitura rápida</div>
-              <div className="mt-1 text-base font-semibold text-display">Interpretação da operação</div>
-              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                Aqui fica só a leitura mais útil da operação agora, sem janela sintética e sem
-                repetição desnecessária.
-              </p>
-
-              <div className="mt-4 grid gap-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+              {pipelineStages.map((stage) => (
                 <PortalNarrativeCard
-                  label="Não iniciados"
-                  title={cadenceView.metrics[0]?.value ?? "0"}
-                  detail={cadenceView.metrics[0]?.detail ?? "Base disponível para abastecer a cadência."}
+                  key={stage.id}
+                  label={formatPipelineStageLabel(stage.id)}
+                  title={formatNumber(stage.count)}
+                  detail="Volume atual nesta etapa do pipeline."
                 />
-                <PortalNarrativeCard
-                  label="Ativos no recorte"
-                  title={cadenceView.metrics[1]?.value ?? "0"}
-                  detail={cadenceView.metrics[1]?.detail ?? "Registros que efetivamente se moveram no recorte."}
-                />
-                <PortalNarrativeCard
-                  label="Cobertura em dias"
-                  title={cadenceView.metrics[2]?.value ?? "0"}
-                  detail={cadenceView.metrics[2]?.detail ?? "Dias estimados de sustentação antes de faltar base nova."}
-                />
-              </div>
+              ))}
             </div>
           </div>
         </section>
@@ -433,7 +397,7 @@ function PortalPage() {
             </Badge>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4">
             {runtimePortalCards.map((card) => (
               <LiveSourceCard
                 key={card.id}
@@ -449,14 +413,23 @@ function PortalPage() {
                         : card.modeLabel === "Leitura governada"
                           ? "guarded"
                           : "snapshot",
-                  headline: card.headline,
-                  detail: card.detail,
+                  headline:
+                    card.id === "n8n"
+                      ? "Monitor do runtime dos workflows desta operação."
+                      : "Monitor do canal WhatsApp desta operação.",
+                  detail:
+                    card.id === "n8n"
+                      ? `${card.facts.find((fact) => fact.label === "Ativos")?.value ?? "-"} workflows ativos, ${card.facts.find((fact) => fact.label === "Execuções")?.value ?? "-"} execuções úteis, ${card.facts.find((fact) => fact.label === "Erro")?.value ?? "-"} erros no recorte.`
+                      : `${card.facts.find((fact) => fact.label === "Instância")?.value ?? "-"} com webhook ${card.facts.find((fact) => fact.label === "Webhook")?.value?.toLowerCase() ?? "monitorado"} e fila ${card.facts.find((fact) => fact.label === "Fila")?.value?.toLowerCase() ?? "monitorada"}.`,
                   lastSync: card.lastSync,
-                  ctaLabel: "Modo",
-                  ctaValue: card.modeLabel,
-                  facts: card.facts,
-                  nextStep: card.nextStep,
-                  availabilityLabel: card.sourceOfTruth,
+                  ctaLabel: "Última leitura",
+                  ctaValue: card.id === "n8n" ? "Workflow" : "Canal",
+                  facts: card.facts.slice(0, 4),
+                  nextStep:
+                    card.id === "n8n"
+                      ? "Abrir workflow crítico se erro ou waiting subir."
+                      : "Checar instância e webhook se o canal sair de saudável.",
+                  availabilityLabel: undefined,
                 }}
               />
             ))}
@@ -661,36 +634,32 @@ function LiveSourceCard({
         </Badge>
       </div>
 
-      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-        <div className="rounded-xl border border-border bg-card px-3 py-3">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Leitura</div>
-          <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.detail}</div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {card.facts.map((fact) => (
-              <div key={`${card.id}-${fact.label}`} className="rounded-lg border border-border bg-surface px-2.5 py-2">
-                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                  {fact.label}
-                </div>
-                <div className="mt-1 text-[11px] leading-relaxed text-foreground">{fact.value}</div>
+      <div className="mt-4 rounded-xl border border-border bg-card px-3 py-3">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Leitura atual</div>
+        <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.detail}</div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          {card.facts.map((fact) => (
+            <div key={`${card.id}-${fact.label}`} className="rounded-lg border border-border bg-surface px-2.5 py-2">
+              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                {fact.label}
               </div>
-            ))}
-          </div>
+              <div className="mt-1 break-words text-[11px] leading-relaxed text-foreground">{fact.value}</div>
+            </div>
+          ))}
         </div>
-        <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3 min-w-[150px]">
+      </div>
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.ctaLabel}</div>
           <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
-          <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{card.lastSync}</div>
-          <div className="mt-3 rounded-lg border border-primary/10 bg-background/70 px-2.5 py-2">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Próximo salto
-            </div>
-            <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.nextStep}</div>
+          <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground break-words">{card.lastSync}</div>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-3 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            Ação sugerida
           </div>
-          {card.availabilityLabel ? (
-            <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
-              {card.availabilityLabel}
-            </div>
-          ) : null}
+          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.nextStep}</div>
         </div>
       </div>
 
