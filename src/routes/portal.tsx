@@ -264,69 +264,53 @@ function PortalPage() {
           </div>
         </section>
 
-        <section className="grid grid-cols-1 xl:grid-cols-[1.1fr_0.9fr] gap-4">
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Leitura executiva da conta</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  O que importa agora para decidir onde agir.
-                </p>
-              </div>
-              <Eye className="h-3.5 w-3.5 text-primary" />
-            </div>
-
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">Prioridade agora</div>
-              <div className="mt-1 text-base font-semibold text-display">
-                {actionPlan.actions[0]}
-              </div>
-              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                Foco atual em {portalOperation.focus.toLowerCase()}, com leitura consolidada
-                de cobertura, conversão e reconciliação.
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Direção da operação</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Diagnóstico principal e ações de gestão para a próxima rodada.
               </p>
             </div>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <PortalNarrativeCard
-                label="Foco principal"
-                title={portalOperation.focus}
-                detail="Tema que mais influencia a priorização atual desta conta."
-              />
-              <PortalNarrativeCard
-                label="Cobertura atual"
-                title={`${formatPercent(portalOperation.baseCoverage)}%`}
-                detail="Mostra se ainda existe base suficiente para sustentar a cadência sem reposição imediata."
-              />
-              <PortalNarrativeCard
-                label="Ganhos no mês"
-                title={formatNumber(wonTouched)}
-                detail="Clientes ganhos já refletidos na operação até a última atualização útil."
-              />
-            </div>
+            <Eye className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Próximas ações da operação</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  O que fazer agora, em linguagem de gestão e sem bastidor técnico.
-                </p>
-              </div>
-              <ArrowRight className="h-3.5 w-3.5 text-primary" />
-            </div>
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-primary">Prioridade agora</div>
+            <div className="mt-1 text-base font-semibold text-display">{actionPlan.actions[0]}</div>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              Foco atual em {portalOperation.focus.toLowerCase()}, com leitura de cobertura,
+              pipeline e ganhos já refletidos na última atualização útil.
+            </p>
+          </div>
 
-            <div className="space-y-3">
-              {actionPlan.actions.slice(0, 3).map((action, index) => (
-                <ActivationRow
-                  key={action}
-                  title={`Ação ${index + 1}`}
-                  detail={action}
-                  icon={ArrowRight}
-                />
-              ))}
-            </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <PortalNarrativeCard
+              label="Foco principal"
+              title={portalOperation.focus}
+              detail="Tema que mais influencia a priorização atual desta conta."
+            />
+            <PortalNarrativeCard
+              label="Cobertura atual"
+              title={`${formatPercent(portalOperation.baseCoverage)}%`}
+              detail="Mostra se ainda existe base suficiente para sustentar a cadência sem reposição imediata."
+            />
+            <PortalNarrativeCard
+              label="Ganhos no mês"
+              title={formatNumber(wonTouched)}
+              detail="Clientes ganhos já refletidos na operação até a última atualização útil."
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {actionPlan.actions.slice(0, 3).map((action, index) => (
+              <ActivationRow
+                key={action}
+                title={`Ação ${index + 1}`}
+                detail={action}
+                icon={ArrowRight}
+              />
+            ))}
           </div>
         </section>
 
@@ -423,7 +407,7 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Conversões do mês por etapa</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Conversões gerenciais nomeadas, calculadas sobre o acumulado do mês na última leitura útil.
+                Conversões calculadas com relação explícita entre origem e destino no acumulado do mês.
               </p>
             </div>
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -431,22 +415,22 @@ function PortalPage() {
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <PortalMiniMetric
-              label="1º interesse"
+              label="Prospect -> Lead interessado"
               value={`${formatPercent(firstInterestPct)}%`}
               detail={`${formatNumber(leadTouched)} leads interessados sobre ${formatNumber(prospectTouched)} prospects tocados no mês.`}
             />
             <PortalMiniMetric
-              label="Reunião agendada"
+              label="Lead interessado -> MQL agendado"
               value={`${formatPercent(scheduledPct)}%`}
               detail={`${formatNumber(scheduledTouched)} MQLs agendados sobre ${formatNumber(leadTouched)} leads interessados no mês.`}
             />
             <PortalMiniMetric
-              label="Negociação"
+              label="MQL agendado -> Negociação"
               value={`${formatPercent(negotiationPct)}%`}
               detail={`${formatNumber(negotiationTouched)} negociações sobre ${formatNumber(scheduledTouched)} reuniões agendadas no mês.`}
             />
             <PortalMiniMetric
-              label="Cliente ganho"
+              label="Negociação -> Cliente ganho"
               value={`${formatPercent(wonPct)}%`}
               detail={`${formatNumber(wonTouched)} clientes ganhos sobre ${formatNumber(negotiationTouched)} negociações no mês.`}
             />
@@ -588,15 +572,15 @@ function PortalPage() {
                           : "snapshot",
                   headline:
                     card.id === "n8n"
-                      ? "Monitor do runtime dos workflows desta operação."
-                      : "Monitor do canal WhatsApp desta operação.",
+                      ? "Execução dos workflows da operação."
+                      : "Canal WhatsApp e entrega da operação.",
                   detail:
                     card.id === "n8n"
-                      ? `${card.facts.find((fact) => fact.label === "Ativos")?.value ?? "-"} workflows ativos, ${card.facts.find((fact) => fact.label === "Execuções")?.value ?? "-"} execuções úteis, ${card.facts.find((fact) => fact.label === "Erro")?.value ?? "-"} erros no recorte.`
-                      : `${card.facts.find((fact) => fact.label === "Instância")?.value ?? "-"} com webhook ${card.facts.find((fact) => fact.label === "Webhook")?.value?.toLowerCase() ?? "monitorado"} e fila ${card.facts.find((fact) => fact.label === "Fila")?.value?.toLowerCase() ?? "monitorada"}.`,
+                      ? `${card.facts.find((fact) => fact.label === "Erro")?.value ?? "-"} erros e ${card.facts.find((fact) => fact.label === "Waiting")?.value ?? "-"} em waiting no recorte atual.`
+                      : `${card.facts.find((fact) => fact.label === "Instância")?.value ?? "-"} com ${card.facts.find((fact) => fact.label === "Webhook")?.value?.toLowerCase() ?? "webhook monitorado"} e ${card.facts.find((fact) => fact.label === "Fila")?.value?.toLowerCase() ?? "fila monitorada"}.`,
                   lastSync: card.lastSync,
                   ctaLabel: "Última leitura",
-                  ctaValue: card.id === "n8n" ? "Workflow" : "Canal",
+                  ctaValue: card.id === "n8n" ? "Runtime de workflows" : "Canal WhatsApp",
                   facts: card.facts.slice(0, 4),
                   nextStep:
                     card.id === "n8n"
@@ -821,7 +805,7 @@ function LiveSourceCard({
   return (
     <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
               <Icon className="h-3.5 w-3.5" />
@@ -844,32 +828,36 @@ function LiveSourceCard({
         </Badge>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-card px-3 py-3">
-        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Leitura atual</div>
-        <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.detail}</div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-          {card.facts.map((fact) => (
-            <div key={`${card.id}-${fact.label}`} className="rounded-lg border border-border bg-surface px-2.5 py-2">
-              <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                {fact.label}
-              </div>
-              <div className="mt-1 break-words text-[11px] leading-relaxed text-foreground">{fact.value}</div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {card.facts.map((fact) => (
+          <div key={`${card.id}-${fact.label}`} className="rounded-xl border border-border bg-card px-3 py-3">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              {fact.label}
             </div>
-          ))}
-        </div>
+            <div className="mt-1 break-words text-sm font-medium leading-relaxed text-foreground">
+              {fact.value}
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3">
-          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.ctaLabel}</div>
-          <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
-          <div className="mt-2 text-[11px] leading-relaxed text-muted-foreground break-words">{card.lastSync}</div>
+      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+        <div className="rounded-xl border border-border bg-card px-3 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+            Sinal principal
+          </div>
+          <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.detail}</div>
         </div>
         <div className="rounded-xl border border-border bg-card px-3 py-3">
           <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-            Ação sugerida
+            Ação agora
           </div>
-          <div className="mt-1 text-[11px] leading-relaxed text-foreground">{card.nextStep}</div>
+          <div className="mt-1 text-[12px] leading-relaxed text-foreground">{card.nextStep}</div>
+        </div>
+        <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{card.ctaLabel}</div>
+          <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
+          <div className="mt-2 break-words text-[11px] leading-relaxed text-muted-foreground">{card.lastSync}</div>
         </div>
       </div>
 
