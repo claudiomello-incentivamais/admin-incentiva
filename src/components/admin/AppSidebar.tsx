@@ -30,23 +30,20 @@ import { BrandMark } from "@/components/admin/BrandMark";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 
-const global = [
+const principal = [
+  { title: "Portal", url: "/portal", icon: GlobeLock },
   { title: "Admin Global", url: "/", icon: LayoutDashboard },
+  { title: "Integrações", url: "/integracoes", icon: Link2 },
+  { title: "Faturamento", url: "/faturamento", icon: Receipt },
+  { title: "Configurações", url: "/configuracoes", icon: Settings },
+];
+
+const apoioInterno = [
   { title: "Operações", url: "/operacoes", icon: Building2 },
   { title: "Performance", url: "/performance", icon: BarChart3 },
   { title: "Governança", url: "/governanca", icon: ShieldCheck },
-];
-
-const operacional = [
   { title: "Pipelines", url: "/pipelines", icon: Workflow },
   { title: "Clientes", url: "/clientes", icon: Users },
-  { title: "Portal", url: "/portal", icon: GlobeLock },
-  { title: "Faturamento", url: "/faturamento", icon: Receipt },
-];
-
-const sistema = [
-  { title: "Integrações", url: "/integracoes", icon: Link2 },
-  { title: "Configurações", url: "/configuracoes", icon: Settings },
   { title: "Suporte", url: "/suporte", icon: LifeBuoy },
 ];
 
@@ -58,7 +55,7 @@ export function AppSidebar() {
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p));
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/"]);
 
-  const renderGroup = (label: string, items: typeof global) => (
+  const renderGroup = (label: string, items: typeof principal) => (
     <SidebarGroup>
       {(!collapsed || isMobile) && (
         <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
@@ -116,8 +113,8 @@ export function AppSidebar() {
                 )}
               </div>
               <div className="mt-1 text-[12px] leading-snug text-sidebar-foreground">
-                Admin Global consolida a carteira. Operações aprofunda a conta. As demais frentes
-                entram como camadas de leitura e execução.
+                Portal vira o cockpit da operação. Admin Global consolida a carteira. O restante
+                fica como apoio interno temporário até a consolidação final.
               </div>
               {session && (
                 <div className="mt-3 rounded-lg border border-sidebar-border/80 bg-sidebar px-3 py-2">
@@ -133,9 +130,8 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="gap-1">
-        {renderGroup("Visão Geral", global)}
-        {renderGroup("Operacional", operacional)}
-        {renderGroup("Sistema", sistema)}
+        {renderGroup("Principal", principal)}
+        {renderGroup("Apoio interno", apoioInterno)}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">

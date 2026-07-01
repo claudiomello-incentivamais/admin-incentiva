@@ -27,8 +27,7 @@ import {
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationNotionView,
-  buildPortalLiveSourceCards,
-  buildPortalPublishPacket,
+  buildOperationTrelloView,
   getScoreDrivers,
   statusMeta,
 } from "@/lib/admin-data";
@@ -97,11 +96,11 @@ function PortalPage() {
   );
   const cadenceView = buildOperationCadenceView(scopedPortalOperation, cockpit, dashboard.source);
   const actionPlan = buildOperationActionPlan(scopedPortalOperation);
-  const liveSourceCards = buildPortalLiveSourceCards(scopedPortalOperation, cockpit, dashboard.source);
   const notionView = buildOperationNotionView(scopedPortalOperation, cockpit, dashboard.source);
+  const trelloView = buildOperationTrelloView(scopedPortalOperation, cockpit);
   const drivers = getScoreDrivers(scopedPortalOperation).slice(0, 3);
-  const liveHighlights = liveSourceCards.slice(0, 4);
   const openNotionAction = notionView.actions.find((action) => action.id === "open-notion");
+  const openBoardAction = trelloView.actions.find((action) => action.id === "open-board");
 
   return (
     <>
@@ -329,17 +328,55 @@ function PortalPage() {
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Saúde por fonte e canal</h2>
+                <h2 className="text-sm font-semibold text-display">Acessos rápidos da operação</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  O resumo das frentes que já estão guiando a leitura desta operação.
+                  Tudo que precisa ser aberto para tocar a conta sem caçar em outras telas.
                 </p>
               </div>
               <Activity className="h-3.5 w-3.5 text-primary" />
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
-              {liveHighlights.map((card) => (
-                <SourceSignalCard key={card.id} card={card} />
+              {openBoardAction ? (
+                <LiveActionCard
+                  title="Abrir Trello da operação"
+                  detail={trelloView.detail}
+                  href={openBoardAction.href}
+                  external
+                  buttonLabel={openBoardAction.label}
+                />
+              ) : (
+                <PortalNarrativeCard
+                  label="Trello"
+                  title="Quadro ainda não homologado"
+                  detail={trelloView.availabilityLabel}
+                />
+              )}
+              {openNotionAction ? (
+                <LiveActionCard
+                  title={openNotionAction.title}
+                  detail={openNotionAction.detail}
+                  href={openNotionAction.href}
+                  external={openNotionAction.external}
+                  buttonLabel="Abrir Notion da operação"
+                />
+              ) : (
+                <PortalNarrativeCard
+                  label="Notion"
+                  title="Base ainda sem link direto"
+                  detail="A leitura comercial continua disponível no painel, mas o link direto da base ainda não foi homologado neste recorte."
+                />
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {trelloView.metrics.slice(0, 4).map((metric) => (
+                <PortalMiniMetric
+                  key={metric.id}
+                  label={metric.label}
+                  value={metric.value}
+                  detail={metric.detail}
+                />
               ))}
             </div>
           </div>
@@ -349,14 +386,14 @@ function PortalPage() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Próximas ações da operação</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  O que fazer agora sem precisar interpretar blocos técnicos.
+                  O que fazer agora, em linguagem de gestão e sem bastidor técnico.
                 </p>
               </div>
               <ArrowRight className="h-3.5 w-3.5 text-primary" />
             </div>
 
             <div className="space-y-3">
-              {actionPlan.actions.map((action, index) => (
+              {actionPlan.actions.slice(0, 3).map((action, index) => (
                 <ActivationRow
                   key={action}
                   title={`Ação ${index + 1}`}
@@ -364,14 +401,6 @@ function PortalPage() {
                   icon={ArrowRight}
                 />
               ))}
-              {openNotionAction ? (
-                <LiveActionCard
-                  title={openNotionAction.title}
-                  detail={openNotionAction.detail}
-                  href={openNotionAction.href}
-                  external={openNotionAction.external}
-                />
-              ) : null}
             </div>
           </div>
         </section>
@@ -527,47 +556,33 @@ function PortalPage() {
 
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Próximo passo desta conta
+                Execução e acompanhamento
               </div>
-              <div className="mt-1 text-base font-semibold text-display">{notionView.nextStep}</div>
+              <div className="mt-1 text-base font-semibold text-display">{trelloView.headline}</div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                {notionView.availabilityLabel}
+                {trelloView.availabilityLabel}
               </p>
 
               <div className="mt-4 grid gap-3">
-                {notionView.focusCards.slice(0, 3).map((card) => (
+                {trelloView.columns[0]?.cards.slice(0, 2).map((card) => (
                   <PortalNarrativeCard
                     key={card.id}
-                    label={card.label}
-                    title={card.value}
+                    label={card.segmentLabel}
+                    title={card.title}
                     detail={card.detail}
                   />
                 ))}
               </div>
 
               <div className="mt-4 grid gap-3">
-                {notionView.pipelineRecords.slice(0, 3).map((record) => (
+                {trelloView.columns[2]?.cards.slice(0, 2).map((card) => (
                   <PortalNarrativeCard
-                    key={record.id}
-                    label={`${record.stageLabel} · ${record.owner}`}
-                    title={record.leadName}
-                    detail={`${record.company}. ${record.nextStep}`}
+                    key={card.id}
+                    label={card.owner}
+                    title={card.title}
+                    detail={card.followUp}
                   />
                 ))}
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                {notionView.actions
-                  .filter((action) => action.id === "open-notion")
-                  .map((action) => (
-                    <LiveActionCard
-                      key={action.id}
-                      title={action.title}
-                      detail={action.detail}
-                      href={action.href}
-                      external={action.external}
-                    />
-                  ))}
               </div>
             </div>
           </div>
@@ -649,54 +664,18 @@ function PortalNarrativeCard({
   );
 }
 
-function SourceSignalCard({
-  card,
-}: {
-  card: {
-    id: "supabase" | "notion" | "trello" | "n8n" | "evolution" | "api4com";
-    title: string;
-    health: "healthy" | "monitor" | "risk" | "critical";
-    headline: string;
-    ctaLabel: string;
-    ctaValue: string;
-    nextStep: string;
-  };
-}) {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="text-sm font-medium text-display">{card.title}</div>
-        <Badge
-          variant="outline"
-          className={cn("text-[10px] uppercase tracking-[0.16em] h-5", statusMeta[card.health].color)}
-        >
-          {statusMeta[card.health].label}
-        </Badge>
-      </div>
-      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{card.headline}</p>
-      <div className="mt-3 rounded-xl border border-border bg-background/80 px-3 py-3">
-        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-          {card.ctaLabel}
-        </div>
-        <div className="mt-1 text-sm font-medium text-foreground">{card.ctaValue}</div>
-      </div>
-      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-        Próximo passo: {card.nextStep}
-      </p>
-    </div>
-  );
-}
-
 function LiveActionCard({
   title,
   detail,
   href,
   external,
+  buttonLabel = "Abrir link",
 }: {
   title: string;
   detail: string;
   href?: string;
   external?: boolean;
+  buttonLabel?: string;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -710,7 +689,7 @@ function LiveActionCard({
             rel={external ? "noreferrer" : undefined}
           >
             <ArrowRight className="h-3.5 w-3.5" />
-            Abrir Notion da operação
+            {buttonLabel}
           </a>
         </Button>
       ) : null}
