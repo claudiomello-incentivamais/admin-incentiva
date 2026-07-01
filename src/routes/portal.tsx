@@ -111,6 +111,25 @@ function isCommercialWorkflowFamily(workflowFamily: string) {
   ].includes(workflowFamily);
 }
 
+function isPortalScopedWorkflow(workflow: {
+  workflowFamily: string;
+  workflowName: string;
+  active: boolean;
+}) {
+  if (
+    !workflow.active &&
+    (
+      workflow.workflowFamily === "linkedin_social" ||
+      /\[gsheets\].*criar lista base/i.test(workflow.workflowName) ||
+      /^read .* content/i.test(workflow.workflowName) ||
+      /outbound - linkedin - visitar perfil/i.test(workflow.workflowName)
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function isCommercialWorkflow(workflow: {
   workflowFamily: string;
   workflowName: string;
@@ -250,10 +269,11 @@ function PortalPage() {
   const linkedinChannel = currentCockpit.channels.find((channel) => channel.id === "linkedin") ?? null;
   const n8nOperation = n8n.operations.find((row) => row.operationId === portalOperation.id) ?? null;
   const n8nWorkflows = n8n.workflows.filter((row) => row.operationId === portalOperation.id);
-  const commercialN8nWorkflows = n8nWorkflows.filter(isCommercialWorkflow);
-  const commercialN8nSummary = summarizeWorkflowSet(commercialN8nWorkflows);
+  const portalScopedN8nWorkflows = n8nWorkflows.filter(isPortalScopedWorkflow);
+  const portalScopedN8nSummary = summarizeWorkflowSet(portalScopedN8nWorkflows);
+  const commercialN8nWorkflows = portalScopedN8nWorkflows.filter(isCommercialWorkflow);
   const topN8nWorkflow =
-    [...(commercialN8nWorkflows.length > 0 ? commercialN8nWorkflows : n8nWorkflows)].sort(
+    [...(portalScopedN8nWorkflows.length > 0 ? portalScopedN8nWorkflows : n8nWorkflows)].sort(
       (a, b) =>
         b.errorToday - a.errorToday ||
         b.waitingToday - a.waitingToday ||
@@ -325,8 +345,8 @@ function PortalPage() {
       n8n.source !== "live" || !n8nOperation
         ? "A leitura viva do n8n não carregou nesta operação."
         : topN8nWorkflow
-          ? `${formatNumber(commercialN8nSummary.errorToday)} erro(s) e ${formatNumber(commercialN8nSummary.waitingToday)} waiting hoje no runtime comercial. Workflow foco: ${topN8nWorkflow.workflowName}. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
-          : `Sem workflow foco consolidado. Hoje: ${formatNumber(commercialN8nSummary.execToday)} execuções, ${formatNumber(commercialN8nSummary.errorToday)} erro(s) e ${formatNumber(commercialN8nSummary.waitingToday)} waiting no runtime comercial.`,
+          ? `${formatNumber(portalScopedN8nSummary.errorToday)} erro(s) e ${formatNumber(portalScopedN8nSummary.waitingToday)} waiting hoje no runtime produtivo. Workflow foco: ${topN8nWorkflow.workflowName}. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
+          : `Sem workflow foco consolidado. Hoje: ${formatNumber(portalScopedN8nSummary.execToday)} execuções, ${formatNumber(portalScopedN8nSummary.errorToday)} erro(s) e ${formatNumber(portalScopedN8nSummary.waitingToday)} waiting no runtime produtivo.`,
     lastSync:
       n8n.source === "live"
         ? n8n.snapshotLabel
@@ -337,16 +357,16 @@ function PortalPage() {
       {
         label: "Ativos",
         value: n8nOperation
-          ? `${formatNumber(commercialN8nSummary.active)}/${formatNumber(commercialN8nSummary.total)}`
+          ? `${formatNumber(portalScopedN8nSummary.active)}/${formatNumber(portalScopedN8nSummary.total)}`
           : "Sem leitura",
       },
       {
         label: "Execuções hoje",
-        value: n8nOperation ? formatNumber(commercialN8nSummary.execToday) : "Sem leitura",
+        value: n8nOperation ? formatNumber(portalScopedN8nSummary.execToday) : "Sem leitura",
       },
       {
         label: "Execuções 7d",
-        value: n8nOperation ? formatNumber(commercialN8nSummary.exec7d) : "Sem leitura",
+        value: n8nOperation ? formatNumber(portalScopedN8nSummary.exec7d) : "Sem leitura",
       },
       {
         label: "Erro foco",
@@ -358,7 +378,7 @@ function PortalPage() {
         ? "Restabelecer a telemetria viva do n8n antes de usar este bloco para decisão."
         : topN8nWorkflow && (topN8nWorkflow.errorToday > 0 || topN8nWorkflow.waitingToday > 0 || topN8nWorkflow.error7d > 0)
           ? `Abrir ${topN8nWorkflow.workflowName} e tratar ${topN8nWorkflow.errorToday > 0 ? "erro" : "waiting"} com base na última mensagem registrada.`
-          : "Sem erro material agora; acompanhar throughput e waiting dos workflows comerciais pela janela técnica.",
+          : "Sem erro material agora; acompanhar throughput e waiting dos workflows produtivos pela janela técnica.",
   };
   const evolutionLiveCard = {
     id: "evolution" as const,
