@@ -7,6 +7,7 @@ import {
   Eye,
   GitBranch,
   LockKeyhole,
+  Mail,
   MessageCircle,
   NotebookPen,
   PhoneCall,
@@ -14,6 +15,7 @@ import {
   Target,
   TrendingUp,
   Users,
+  Workflow,
 } from "lucide-react";
 import { z } from "zod";
 
@@ -31,6 +33,7 @@ import {
   buildOperationTrelloView,
   statusMeta,
 } from "@/lib/admin-data";
+import { loadEvolutionTelemetryDashboardServerFn } from "@/lib/admin-evolution-rpc";
 import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +42,17 @@ export const Route = createFileRoute("/portal")({
   validateSearch: z.object({
     operationId: z.string().optional(),
   }),
-  loader: async () => loadScopedGlobalDashboardServerFn(),
+  loader: async () => {
+    const [dashboard, evolution] = await Promise.all([
+      loadScopedGlobalDashboardServerFn(),
+      loadEvolutionTelemetryDashboardServerFn(),
+    ]);
+
+    return {
+      dashboard,
+      evolution,
+    };
+  },
   component: PortalPage,
 });
 
@@ -71,7 +84,8 @@ function formatPipelineStageLabel(stageId: string) {
 }
 
 function PortalPage() {
-  const dashboard = Route.useLoaderData();
+  const loaderData = Route.useLoaderData();
+  const { dashboard, evolution } = loaderData;
   const search = Route.useSearch();
   const { session } = useAdminAuth();
   const { selectedOperationId } = useAdminFilters();
@@ -138,6 +152,14 @@ function PortalPage() {
   const runtimePortalCards = runtimeView.cards.filter((card) =>
     ["n8n", "evolution"].includes(card.id),
   );
+  const evolutionRow =
+    evolution.operations.find((row) => row.operationId === portalOperation.id) ?? null;
+  const emailChannel = currentCockpit.channels.find((channel) => channel.id === "email") ?? null;
+  const linkedinChannel = currentCockpit.channels.find((channel) => channel.id === "linkedin") ?? null;
+  const emailWaitingMetric =
+    currentCockpit.emailHealth.metrics.find((metric) => metric.id === "email-waiting")?.value ?? "0";
+  const emailThroughputMetric =
+    currentCockpit.emailHealth.metrics.find((metric) => metric.id === "email-throughput")?.value ?? "snapshot";
 
   return (
     <>
@@ -432,6 +454,103 @@ function PortalPage() {
         </section>
 
         <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Atividade por canal</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Leitura gerencial do que já está observável por canal, sem inventar disparo onde a telemetria ainda não foi homologada.
+              </p>
+            </div>
+            <Activity className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-3 xl:grid-cols-3">
+            <ChannelActivityCard
+              title="WhatsApp"
+              icon={MessageCircle}
+              detail={
+                evolutionRow
+                  ? "Canal com contagem viva da Evolution por operação nas últimas 24 horas."
+                  : "Canal já visível no runtime, mas sem linha viva consolidada da Evolution neste recorte."
+              }
+              metrics={[
+                {
+                  label: "Envios 24h",
+                  value: evolutionRow ? formatNumber(evolutionRow.outbound24h) : "n/d",
+                },
+                {
+                  label: "Respostas 24h",
+                  value: evolutionRow ? formatNumber(evolutionRow.replies24h) : "n/d",
+                },
+                {
+                  label: "Entregues 24h",
+                  value: evolutionRow ? formatNumber(evolutionRow.delivered24h) : "n/d",
+                },
+                {
+                  label: "Erros 24h",
+                  value: evolutionRow ? formatNumber(evolutionRow.errors24h) : "n/d",
+                },
+              ]}
+              footer={
+                evolutionRow?.snapshotAt
+                  ? `Última leitura viva: ${new Date(evolutionRow.snapshotAt).toLocaleString("pt-BR")}`
+                  : "Sem snapshot vivo da Evolution para esta operação."
+              }
+            />
+
+            <ChannelActivityCard
+              title="E-mail"
+              icon={Mail}
+              detail="Aqui entram sinais operacionais já observáveis; a contagem viva de disparos por operação ainda não está homologada nesta tela."
+              metrics={[
+                {
+                  label: "Workflows ativos",
+                  value: emailChannel ? `${emailChannel.activeWorkflows}/${emailChannel.totalWorkflows}` : "n/d",
+                },
+                {
+                  label: "Waiting",
+                  value: emailWaitingMetric,
+                },
+                {
+                  label: "Throughput",
+                  value: emailThroughputMetric,
+                },
+                {
+                  label: "Leitura",
+                  value: "operacional",
+                },
+              ]}
+              footer="Disparos de e-mail por operação entram só quando a telemetria viva estiver aterrada com verdade."
+            />
+
+            <ChannelActivityCard
+              title="LinkedIn"
+              icon={Workflow}
+              detail="Camada complementar da operação; hoje o Portal mostra atividade observada e não volume vivo de disparos por operação."
+              metrics={[
+                {
+                  label: "Workflows ativos",
+                  value: linkedinChannel ? `${linkedinChannel.activeWorkflows}/${linkedinChannel.totalWorkflows}` : "n/d",
+                },
+                {
+                  label: "Saúde",
+                  value: linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d",
+                },
+                {
+                  label: "Leitura",
+                  value: "assistida",
+                },
+                {
+                  label: "Papel",
+                  value: "social selling",
+                },
+              ]}
+              footer="Disparos e respostas de LinkedIn por operação ainda dependem de camada histórica própria."
+            />
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4 gap-3">
             <div>
               <h2 className="text-sm font-semibold text-display">Saúde técnica da operação</h2>
@@ -595,6 +714,43 @@ function LiveActionCard({
           </a>
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+function ChannelActivityCard({
+  title,
+  icon: Icon,
+  detail,
+  metrics,
+  footer,
+}: {
+  title: string;
+  icon: typeof MessageCircle;
+  detail: string;
+  metrics: { label: string; value: string }[];
+  footer: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-center gap-2">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="text-sm font-medium text-foreground">{title}</div>
+      </div>
+      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {metrics.map((metric) => (
+          <div key={`${title}-${metric.label}`} className="rounded-lg border border-border bg-surface px-3 py-2.5">
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              {metric.label}
+            </div>
+            <div className="mt-1 text-sm font-medium text-foreground">{metric.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 text-[11px] leading-relaxed text-muted-foreground">{footer}</div>
     </div>
   );
 }
