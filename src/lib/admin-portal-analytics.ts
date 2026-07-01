@@ -224,6 +224,16 @@ function inferPrimaryChannel(row: Pick<LeadsBaseRow, "canal" | "status_email" | 
   return null;
 }
 
+function detectChannelSignals(row: Pick<LeadsBaseRow, "canal" | "status_email" | "status_linkedin" | "status_whatsapp">): ChannelId[] {
+  const signals = new Set<ChannelId>();
+  const explicitChannel = mapRawChannel(row.canal);
+  if (explicitChannel) signals.add(explicitChannel);
+  if (nonBlank(row.status_email)) signals.add("email");
+  if (nonBlank(row.status_linkedin)) signals.add("linkedin");
+  if (nonBlank(row.status_whatsapp)) signals.add("whatsapp");
+  return [...signals];
+}
+
 function createLocalDateAtMidnight(date: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -430,7 +440,7 @@ export async function loadPortalAnalytics(params: {
       "notion_leads_snapshot_v1",
       "operation_name,page_id,nome,empresa,status,canal,last_edited_at,raw_properties",
       operationNames,
-    ),
+    ).catch(() => []),
   ]);
 
   const baseMaps = new Map<string, Map<string, LeadsBaseRow>>();
@@ -476,9 +486,18 @@ export async function loadPortalAnalytics(params: {
         const primaryChannel =
           (baseRow ? inferPrimaryChannel(baseRow) : null) ??
           mapRawChannel(row.canal);
+        const channelSignals = baseRow ? detectChannelSignals(baseRow) : [];
         const dispatchChannel =
           extractDispatchChannelFromRawProperties(snapshotRow?.raw_properties) ??
           (baseRow?.status_linkedin && primaryChannel === "linkedin" ? "linkedin" : null);
+        const attributedChannels =
+          primaryChannel
+            ? [primaryChannel]
+            : dispatchChannel
+              ? [dispatchChannel]
+              : channelSignals.length === 1
+                ? channelSignals
+                : channelSignals;
 
         periods.forEach((period) => {
           if (editedAt < periodStart(period, now)) return;
@@ -489,15 +508,17 @@ export async function loadPortalAnalytics(params: {
             summary.channels[dispatchChannel].dispatches += 1;
           }
 
-          if (primaryChannel) {
-            const channelSummary = summary.channels[primaryChannel];
-            channelSummary.touched += stageId === "prospecting" ? 1 : 0;
-            if (stageId === "lead-interessado") channelSummary.leadInteressado += 1;
-            if (stageId === "mql-agendado") channelSummary.mqlAgendado += 1;
-            if (stageId === "mql-realizado") channelSummary.mqlRealizado += 1;
-            if (stageId === "negotiation") channelSummary.negotiation += 1;
-            if (stageId === "won") channelSummary.won += 1;
-            if (stageId === "lost") channelSummary.lost += 1;
+          if (attributedChannels.length > 0) {
+            attributedChannels.forEach((channelId) => {
+              const channelSummary = summary.channels[channelId];
+              channelSummary.touched += stageId === "prospecting" ? 1 : 0;
+              if (stageId === "lead-interessado") channelSummary.leadInteressado += 1;
+              if (stageId === "mql-agendado") channelSummary.mqlAgendado += 1;
+              if (stageId === "mql-realizado") channelSummary.mqlRealizado += 1;
+              if (stageId === "negotiation") channelSummary.negotiation += 1;
+              if (stageId === "won") channelSummary.won += 1;
+              if (stageId === "lost") channelSummary.lost += 1;
+            });
           } else {
             summary.unattributedStageCount += 1;
           }

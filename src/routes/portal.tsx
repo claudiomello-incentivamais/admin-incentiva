@@ -203,6 +203,10 @@ function PortalPage() {
     : [];
   const chartTimelineData = periodAnalytics?.timeline ?? [];
   const hasPeriodAnalytics = Boolean(periodAnalytics);
+  const hasStageChartData = chartStageData.some((item) => item.value > 0);
+  const hasTimelineChartData = chartTimelineData.some((item) =>
+    item.prospecting > 0 || item.leadInteressado > 0 || item.mqlAgendado > 0 || item.won > 0,
+  );
   const primaryOwner =
     portalOperation.baseCoverage < 60
       ? "Bruna + Sales Ops"
@@ -580,102 +584,111 @@ function PortalPage() {
             <ChartColumn className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="grid gap-3 xl:grid-cols-3">
-            <ChannelActivityCard
-              title="E-mail"
-              icon={Mail}
-              sourceLabel="disparo"
-              detail="Conversão comercial do recorte com apoio do campo de disparo registrado no Notion. A camada operacional do n8n segue como apoio de cadência."
-              metrics={[
-                {
-                  label: "Prospects no canal",
-                  value: formatNumber(periodAnalytics?.channels.email.touched ?? 0),
-                },
-                {
-                  label: "1º interesse",
-                  value: `${formatPercent(periodAnalytics?.channels.email.firstInterestPct ?? 0)}%`,
-                },
-                {
-                  label: "MQL agendado",
-                  value: formatNumber(periodAnalytics?.channels.email.mqlAgendado ?? 0),
-                },
-                {
-                  label: "Disparos confirmados",
-                  value: formatNumber(periodAnalytics?.channels.email.dispatches ?? 0),
-                },
-                {
-                  label: "Respostas no recorte",
-                  value: formatNumber(periodAnalytics?.channels.email.replies ?? 0),
-                },
-              ]}
-              footer={`Apoio operacional: ${formatNumber(emailWorkflowExec7d)} cadências de e-mail em 7 dias no n8n. Hoje: ${formatNumber(emailWorkflowExecToday)} execuções. Waiting atual: ${emailWaitingMetric}.`}
-            />
+          {hasPeriodAnalytics ? (
+            <>
+              <div className="grid gap-3 xl:grid-cols-3">
+                <ChannelActivityCard
+                  title="E-mail"
+                  icon={Mail}
+                  sourceLabel="disparo"
+                  detail="Conversão comercial do recorte com apoio do campo de disparo registrado no Notion. A camada operacional do n8n segue como apoio de cadência."
+                  metrics={[
+                    {
+                      label: "Prospects no canal",
+                      value: formatNumber(periodAnalytics.channels.email.touched),
+                    },
+                    {
+                      label: "1º interesse",
+                      value: `${formatPercent(periodAnalytics.channels.email.firstInterestPct)}%`,
+                    },
+                    {
+                      label: "MQL agendado",
+                      value: formatNumber(periodAnalytics.channels.email.mqlAgendado),
+                    },
+                    {
+                      label: "Disparos confirmados",
+                      value: formatNumber(periodAnalytics.channels.email.dispatches),
+                    },
+                    {
+                      label: "Respostas no recorte",
+                      value: formatNumber(periodAnalytics.channels.email.replies),
+                    },
+                  ]}
+                  footer={`Apoio operacional: ${formatNumber(emailWorkflowExec7d)} cadências de e-mail em 7 dias no n8n. Hoje: ${formatNumber(emailWorkflowExecToday)} execuções. Waiting atual: ${emailWaitingMetric}.`}
+                />
 
-            <ChannelActivityCard
-              title="WhatsApp"
-              icon={MessageCircle}
-              sourceLabel="disparo"
-              detail="Conversão comercial do recorte com apoio do disparo registrado no Notion, cruzado com a telemetria viva da Evolution."
-              metrics={[
-                {
-                  label: "Prospects no canal",
-                  value: formatNumber(periodAnalytics?.channels.whatsapp.touched ?? 0),
-                },
-                {
-                  label: "1º interesse",
-                  value: `${formatPercent(periodAnalytics?.channels.whatsapp.firstInterestPct ?? 0)}%`,
-                },
-                {
-                  label: "MQL agendado",
-                  value: formatNumber(periodAnalytics?.channels.whatsapp.mqlAgendado ?? 0),
-                },
-                {
-                  label: "Disparos confirmados",
-                  value: formatNumber(periodAnalytics?.channels.whatsapp.dispatches ?? 0),
-                },
-                {
-                  label: "Respostas no recorte",
-                  value: formatNumber(periodAnalytics?.channels.whatsapp.replies ?? 0),
-                },
-              ]}
-              footer={evolutionRow?.snapshotAt
-                ? `Telemetria viva: ${formatNumber(evolutionOutbound7d)} envios em 7 dias. Nas últimas 24h: ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas, ${formatNumber(evolutionRow.errors24h)} erros.`
-                : "Sem snapshot vivo da Evolution para esta operação."}
-            />
+                <ChannelActivityCard
+                  title="WhatsApp"
+                  icon={MessageCircle}
+                  sourceLabel="disparo"
+                  detail="Conversão comercial do recorte com apoio do disparo registrado no Notion, cruzado com a telemetria viva da Evolution."
+                  metrics={[
+                    {
+                      label: "Prospects no canal",
+                      value: formatNumber(periodAnalytics.channels.whatsapp.touched),
+                    },
+                    {
+                      label: "1º interesse",
+                      value: `${formatPercent(periodAnalytics.channels.whatsapp.firstInterestPct)}%`,
+                    },
+                    {
+                      label: "MQL agendado",
+                      value: formatNumber(periodAnalytics.channels.whatsapp.mqlAgendado),
+                    },
+                    {
+                      label: "Disparos confirmados",
+                      value: formatNumber(periodAnalytics.channels.whatsapp.dispatches),
+                    },
+                    {
+                      label: "Respostas no recorte",
+                      value: formatNumber(periodAnalytics.channels.whatsapp.replies),
+                    },
+                  ]}
+                  footer={evolutionRow?.snapshotAt
+                    ? `Telemetria viva: ${formatNumber(evolutionOutbound7d)} envios em 7 dias. Nas últimas 24h: ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas, ${formatNumber(evolutionRow.errors24h)} erros.`
+                    : "Sem snapshot vivo da Evolution para esta operação."}
+                />
 
-            <ChannelActivityCard
-              title="LinkedIn"
-              icon={Workflow}
-              sourceLabel="sinal"
-              detail="Conversão comercial do recorte com apoio de sinal operacional de LinkedIn na base. Aqui a leitura usa status do canal e execução do n8n como evidência."
-              metrics={[
-                {
-                  label: "Prospects no canal",
-                  value: formatNumber(periodAnalytics?.channels.linkedin.touched ?? 0),
-                },
-                {
-                  label: "1º interesse",
-                  value: `${formatPercent(periodAnalytics?.channels.linkedin.firstInterestPct ?? 0)}%`,
-                },
-                {
-                  label: "MQL agendado",
-                  value: formatNumber(periodAnalytics?.channels.linkedin.mqlAgendado ?? 0),
-                },
-                {
-                  label: "Sinais confirmados",
-                  value: formatNumber(periodAnalytics?.channels.linkedin.dispatches ?? 0),
-                },
-                {
-                  label: "Respostas no recorte",
-                  value: formatNumber(periodAnalytics?.channels.linkedin.replies ?? 0),
-                },
-              ]}
-              footer={`Apoio operacional: ${formatNumber(linkedinWorkflowExec7d)} cadências ligadas ao LinkedIn em 7 dias no n8n. Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
-            />
-          </div>
-          <div className="mt-3">
-            <ChannelAttributionNote unattributedCount={periodAnalytics?.unattributedStageCount ?? 0} />
-          </div>
+                <ChannelActivityCard
+                  title="LinkedIn"
+                  icon={Workflow}
+                  sourceLabel="sinal"
+                  detail="Conversão comercial do recorte com apoio de sinal operacional de LinkedIn na base. Aqui a leitura usa status do canal e execução do n8n como evidência."
+                  metrics={[
+                    {
+                      label: "Prospects no canal",
+                      value: formatNumber(periodAnalytics.channels.linkedin.touched),
+                    },
+                    {
+                      label: "1º interesse",
+                      value: `${formatPercent(periodAnalytics.channels.linkedin.firstInterestPct)}%`,
+                    },
+                    {
+                      label: "MQL agendado",
+                      value: formatNumber(periodAnalytics.channels.linkedin.mqlAgendado),
+                    },
+                    {
+                      label: "Sinais confirmados",
+                      value: formatNumber(periodAnalytics.channels.linkedin.dispatches),
+                    },
+                    {
+                      label: "Respostas no recorte",
+                      value: formatNumber(periodAnalytics.channels.linkedin.replies),
+                    },
+                  ]}
+                  footer={`Apoio operacional: ${formatNumber(linkedinWorkflowExec7d)} cadências ligadas ao LinkedIn em 7 dias no n8n. Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
+                />
+              </div>
+              <div className="mt-3">
+                <ChannelAttributionNote unattributedCount={periodAnalytics.unattributedStageCount} />
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+              A conversão por canal do recorte não vai mais zerar por fallback. Se a leitura do período não vier,
+              o Portal assume isso explicitamente até a carga responder com dado real.
+            </div>
+          )}
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
@@ -690,23 +703,35 @@ function PortalPage() {
               <ChartColumn className="h-3.5 w-3.5 text-primary" />
             </div>
 
-            <ChartContainer
-              config={{
-                value: {
-                  label: "Volume",
-                  color: "hsl(var(--primary))",
-                },
-              }}
-              className="h-[260px] w-full"
-            >
-              <BarChart data={chartStageData}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="stage" tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" radius={[10, 10, 0, 0]} fill="var(--color-value)" />
-              </BarChart>
-            </ChartContainer>
+            {hasPeriodAnalytics ? (
+              hasStageChartData ? (
+                <ChartContainer
+                  config={{
+                    value: {
+                      label: "Volume",
+                      color: "hsl(var(--primary))",
+                    },
+                  }}
+                  className="h-[260px] w-full"
+                >
+                  <BarChart data={chartStageData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="stage" tickLine={false} axisLine={false} />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="value" radius={[10, 10, 0, 0]} fill="var(--color-value)" />
+                  </BarChart>
+                </ChartContainer>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+                  Não houve movimentação de etapa suficiente neste recorte para desenhar o funil.
+                </div>
+              )
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+                O funil do recorte aparece aqui quando a leitura histórica por período estiver disponível.
+              </div>
+            )}
           </div>
 
           <div className="surface-card p-5">
@@ -720,26 +745,38 @@ function PortalPage() {
               <TrendingUp className="h-3.5 w-3.5 text-primary" />
             </div>
 
-            <ChartContainer
-              config={{
-                prospecting: { label: "Prospect", color: "#d4a373" },
-                leadInteressado: { label: "Lead interessado", color: "#588157" },
-                mqlAgendado: { label: "MQL agendado", color: "#457b9d" },
-                won: { label: "Cliente ganho", color: "#1d3557" },
-              }}
-              className="h-[260px] w-full"
-            >
-              <LineChart data={chartTimelineData}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
-                <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
-                <Line type="monotone" dataKey="prospecting" stroke="var(--color-prospecting)" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="leadInteressado" stroke="var(--color-leadInteressado)" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="mqlAgendado" stroke="var(--color-mqlAgendado)" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="won" stroke="var(--color-won)" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ChartContainer>
+            {hasPeriodAnalytics ? (
+              hasTimelineChartData ? (
+                <ChartContainer
+                  config={{
+                    prospecting: { label: "Prospect", color: "#d4a373" },
+                    leadInteressado: { label: "Lead interessado", color: "#588157" },
+                    mqlAgendado: { label: "MQL agendado", color: "#457b9d" },
+                    won: { label: "Cliente ganho", color: "#1d3557" },
+                  }}
+                  className="h-[260px] w-full"
+                >
+                  <LineChart data={chartTimelineData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="label" tickLine={false} axisLine={false} />
+                    <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                    <Line type="monotone" dataKey="prospecting" stroke="var(--color-prospecting)" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="leadInteressado" stroke="var(--color-leadInteressado)" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="mqlAgendado" stroke="var(--color-mqlAgendado)" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="won" stroke="var(--color-won)" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ChartContainer>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+                  Ainda não houve ritmo diário suficiente neste recorte para desenhar a série histórica.
+                </div>
+              )
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+                O ritmo diário do recorte aparece aqui quando a leitura histórica por período estiver disponível.
+              </div>
+            )}
           </div>
         </section>
 
@@ -963,7 +1000,8 @@ function ChannelAttributionNote({
   return (
     <div className="rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
       Atribuição por canal prioriza o campo <span className="font-medium text-foreground">Canal</span> do registro.
-      Quando ele não existe, o Portal usa fallback apenas se houver um único canal ativo no lead.
+      Quando ele não existe, o Portal usa também sinais das colunas de `status_email`, `status_linkedin`,
+      `status_whatsapp` e do `Disparo Mensagem` para não zerar canal por falta de marcação perfeita.
       {unattributedCount > 0
         ? ` Neste recorte, ${formatNumber(unattributedCount)} viradas ficaram fora da conversão por canal por falta de atribuição clara.`
         : " Neste recorte, não houve viradas excluídas por ambiguidade de canal."}
