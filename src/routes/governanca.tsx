@@ -422,6 +422,9 @@ function GovernancePage() {
               >
                 Governança operacional
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                Drilldown interno
+              </Badge>
               <Badge
                 variant="outline"
                 className={cn("text-[10px] uppercase tracking-[0.18em] h-5", healthMeta.color)}
@@ -441,7 +444,8 @@ function GovernancePage() {
             <p className="text-sm text-muted-foreground max-w-3xl">
               {isSingleOperationView
                 ? `Aqui a governança foi recortada para ${operationSignal}, sem misturar fila de outras operações quando existir sinal específico desta conta.`
-                : "Aqui o console separa leitura comercial de integridade operacional: dado, n8n, ownership, rollout e checkpoint de execução."}
+                : "Aqui o console separa leitura comercial de integridade operacional: dado, n8n, ownership, rollout e checkpoint de execução."}{" "}
+              Esta camada fica como apoio técnico interno, não como navegação principal do produto.
             </p>
           </div>
 

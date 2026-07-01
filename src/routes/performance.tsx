@@ -147,6 +147,9 @@ function PerformancePage() {
               >
                 Eficiência comercial
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                Drilldown interno
+              </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {dashboard.snapshotLabel}
               </span>
@@ -163,7 +166,9 @@ function PerformancePage() {
             <p className="text-sm text-muted-foreground max-w-3xl">
               {isSingleOperationView
                 ? `Recorte exclusivo de ${selectedOperation?.label ?? "uma operação"} para comparar conversão, cobertura e qualidade sem vazamento das demais contas.`
-                : "Esta frente compara resultado, cobertura e eficiência entre as operações para deixar claro onde há tração real, onde há gargalo de base e onde a leitura comercial ainda depende de saneamento."}
+                : "Esta frente compara resultado, cobertura e eficiência entre as operações para deixar claro onde há tração real, onde há gargalo de base e onde a leitura comercial ainda depende de saneamento."}{" "}
+              Ela segue como drilldown interno enquanto a leitura principal sobe para `Admin Global`
+              e `Portal`.
             </p>
           </div>
 

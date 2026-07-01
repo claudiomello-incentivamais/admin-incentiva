@@ -3,10 +3,8 @@ import {
   LayoutDashboard,
   Building2,
   Users,
-  BarChart3,
   ShieldCheck,
   Settings,
-  Workflow,
   Receipt,
   GlobeLock,
   Link2,
@@ -40,9 +38,7 @@ const principal = [
 const apoioInterno = [
   { title: "Operações internas", url: "/operacoes", icon: Building2 },
   { title: "Carteira", url: "/clientes", icon: Users },
-  { title: "Performance interna", url: "/performance", icon: BarChart3 },
   { title: "Governança técnica", url: "/governanca", icon: ShieldCheck },
-  { title: "Pipelines", url: "/pipelines", icon: Workflow },
 ];
 
 export function AppSidebar() {
@@ -52,7 +48,10 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p));
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/"]);
-  const visibleInternalSupport = apoioInterno.filter((item) => allowedRoutes.has(item.url));
+  const visibleInternalSupport =
+    session?.accessPackageId === "admin_full"
+      ? apoioInterno.filter((item) => allowedRoutes.has(item.url))
+      : [];
 
   const renderGroup = (label: string, items: typeof principal) => (
     <SidebarGroup>
@@ -113,8 +112,8 @@ export function AppSidebar() {
               </div>
               <div className="mt-1 text-[12px] leading-snug text-sidebar-foreground">
                 Cliente entra no Portal. Admin usa Admin Global, integrações, faturamento e
-                configurações. O restante fica escondido como apoio interno enquanto a consolidação
-                final não termina.
+                configurações. Os drilldowns internos ficaram rebaixados para não poluir a navegação
+                principal.
               </div>
               {session && (
                 <div className="mt-3 rounded-lg border border-sidebar-border/80 bg-sidebar px-3 py-2">
@@ -131,7 +130,7 @@ export function AppSidebar() {
 
       <SidebarContent className="gap-1">
         {renderGroup("Principal", principal)}
-        {visibleInternalSupport.length > 0 && renderGroup("Apoio interno", apoioInterno)}
+        {visibleInternalSupport.length > 0 && renderGroup("Drilldown interno", apoioInterno)}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">

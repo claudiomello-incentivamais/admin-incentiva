@@ -160,6 +160,9 @@ function Page() {
               >
                 {isSpecificOperationSelected ? "Operação selecionada" : "Operação prioritária"}
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                Drilldown interno
+              </Badge>
               <Badge
                 variant="outline"
                 className={cn(
@@ -183,7 +186,8 @@ function Page() {
               {headerTitle}
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              {headerDescription}
+              {headerDescription} Esta página fica como apoio interno temporário enquanto o produto
+              concentra a leitura principal em `Portal` e `Admin Global`.
             </p>
           </div>
 

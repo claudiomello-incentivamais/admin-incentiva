@@ -133,6 +133,9 @@ function ClientsPage() {
               >
                 Leitura de carteira
               </Badge>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
+                Drilldown interno
+              </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
                 {dashboard.snapshotLabel}
               </span>
@@ -149,7 +152,9 @@ function ClientsPage() {
             <p className="text-sm text-muted-foreground max-w-3xl">
               {isSingleOperationView
                 ? `Esta frente agora mostra só ${selectedOperation?.label ?? "a operação filtrada"}, sem misturar outras contas na carteira.`
-                : "Esta frente organiza a carteira por conta, prioridade e risco, para ficar claro quais operações pedem atenção executiva e quais já estão mais estáveis."}
+                : "Esta frente organiza a carteira por conta, prioridade e risco, para ficar claro quais operações pedem atenção executiva e quais já estão mais estáveis."}{" "}
+              Ela permanece como drilldown interno enquanto a visão principal da conta é puxada
+              para o Portal.
             </p>
           </div>
 
