@@ -1,3 +1,5 @@
+import { readEnvString } from "./runtime-env";
+
 export type PortalPeriodPreset = "mtd" | "7d" | "30d" | "90d";
 
 type ChannelId = "email" | "linkedin" | "whatsapp";
@@ -110,30 +112,19 @@ const PERIOD_LABELS: Record<PortalPeriodPreset, string> = {
 };
 
 function getSupabaseUrl() {
-  return (
-    process.env.ADMIN_INCENTIVA_SUPABASE_URL?.trim() ||
-    process.env.VITE_SUPABASE_URL?.trim() ||
-    (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ||
-    ""
-  );
+  return readEnvString("ADMIN_INCENTIVA_SUPABASE_URL", "VITE_SUPABASE_URL");
 }
 
 function getSupabaseServiceRoleKey() {
-  return (
-    process.env.ADMIN_INCENTIVA_SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE?.trim() ||
-    ""
+  return readEnvString(
+    "ADMIN_INCENTIVA_SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_ROLE",
   );
 }
 
 function getSupabaseAnonKey() {
-  return (
-    process.env.ADMIN_INCENTIVA_SUPABASE_ANON_KEY?.trim() ||
-    process.env.VITE_SUPABASE_ANON_KEY?.trim() ||
-    (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim() ||
-    ""
-  );
+  return readEnvString("ADMIN_INCENTIVA_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
 }
 
 function getSupabaseClientConfig(): SupabaseClientConfig | null {

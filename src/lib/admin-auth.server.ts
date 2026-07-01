@@ -1,5 +1,7 @@
 import { parse, serialize } from "cookie-es";
 
+import { readEnvString } from "./runtime-env";
+
 import {
   ACCESS_DIRECTORY,
   AUTH_IDENTITIES_PUBLIC,
@@ -71,9 +73,7 @@ const authIdentitySeedRecords: AuthIdentityRecord[] = [
 ];
 
 function readPasscodeOverrides() {
-  const envValue =
-    (typeof process !== "undefined" && process.env.ADMIN_INCENTIVA_PASSCODES_JSON) ||
-    (import.meta.env.ADMIN_INCENTIVA_PASSCODES_JSON as string | undefined);
+  const envValue = readEnvString("ADMIN_INCENTIVA_PASSCODES_JSON");
 
   if (!envValue) return {} as Record<string, string>;
 
@@ -106,9 +106,7 @@ const authIdentityRecords: AuthIdentityRecord[] = ACCESS_DIRECTORY.map((entry) =
 let secretKeyPromise: Promise<CryptoKey> | null = null;
 
 function getAuthSecret() {
-  const envSecret =
-    (typeof process !== "undefined" && process.env.ADMIN_INCENTIVA_AUTH_SECRET) ||
-    (import.meta.env.ADMIN_INCENTIVA_AUTH_SECRET as string | undefined);
+  const envSecret = readEnvString("ADMIN_INCENTIVA_AUTH_SECRET");
 
   return envSecret || "admin-incentiva-local-fallback-secret";
 }

@@ -2,6 +2,7 @@ import type {
   AccessInvitePreview,
   AuthIdentityPublic,
 } from "./admin-auth.shared";
+import { readEnvString } from "./runtime-env";
 
 const ACCESS_USERS_TABLE = "admin_access_users_v1";
 
@@ -21,20 +22,14 @@ type RegistryClientConfig = {
 };
 
 function getSupabaseUrl() {
-  return (
-    process.env.ADMIN_INCENTIVA_SUPABASE_URL?.trim() ||
-    process.env.VITE_SUPABASE_URL?.trim() ||
-    (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() ||
-    ""
-  );
+  return readEnvString("ADMIN_INCENTIVA_SUPABASE_URL", "VITE_SUPABASE_URL");
 }
 
 function getSupabaseServiceRoleKey() {
-  return (
-    process.env.ADMIN_INCENTIVA_SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.SUPABASE_SERVICE_ROLE?.trim() ||
-    ""
+  return readEnvString(
+    "ADMIN_INCENTIVA_SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_ROLE",
   );
 }
 

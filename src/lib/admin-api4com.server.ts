@@ -2,6 +2,8 @@ import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { promisify } from "node:util";
 
+import { readEnvString } from "./runtime-env";
+
 import type {
   Api4ComHangupStat,
   Api4ComOperationTelemetryRow,
@@ -70,7 +72,7 @@ function operationIdsFromLabels(labels: string[]) {
 }
 
 async function loadApi4ComToken() {
-  const envToken = process.env.API4COM_TOKEN?.trim();
+  const envToken = readEnvString("API4COM_TOKEN");
   if (envToken) return envToken;
 
   try {

@@ -1,3 +1,5 @@
+import { readEnvString } from "./runtime-env";
+
 // Mock data layer grounded in the current governance snapshot.
 // Replace these functions with real API calls later — component layer should not change.
 
@@ -2265,8 +2267,8 @@ function applyLiveGovernanceRow(base: IncentivaCockpitData, row: GovernanceAdmin
 }
 
 async function fetchGovernanceAdminGlobalRow(operationName: string): Promise<GovernanceAdminGlobalRow | null> {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const url = readEnvString("ADMIN_INCENTIVA_SUPABASE_URL", "VITE_SUPABASE_URL");
+  const key = readEnvString("ADMIN_INCENTIVA_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
 
   if (!url || !key) return null;
 
@@ -2280,7 +2282,6 @@ async function fetchGovernanceAdminGlobalRow(operationName: string): Promise<Gov
       apikey: key,
       Authorization: `Bearer ${key}`,
       Accept: "application/json",
-      "Accept-Profile": "governance",
     },
   });
 
@@ -2928,8 +2929,8 @@ export function buildOperationCockpitFromOperation(operation: Operation): Incent
 }
 
 async function fetchGovernanceAdminGlobalRows(): Promise<GovernanceAdminGlobalRow[] | null> {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const url = readEnvString("ADMIN_INCENTIVA_SUPABASE_URL", "VITE_SUPABASE_URL");
+  const key = readEnvString("ADMIN_INCENTIVA_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
 
   if (!url || !key) return null;
 
@@ -2942,7 +2943,6 @@ async function fetchGovernanceAdminGlobalRows(): Promise<GovernanceAdminGlobalRo
       apikey: key,
       Authorization: `Bearer ${key}`,
       Accept: "application/json",
-      "Accept-Profile": "governance",
     },
   });
 

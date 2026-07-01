@@ -148,6 +148,7 @@ function PortalPage() {
     buildOperationCockpitFromOperation(portalOperation),
     selectedPeriod,
   );
+  const baseMonitoradaValue = portalOperation.notionRecords ?? currentCockpit.summary.supabaseRecords;
   const cockpit = currentCockpit;
   const cadenceView = buildOperationCadenceView(portalOperation, cockpit, dashboard.source);
   const actionPlan = buildOperationActionPlan(portalOperation);
@@ -438,8 +439,8 @@ function PortalPage() {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <PortalKpi
               label="Base monitorada"
-              value={formatNumber(cockpit.summary.supabaseRecords)}
-              detail="Registros visíveis na última leitura útil desta operação."
+              value={formatNumber(baseMonitoradaValue)}
+              detail="Registros visíveis e reconciliados na última leitura útil desta operação."
               icon={Users}
               tone="info"
             />

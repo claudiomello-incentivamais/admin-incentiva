@@ -1,3 +1,5 @@
+import { readEnvString } from "./runtime-env";
+
 export type N8nTelemetrySource = "live" | "snapshot";
 
 export interface N8nOperationTelemetryRow {
@@ -259,8 +261,8 @@ function mapWorkflowRow(row: SupabaseWorkflowRow): N8nWorkflowTelemetryRow {
 }
 
 async function supabaseFetch<T>(path: string, search: URLSearchParams) {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
+  const url = readEnvString("ADMIN_INCENTIVA_SUPABASE_URL", "VITE_SUPABASE_URL");
+  const key = readEnvString("ADMIN_INCENTIVA_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
 
   if (!url || !key) return null;
 
@@ -272,7 +274,6 @@ async function supabaseFetch<T>(path: string, search: URLSearchParams) {
       apikey: key,
       Authorization: `Bearer ${key}`,
       Accept: "application/json",
-      "Accept-Profile": "governance",
     },
   });
 
