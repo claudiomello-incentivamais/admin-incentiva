@@ -1002,16 +1002,44 @@ function formatDateTime(value: string | null) {
 
 function operationHealth(row: N8nOperationTelemetryRow): OperationStatus {
   if (row.errorToday >= 10) return "critical";
-  if (row.errorToday > 0 || row.waitingToday > 0) return "risk";
+  if (row.waitingToday > 0) return "risk";
+  if (row.errorToday >= 3) return "risk";
+  if (row.errorToday > 0) {
+    return row.successToday > row.errorToday ? "monitor" : "risk";
+  }
   if (row.error7d > 0 || row.waiting7d > 0) return "monitor";
   return "healthy";
 }
 
 function workflowHealth(row: N8nWorkflowTelemetryRow): OperationStatus {
   if (row.errorToday >= 3) return "critical";
-  if (row.errorToday > 0 || row.waitingToday > 0) return "risk";
+  if (row.waitingToday > 0) return "risk";
+  if (row.errorToday >= 2) return "risk";
+  if (row.errorToday > 0) {
+    return row.successToday > row.errorToday ? "monitor" : "risk";
+  }
   if (row.error7d > 0 || row.waiting7d > 0) return "monitor";
   return "healthy";
+}
+
+function describeWorkflowAttention(row: N8nWorkflowTelemetryRow) {
+  if (row.waitingToday > 0) {
+    return `${formatInteger(row.waitingToday)} waiting hoje. Isso já pede olhar operacional porque pode virar fila travada.`;
+  }
+
+  if (row.errorToday > 0 && row.successToday > row.errorToday) {
+    return `Incidente isolado hoje: ${formatInteger(row.errorToday)} erro em ${formatInteger(row.execToday)} execuções, com o restante seguindo saudável.`;
+  }
+
+  if (row.errorToday > 0) {
+    return `Erro ativo hoje em ${formatInteger(row.errorToday)} execução(ões) dentro deste workflow.`;
+  }
+
+  if (row.error7d > 0) {
+    return `Sem erro novo hoje, mas ainda houve ${formatInteger(row.error7d)} erro(s) nos últimos 7 dias.`;
+  }
+
+  return "Sem atenção técnica relevante na janela atual.";
 }
 
 function TelemetryMetricCard({ metric }: { metric: N8nTelemetryMetricCard }) {
@@ -1087,6 +1115,8 @@ function TelemetryWorkflowCard({ row }: { row: N8nWorkflowTelemetryRow }) {
       </div>
 
       <div className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+        <span className="font-medium text-foreground">Leitura:</span> {describeWorkflowAttention(row)}
+        {" · "}
         <span className="font-medium text-foreground">Última corrida:</span> {formatDateTime(row.lastRunAt)}
         {row.lastErrorMessage ? (
           <>

@@ -214,6 +214,49 @@ function AdminGlobal() {
           </div>
         </section>
 
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <ExecutiveInsights insights={filteredInsights} />
+
+          <div className="surface-card p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Tema transversal em observação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Leitura secundária para causas comuns entre operações.
+                </p>
+              </div>
+              <Target className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              Frente comum
+            </div>
+            <h2 className="mt-3 text-sm font-semibold text-display">
+              {topFocusArea?.headline ?? "Sem tema transversal dominante neste corte"}
+            </h2>
+            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+              {topFocusArea?.detail ??
+                "Quando mais de uma operação for pressionada pelo mesmo fator, esta área mostra a frente comum."}
+            </p>
+            {topFocusArea ? (
+              <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3">
+                <div className="flex items-center justify-between gap-3 text-[12px]">
+                  <span className="text-muted-foreground">{topFocusArea.owner}</span>
+                  <span className="font-medium text-foreground">{topFocusArea.channel}</span>
+                </div>
+                <div className="mt-3 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Como usar
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-foreground">
+                    Isto não é a prioridade do dia. Serve para enxergar uma alavanca comum depois que o resumo executivo e a fila prioritária já apontaram onde agir primeiro.
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
         <section className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="surface-card p-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -248,21 +291,17 @@ function AdminGlobal() {
 
           <div className="surface-card p-4">
             <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Alavanca transversal
+              Hierarquia da tela
             </div>
             <h2 className="mt-3 text-sm font-semibold text-display">
-              {topFocusArea?.headline ?? "Sem alavanca transversal dominante neste corte"}
+              O topo precisa responder onde agir primeiro, não explicar arquitetura.
             </h2>
             <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              {topFocusArea?.detail ??
-                "Conforme as operações forem sendo filtradas, esta área passa a mostrar a frente com maior impacto cruzado."}
+              Primeiro entram resumo executivo e prioridade dominante. Depois KPI, fila prioritária, diagnóstico e, só então, temas transversais.
             </p>
-            {topFocusArea ? (
-              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-3 py-3 text-[12px]">
-                <span className="text-muted-foreground">{topFocusArea.owner}</span>
-                <span className="font-medium text-foreground">{topFocusArea.channel}</span>
-              </div>
-            ) : null}
+            <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3 text-[12px] leading-relaxed text-foreground">
+              Esta passada já reorganiza esse peso visual. A próxima ainda pode apertar mais se você enxergar qualquer bloco que siga “bonito”, mas pouco útil.
+            </div>
           </div>
         </section>
 
@@ -466,7 +505,6 @@ function AdminGlobal() {
               />
             ) : null}
             <StatusDistribution distribution={filteredDistribution} total={totalOps} />
-            <ExecutiveInsights insights={filteredInsights} />
           </div>
         </section>
       </main>
@@ -557,9 +595,9 @@ function ExecutiveFocusBoard({
     <div className="surface-card p-5">
         <div className="flex items-start justify-between gap-3 mb-4">
           <div>
-          <h2 className="text-sm font-semibold text-display">Frentes transversais</h2>
+          <h2 className="text-sm font-semibold text-display">Frentes secundárias</h2>
           <p className="text-[11px] text-muted-foreground mt-0.5">
-            Temas que puxam melhoria em mais de uma operação ao mesmo tempo.
+            Temas úteis para ganho cruzado, mas abaixo da fila prioritária do dia.
           </p>
         </div>
         <Target className="h-3.5 w-3.5 text-primary" />
