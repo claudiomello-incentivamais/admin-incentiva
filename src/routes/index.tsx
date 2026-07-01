@@ -476,9 +476,9 @@ function AdminGlobal() {
           <section className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Ações prontas</h2>
+                <h2 className="text-sm font-semibold text-display">Pacotes internos de execução</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Pacotes copiáveis para transformar prioridade em execução real sem reescrever o raciocínio.
+                  Esta camada é administrativa. Ela existe para o time interno copiar ou adaptar a execução sem reescrever o raciocínio.
                 </p>
               </div>
               <Target className="h-3.5 w-3.5 text-primary" />

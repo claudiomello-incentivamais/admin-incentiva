@@ -22,7 +22,6 @@ import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "rec
 import { z } from "zod";
 
 import { Topbar } from "@/components/admin/Topbar";
-import { ActionPacketCard } from "@/components/admin/action-packet-card";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,6 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
 import {
   buildOperationActionPlan,
-  buildOperationActionPackets,
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationNotionView,
@@ -129,7 +127,6 @@ function PortalPage() {
   const cockpit = currentCockpit;
   const cadenceView = buildOperationCadenceView(portalOperation, cockpit, dashboard.source);
   const actionPlan = buildOperationActionPlan(portalOperation);
-  const actionPackets = buildOperationActionPackets(portalOperation);
   const notionView = buildOperationNotionView(portalOperation, cockpit, dashboard.source);
   const trelloView = buildOperationTrelloView(portalOperation, cockpit);
   const runtimeView = buildOperationRuntimeView(
@@ -203,6 +200,20 @@ function PortalPage() {
       ]
     : [];
   const chartTimelineData = periodAnalytics?.timeline ?? [];
+  const primaryOwner =
+    portalOperation.baseCoverage < 60
+      ? "Bruna + Sales Ops"
+      : portalOperation.dataReconciliation < 85
+        ? "Claw + Sales Ops"
+        : "Sales Ops";
+  const primaryRoute =
+    portalOperation.baseCoverage < 60
+      ? "Acionar reposição de base e abrir card de lista/ICP."
+      : portalOperation.dataReconciliation < 85
+        ? "Abrir saneamento de dado antes de cobrar leitura comercial."
+        : "Abrir ação comercial em cima do gargalo dominante do funil.";
+  const executionNote =
+    "O Portal mostra a rota principal de trabalho. O disparo automático para Discord e Trello ainda não está ligado daqui, então esta tela não deveria te fazer escolher entre três ações diferentes.";
 
   return (
     <>
@@ -362,7 +373,7 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Como isso vira trabalho real</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Cadência de atualização da leitura e pacotes prontos para transformar prioridade em execução.
+                Cadência da leitura e rota única para transformar prioridade em trabalho real.
               </p>
             </div>
             <Target className="h-3.5 w-3.5 text-primary" />
@@ -380,22 +391,23 @@ function PortalPage() {
               detail="Base, conversão e prioridade são recalculadas quando o Portal abre, usando o estado atual disponível em Supabase, Notion e views de governança."
             />
             <PortalNarrativeCard
-              label="Se subir lista nova"
-              title="A prioridade pode virar"
-              detail="Quando sobe a cobertura de não iniciados, o foco sai de reposição de base e pode migrar para saneamento de dado ou gargalo comercial."
+              label="Responsável agora"
+              title={primaryOwner}
+              detail="Dono sugerido da frente principal desta conta no estado atual da operação."
             />
           </div>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-3">
-            {actionPackets.map((packet) => (
-              <ActionPacketCard key={packet.channel} {...packet} />
-            ))}
+          <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-primary">Próxima ação operacional</div>
+            <div className="mt-1 text-base font-semibold text-display">{primaryRoute}</div>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              {actionPlan.headline} A ideia correta aqui é existir uma rota principal de execução,
+              não te obrigar a copiar uma mensagem para um lugar, um card para outro e um terceiro texto para o admin.
+            </p>
           </div>
 
           <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
-            Hoje o Portal já fecha o diagnóstico e a recomendação com dono sugerido, mas a execução segue em
-            modo <span className="font-medium text-foreground">assistido</span>: o pacote fica pronto para
-            disparar no Discord, abrir no Trello e registrar no admin sem reescrever a análise.
+            {executionNote}
           </div>
         </section>
 
