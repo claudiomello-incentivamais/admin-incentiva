@@ -99,10 +99,12 @@ function PortalPage() {
   const { session } = useAdminAuth();
   const { selectedOperationId, selectedPeriod } = useAdminFilters();
   const requestedOperationId = search.operationId;
+  const effectiveOperationId =
+    selectedOperationId !== "all" ? selectedOperationId : requestedOperationId;
 
   const portalOperation =
-    ((requestedOperationId
-      ? dashboard.operations.find((operation) => operation.id === requestedOperationId)
+    ((effectiveOperationId
+      ? dashboard.operations.find((operation) => operation.id === effectiveOperationId)
       : null) ??
       (selectedOperationId === "all"
       ? dashboard.operations.find((operation) => operation.health === "healthy") ??
@@ -200,6 +202,7 @@ function PortalPage() {
       ]
     : [];
   const chartTimelineData = periodAnalytics?.timeline ?? [];
+  const hasPeriodAnalytics = Boolean(periodAnalytics);
   const primaryOwner =
     portalOperation.baseCoverage < 60
       ? "Bruna + Sales Ops"
@@ -461,63 +464,68 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Base e movimento comercial</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Recorte real do pipeline conforme o período selecionado, usando a última edição útil da camada comercial.
+                Recorte do pipeline conforme a operação e o período selecionados.
               </p>
             </div>
             <Activity className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="rounded-2xl border border-border bg-surface p-4">
-            <div className="text-sm font-medium text-display">Base e movimento comercial do recorte</div>
-            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              O bloco abaixo considera a movimentação real do período filtrado. Cobertura e não iniciados seguem como fotografia atual da base.
-            </p>
-            <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
+          {hasPeriodAnalytics ? (
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="text-sm font-medium text-display">Base e movimento comercial do recorte</div>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                O bloco abaixo considera a movimentação real do período filtrado para a operação atual.
+              </p>
+              <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <PortalMiniMetric
-                label="Não iniciados"
-                value={currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value?.toLocaleString("pt-BR") ?? "0"}
-                detail="Base ainda disponível agora para continuar abastecendo a cadência."
-              />
-              <PortalMiniMetric
-                label="Cobertura em dias"
-                value={currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value?.toLocaleString("pt-BR") ?? "0"}
-                detail="Quanto a base atual sustenta a meta diária de ativações."
-              />
-              <PortalMiniMetric
-                label="Prospects tocados"
-                value={formatNumber(periodAnalytics?.stageCounts.prospecting ?? 0)}
-                detail="Prospects que passaram por atualização útil no período filtrado."
-              />
-              <PortalMiniMetric
-                label="Ativos no recorte"
-                value={formatNumber(periodAnalytics?.touched ?? 0)}
-                detail="Total de movimentos de etapa refletidos no período filtrado."
-              />
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-              {(periodAnalytics
-                ? [
-                    { id: "prospecting", count: periodAnalytics.stageCounts.prospecting },
-                    { id: "lead-interessado", count: periodAnalytics.stageCounts["lead-interessado"] },
-                    { id: "mql-agendado", count: periodAnalytics.stageCounts["mql-agendado"] },
-                    { id: "mql-realizado", count: periodAnalytics.stageCounts["mql-realizado"] },
-                    { id: "negotiation", count: periodAnalytics.stageCounts.negotiation },
-                    { id: "won", count: periodAnalytics.stageCounts.won },
-                    { id: "lost", count: periodAnalytics.stageCounts.lost },
-                  ]
-                : pipelineStages).map((stage) => (
-                <PortalNarrativeCard
-                  key={stage.id}
-                  label={formatPipelineStageLabel(stage.id)}
-                  title={formatNumber(stage.count)}
-                  detail="Volume desta etapa dentro do período selecionado."
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <PortalMiniMetric
+                  label="Não iniciados"
+                  value={currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value?.toLocaleString("pt-BR") ?? "0"}
+                  detail="Fotografia atual da base, separada da movimentação do recorte."
                 />
-              ))}
+                <PortalMiniMetric
+                  label="Cobertura em dias"
+                  value={currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value?.toLocaleString("pt-BR") ?? "0"}
+                  detail="Fotografia atual da cobertura, separada da movimentação do recorte."
+                />
+                <PortalMiniMetric
+                  label="Prospects tocados"
+                  value={formatNumber(periodAnalytics.stageCounts.prospecting)}
+                  detail="Prospects que passaram por atualização útil no período filtrado."
+                />
+                <PortalMiniMetric
+                  label="Ativos no recorte"
+                  value={formatNumber(periodAnalytics.touched)}
+                  detail="Total de movimentos de etapa refletidos no período filtrado."
+                />
+              </div>
+
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+                {[
+                  { id: "prospecting", count: periodAnalytics.stageCounts.prospecting },
+                  { id: "lead-interessado", count: periodAnalytics.stageCounts["lead-interessado"] },
+                  { id: "mql-agendado", count: periodAnalytics.stageCounts["mql-agendado"] },
+                  { id: "mql-realizado", count: periodAnalytics.stageCounts["mql-realizado"] },
+                  { id: "negotiation", count: periodAnalytics.stageCounts.negotiation },
+                  { id: "won", count: periodAnalytics.stageCounts.won },
+                  { id: "lost", count: periodAnalytics.stageCounts.lost },
+                ].map((stage) => (
+                  <PortalNarrativeCard
+                    key={stage.id}
+                    label={formatPipelineStageLabel(stage.id)}
+                    title={formatNumber(stage.count)}
+                    detail="Volume desta etapa dentro do período selecionado."
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+              A leitura histórica por período desta operação ainda não ficou disponível nesta carga.
+              Para não congelar número errado, o Portal não está mais reaproveitando métricas fixas aqui.
+            </div>
+          )}
         </section>
 
         <section className="surface-card p-5">
@@ -531,28 +539,34 @@ function PortalPage() {
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <PortalMiniMetric
-              label="Prospect -> Lead interessado"
-              value={`${formatPercent(periodAnalytics?.firstInterestPct ?? firstInterestPct)}%`}
-              detail={`${formatNumber(periodAnalytics?.stageCounts["lead-interessado"] ?? leadTouched)} leads interessados sobre ${formatNumber(periodAnalytics?.stageCounts.prospecting ?? prospectTouched)} prospects tocados no período.`}
-            />
-            <PortalMiniMetric
-              label="Lead interessado -> MQL agendado"
-              value={`${formatPercent(periodAnalytics?.scheduledPct ?? scheduledPct)}%`}
-              detail={`${formatNumber(periodAnalytics?.stageCounts["mql-agendado"] ?? scheduledTouched)} MQLs agendados sobre ${formatNumber(periodAnalytics?.stageCounts["lead-interessado"] ?? leadTouched)} leads interessados no período.`}
-            />
-            <PortalMiniMetric
-              label="MQL agendado -> Negociação"
-              value={`${formatPercent(periodAnalytics?.negotiationPct ?? negotiationPct)}%`}
-              detail={`${formatNumber(periodAnalytics?.stageCounts.negotiation ?? negotiationTouched)} negociações sobre ${formatNumber(periodAnalytics?.stageCounts["mql-agendado"] ?? scheduledTouched)} reuniões agendadas no período.`}
-            />
-            <PortalMiniMetric
-              label="Negociação -> Cliente ganho"
-              value={`${formatPercent(periodAnalytics?.wonPct ?? wonPct)}%`}
-              detail={`${formatNumber(periodAnalytics?.stageCounts.won ?? wonTouched)} clientes ganhos sobre ${formatNumber(periodAnalytics?.stageCounts.negotiation ?? negotiationTouched)} negociações no período.`}
-            />
-          </div>
+          {hasPeriodAnalytics ? (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <PortalMiniMetric
+                label="Prospect -> Lead interessado"
+                value={`${formatPercent(periodAnalytics.firstInterestPct)}%`}
+                detail={`${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads interessados sobre ${formatNumber(periodAnalytics.stageCounts.prospecting)} prospects tocados no período.`}
+              />
+              <PortalMiniMetric
+                label="Lead interessado -> MQL agendado"
+                value={`${formatPercent(periodAnalytics.scheduledPct)}%`}
+                detail={`${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} MQLs agendados sobre ${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads interessados no período.`}
+              />
+              <PortalMiniMetric
+                label="MQL agendado -> Negociação"
+                value={`${formatPercent(periodAnalytics.negotiationPct)}%`}
+                detail={`${formatNumber(periodAnalytics.stageCounts.negotiation)} negociações sobre ${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} reuniões agendadas no período.`}
+              />
+              <PortalMiniMetric
+                label="Negociação -> Cliente ganho"
+                value={`${formatPercent(periodAnalytics.wonPct)}%`}
+                detail={`${formatNumber(periodAnalytics.stageCounts.won)} clientes ganhos sobre ${formatNumber(periodAnalytics.stageCounts.negotiation)} negociações no período.`}
+              />
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-[12px] leading-relaxed text-muted-foreground">
+              As conversões por etapa só aparecem aqui quando a leitura por período estiver disponível para a operação selecionada.
+            </div>
+          )}
         </section>
 
         <section className="surface-card p-5">
