@@ -47,10 +47,14 @@ check_marker() {
 
 echo "Validando publicação em: $BASE_URL"
 
-check_marker "$BASE_URL/configuracoes" "Paridade da publicação final"
-check_marker "$BASE_URL/configuracoes" "Checklist mínimo da próxima rodada"
-check_marker "$BASE_URL/configuracoes" "Diretório de acessos"
-check_marker "$BASE_URL/portal" "Prontidão do corte externo"
-check_marker "$BASE_URL/portal" "Blockers do fechamento externo"
+check_marker "$BASE_URL/" "e-mail e senha"
+check_marker "$BASE_URL/" "Criar senha e entrar"
+check_marker "$BASE_URL/" "Acesso interno"
+check_marker "$BASE_URL/configuracoes" "Sales Ops"
+check_marker "$BASE_URL/configuracoes" "SDR"
+check_marker "$BASE_URL/configuracoes" "Operações liberadas"
+check_marker "$BASE_URL/configuracoes" "Gerar link de acesso"
+check_marker "$BASE_URL/configuracoes" "Acessos emitidos"
+check_marker "$BASE_URL/configuracoes" "Como o link funciona"
 
-echo "OK: URL publicada refletiu os marcadores críticos do corte atual."
+echo "OK: URL publicada refletiu os marcadores críticos da autenticação recorrente."
