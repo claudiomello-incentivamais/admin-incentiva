@@ -503,7 +503,7 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Conversão por canal no recorte</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Leitura do período selecionado por canal operacional predominante do registro.
+                Leitura do período selecionado por canal atribuído do registro, separando conversão comercial de telemetria operacional.
               </p>
             </div>
             <ChartColumn className="h-3.5 w-3.5 text-primary" />
@@ -513,10 +513,11 @@ function PortalPage() {
             <ChannelActivityCard
               title="E-mail"
               icon={Mail}
-              detail="Canal medido por estágio atualizado no período, com apoio da telemetria operacional do n8n."
+              sourceLabel="cadência"
+              detail="Conversão comercial do recorte com apoio da cadência observada no n8n. Aqui a leitura operacional mostra execução, não envio final comprovado."
               metrics={[
                 {
-                  label: "Prospects tocados",
+                  label: "Prospects no canal",
                   value: formatNumber(periodAnalytics?.channels.email.touched ?? 0),
                 },
                 {
@@ -528,20 +529,25 @@ function PortalPage() {
                   value: formatNumber(periodAnalytics?.channels.email.mqlAgendado ?? 0),
                 },
                 {
-                  label: "Execuções n8n 7d",
+                  label: "Respostas no recorte",
+                  value: formatNumber(periodAnalytics?.channels.email.replies ?? 0),
+                },
+                {
+                  label: "Cadências n8n 7d",
                   value: formatNumber(emailWorkflowExec7d),
                 },
               ]}
-              footer={`Hoje: ${formatNumber(emailWorkflowExecToday)} execuções de e-mail no n8n. Waiting atual: ${emailWaitingMetric}.`}
+              footer={`Hoje: ${formatNumber(emailWorkflowExecToday)} execuções ligadas a e-mail no n8n. Waiting atual: ${emailWaitingMetric}.`}
             />
 
             <ChannelActivityCard
               title="WhatsApp"
               icon={MessageCircle}
-              detail="Canal medido por estágio atualizado no período, com apoio da telemetria viva da Evolution."
+              sourceLabel="disparo"
+              detail="Conversão comercial do recorte com apoio da telemetria viva da Evolution. Aqui o volume operacional já é leitura de envio medido."
               metrics={[
                 {
-                  label: "Prospects tocados",
+                  label: "Prospects no canal",
                   value: formatNumber(periodAnalytics?.channels.whatsapp.touched ?? 0),
                 },
                 {
@@ -553,7 +559,11 @@ function PortalPage() {
                   value: formatNumber(periodAnalytics?.channels.whatsapp.mqlAgendado ?? 0),
                 },
                 {
-                  label: "Envios Evolution 7d",
+                  label: "Respostas no recorte",
+                  value: formatNumber(periodAnalytics?.channels.whatsapp.replies ?? 0),
+                },
+                {
+                  label: "Envios medidos 7d",
                   value: formatNumber(evolutionOutbound7d),
                 },
               ]}
@@ -565,10 +575,11 @@ function PortalPage() {
             <ChannelActivityCard
               title="LinkedIn"
               icon={Workflow}
-              detail="Canal medido por estágio atualizado no período, com apoio da cadência operacional do n8n."
+              sourceLabel="cadência"
+              detail="Conversão comercial do recorte com apoio da cadência operacional do n8n. Aqui a leitura operacional mostra execução, não mensagem final confirmada."
               metrics={[
                 {
-                  label: "Prospects tocados",
+                  label: "Prospects no canal",
                   value: formatNumber(periodAnalytics?.channels.linkedin.touched ?? 0),
                 },
                 {
@@ -580,12 +591,19 @@ function PortalPage() {
                   value: formatNumber(periodAnalytics?.channels.linkedin.mqlAgendado ?? 0),
                 },
                 {
-                  label: "Execuções n8n 7d",
+                  label: "Respostas no recorte",
+                  value: formatNumber(periodAnalytics?.channels.linkedin.replies ?? 0),
+                },
+                {
+                  label: "Cadências n8n 7d",
                   value: formatNumber(linkedinWorkflowExec7d),
                 },
               ]}
               footer={`Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções ligadas ao LinkedIn no n8n. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
             />
+          </div>
+          <div className="mt-3">
+            <ChannelAttributionNote unattributedCount={periodAnalytics?.unattributedStageCount ?? 0} />
           </div>
         </section>
 
@@ -825,23 +843,30 @@ function LiveActionCard({
 function ChannelActivityCard({
   title,
   icon: Icon,
+  sourceLabel,
   detail,
   metrics,
   footer,
 }: {
   title: string;
   icon: typeof MessageCircle;
+  sourceLabel: string;
   detail: string;
   metrics: { label: string; value: string }[];
   footer: string;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2">
-        <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
-          <Icon className="h-4 w-4" />
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div className="text-sm font-medium text-foreground">{title}</div>
         </div>
-        <div className="text-sm font-medium text-foreground">{title}</div>
+        <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
+          {sourceLabel}
+        </Badge>
       </div>
       <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -855,6 +880,22 @@ function ChannelActivityCard({
         ))}
       </div>
       <div className="mt-3 text-[11px] leading-relaxed text-muted-foreground">{footer}</div>
+    </div>
+  );
+}
+
+function ChannelAttributionNote({
+  unattributedCount,
+}: {
+  unattributedCount: number;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
+      Atribuição por canal prioriza o campo <span className="font-medium text-foreground">Canal</span> do registro.
+      Quando ele não existe, o Portal usa fallback apenas se houver um único canal ativo no lead.
+      {unattributedCount > 0
+        ? ` Neste recorte, ${formatNumber(unattributedCount)} viradas ficaram fora da conversão por canal por falta de atribuição clara.`
+        : " Neste recorte, não houve viradas excluídas por ambiguidade de canal."}
     </div>
   );
 }

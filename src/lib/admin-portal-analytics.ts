@@ -17,6 +17,7 @@ type LeadsBaseRow = {
   created_at: string | null;
   status: string | null;
   estagio: string | null;
+  canal: string | null;
   status_email: string | null;
   status_linkedin: string | null;
   status_whatsapp: string | null;
@@ -29,6 +30,7 @@ type NotionCanonicalRow = {
   empresa: string | null;
   last_edited_at: string | null;
   canonical_stage: string | null;
+  canal: string | null;
 };
 
 export interface PortalTimelinePoint {
@@ -67,6 +69,7 @@ export interface PortalPeriodSummary {
   negotiationPct: number;
   wonPct: number;
   channels: Record<ChannelId, PortalChannelPeriodSummary>;
+  unattributedStageCount: number;
   timeline: PortalTimelinePoint[];
 }
 
@@ -185,10 +188,26 @@ function nonBlank(value: string | null | undefined) {
   return Boolean(value && value.trim());
 }
 
-function inferPrimaryChannel(row: LeadsBaseRow): ChannelId | null {
-  if (nonBlank(row.status_whatsapp)) return "whatsapp";
-  if (nonBlank(row.status_linkedin)) return "linkedin";
-  if (nonBlank(row.status_email)) return "email";
+function mapRawChannel(value: string | null | undefined): ChannelId | null {
+  const normalized = normalizeText(value);
+  if (!normalized) return null;
+  if (normalized.includes("whats") || normalized.includes("wpp")) return "whatsapp";
+  if (normalized.includes("linkedin")) return "linkedin";
+  if (normalized.includes("mail")) return "email";
+  return null;
+}
+
+function inferPrimaryChannel(row: Pick<LeadsBaseRow, "canal" | "status_email" | "status_linkedin" | "status_whatsapp">): ChannelId | null {
+  const explicitChannel = mapRawChannel(row.canal);
+  if (explicitChannel) return explicitChannel;
+
+  const inferred = [
+    nonBlank(row.status_email) ? "email" : null,
+    nonBlank(row.status_linkedin) ? "linkedin" : null,
+    nonBlank(row.status_whatsapp) ? "whatsapp" : null,
+  ].filter(Boolean) as ChannelId[];
+
+  if (inferred.length === 1) return inferred[0];
   return null;
 }
 
@@ -296,6 +315,7 @@ function createPeriodSummary(period: PortalPeriodPreset): PortalPeriodSummary {
       linkedin: createChannelSummary("linkedin"),
       whatsapp: createChannelSummary("whatsapp"),
     },
+    unattributedStageCount: 0,
     timeline: [],
   };
 }
@@ -349,13 +369,13 @@ export async function loadPortalAnalytics(params: {
     fetchAllRows<LeadsBaseRow>(
       config,
       "leads_base_v1",
-      "operation_name,nome,empresa,created_at,status,estagio,status_email,status_linkedin,status_whatsapp,last_reply_at",
+      "operation_name,nome,empresa,created_at,status,estagio,canal,status_email,status_linkedin,status_whatsapp,last_reply_at",
       operationNames,
     ),
     fetchAllRows<NotionCanonicalRow>(
       config,
       "notion_funnel_canonical_v1",
-      "operation_name,nome,empresa,last_edited_at,canonical_stage",
+      "operation_name,nome,empresa,last_edited_at,canonical_stage,canal",
       operationNames,
     ),
   ]);
@@ -387,7 +407,9 @@ export async function loadPortalAnalytics(params: {
         if (Number.isNaN(editedAt.getTime())) return;
         const leadKey = normalizeLeadKey(row.nome, row.empresa);
         const baseRow = leadKey ? operationBaseMap.get(leadKey) ?? null : null;
-        const primaryChannel = baseRow ? inferPrimaryChannel(baseRow) : null;
+        const primaryChannel =
+          (baseRow ? inferPrimaryChannel(baseRow) : null) ??
+          mapRawChannel(row.canal);
 
         periods.forEach((period) => {
           if (editedAt < periodStart(period, now)) return;
@@ -403,6 +425,8 @@ export async function loadPortalAnalytics(params: {
             if (stageId === "negotiation") channelSummary.negotiation += 1;
             if (stageId === "won") channelSummary.won += 1;
             if (stageId === "lost") channelSummary.lost += 1;
+          } else {
+            summary.unattributedStageCount += 1;
           }
 
           const dayLabel = localDayLabel(row.last_edited_at);
