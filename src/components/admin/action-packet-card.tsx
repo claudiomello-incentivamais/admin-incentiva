@@ -31,7 +31,11 @@ export function ActionPacketCard({
   owner: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const Icon = iconMap[channel];
+  const lines = content.split("\n").map((line) => line.trim()).filter(Boolean);
+  const preview = lines.slice(0, 4).join("\n");
+  const hiddenCount = Math.max(lines.length - 4, 0);
 
   async function handleCopy() {
     try {
@@ -74,8 +78,17 @@ export function ActionPacketCard({
 
       <div className="mt-3 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5">
         <pre className="whitespace-pre-wrap break-words text-[11px] leading-relaxed text-foreground font-sans">
-          {content}
+          {expanded ? content : preview}
         </pre>
+        {hiddenCount > 0 ? (
+          <button
+            type="button"
+            className="mt-2 text-[10px] font-medium uppercase tracking-[0.14em] text-primary"
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? "Mostrar menos" : `Ver texto completo (+${hiddenCount} linhas)`}
+          </button>
+        ) : null}
       </div>
     </div>
   );

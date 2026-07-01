@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Building2,
   Eye,
+  LockKeyhole,
   MessageCircle,
   NotebookPen,
   PhoneCall,

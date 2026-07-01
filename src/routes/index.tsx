@@ -125,6 +125,10 @@ function AdminGlobal() {
   const effectiveKpis = useMemo(() => {
     return buildScopedKpis(kpis, filteredOperations, scopedOperations, selectedPeriod);
   }, [filteredOperations, kpis, scopedOperations, selectedPeriod]);
+  const blendedConversionRate =
+    effectiveKpis.totalLeads > 0
+      ? (effectiveKpis.monthlyConversions / effectiveKpis.totalLeads) * 100
+      : 0;
 
   const totalOps =
     filteredDistribution.healthy +
@@ -220,38 +224,49 @@ function AdminGlobal() {
           <div className="surface-card p-5">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-sm font-semibold text-display">Tema transversal em observação</h2>
+                <h2 className="text-sm font-semibold text-display">Radar rápido da carteira</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Leitura secundária para causas comuns entre operações.
+                  Leitura curta para bater o olho em pressão, cobertura e conversão.
                 </p>
               </div>
               <Target className="h-3.5 w-3.5 text-primary" />
             </div>
 
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Frente comum
+            <div className="grid gap-3 sm:grid-cols-2">
+              <CompactMetric
+                label="Operações sob pressão"
+                value={`${filteredDistribution.risk + filteredDistribution.critical}`}
+                detail="risk + critical"
+                tone="warning"
+              />
+              <CompactMetric
+                label="Conversão média"
+                value={`${blendedConversionRate.toFixed(1)}%`}
+                detail="recorte atual"
+                tone="success"
+              />
+              <CompactMetric
+                label="Cobertura média"
+                value={`${effectiveKpis.baseCoverage}%`}
+                detail="base ativa"
+                tone="info"
+              />
+              <CompactMetric
+                label="Tema cruzado"
+                value={topFocusArea ? topFocusArea.count.toString() : "0"}
+                detail={topFocusArea?.label ?? "sem frente dominante"}
+                tone="default"
+              />
             </div>
-            <h2 className="mt-3 text-sm font-semibold text-display">
-              {topFocusArea?.headline ?? "Sem tema transversal dominante neste corte"}
-            </h2>
-            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              {topFocusArea?.detail ??
-                "Quando mais de uma operação for pressionada pelo mesmo fator, esta área mostra a frente comum."}
-            </p>
+
             {topFocusArea ? (
-              <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3">
-                <div className="flex items-center justify-between gap-3 text-[12px]">
-                  <span className="text-muted-foreground">{topFocusArea.owner}</span>
-                  <span className="font-medium text-foreground">{topFocusArea.channel}</span>
+              <div className="mt-4 rounded-xl border border-border bg-surface px-4 py-3">
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Tema transversal em observação
                 </div>
-                <div className="mt-3 rounded-lg border border-border/70 bg-background/60 px-3 py-2.5">
-                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-                    Como usar
-                  </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-foreground">
-                    Isto não é a prioridade do dia. Serve para enxergar uma alavanca comum depois que o resumo executivo e a fila prioritária já apontaram onde agir primeiro.
-                  </p>
-                </div>
+                <p className="mt-1 text-[12px] leading-relaxed text-foreground">
+                  {topFocusArea.headline}
+                </p>
               </div>
             ) : null}
           </div>
@@ -282,25 +297,32 @@ function AdminGlobal() {
                 <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                   Próximo passo
                 </div>
-                <div className="mt-1 text-[12px] leading-relaxed text-foreground">
+              <div className="mt-1 text-[12px] leading-relaxed text-foreground">
                   {topPriority.nextStep}
-                </div>
               </div>
+            </div>
             ) : null}
           </div>
 
           <div className="surface-card p-4">
-            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
-              Hierarquia da tela
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Leitura executiva
+                </div>
+                <h2 className="mt-2 text-sm font-semibold text-display">
+                  Mais indicador, menos texto.
+                </h2>
+                <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                  O objetivo aqui é mostrar primeiro pressão, cobertura, conversão e fila aberta. Explicação longa só entra se ajudar a decidir.
+                </p>
+              </div>
+              <TrendingUp className="h-4 w-4 text-primary" />
             </div>
-            <h2 className="mt-3 text-sm font-semibold text-display">
-              O topo precisa responder onde agir primeiro, não explicar arquitetura.
-            </h2>
-            <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-              Primeiro entram resumo executivo e prioridade dominante. Depois KPI, fila prioritária, diagnóstico e, só então, temas transversais.
-            </p>
-            <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3 text-[12px] leading-relaxed text-foreground">
-              Esta passada já reorganiza esse peso visual. A próxima ainda pode apertar mais se você enxergar qualquer bloco que siga “bonito”, mas pouco útil.
+            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+              <MiniStatusPill label="healthy" value={filteredDistribution.healthy} tone="healthy" />
+              <MiniStatusPill label="monitor" value={filteredDistribution.monitor} tone="monitor" />
+              <MiniStatusPill label="risk+critical" value={filteredDistribution.risk + filteredDistribution.critical} tone="risk" />
             </div>
           </div>
         </section>
@@ -365,7 +387,7 @@ function AdminGlobal() {
               <div>
                 <h2 className="text-sm font-semibold text-display">Ações prontas</h2>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Textos e registros já mastigados para transformar leitura em execução.
+                  Pacotes copiáveis para execução imediata, agora em modo compacto.
                 </p>
               </div>
               <Target className="h-3.5 w-3.5 text-primary" />
@@ -822,6 +844,56 @@ function ExecKpi({
         )}
       </div>
       {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
+function CompactMetric({
+  label,
+  value,
+  detail,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "default" | "success" | "warning" | "info";
+}) {
+  const toneMap = {
+    default: "text-foreground",
+    success: "text-[color:var(--color-success)]",
+    warning: "text-[color:var(--color-warning)]",
+    info: "text-[color:var(--color-info)]",
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-3 py-3">
+      <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{label}</div>
+      <div className={cn("mt-1 text-xl font-semibold text-display", toneMap[tone])}>{value}</div>
+      <div className="mt-1 text-[10px] text-muted-foreground">{detail}</div>
+    </div>
+  );
+}
+
+function MiniStatusPill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "healthy" | "monitor" | "risk";
+}) {
+  const toneMap = {
+    healthy: "bg-[color:var(--color-success)]/10 text-[color:var(--color-success)]",
+    monitor: "bg-[color:var(--color-info)]/10 text-[color:var(--color-info)]",
+    risk: "bg-[color:var(--color-warning)]/10 text-[color:var(--color-warning)]",
+  };
+
+  return (
+    <div className={cn("rounded-lg px-3 py-2 text-center", toneMap[tone])}>
+      <div className="text-[10px] uppercase tracking-[0.14em]">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-display">{value}</div>
     </div>
   );
 }
