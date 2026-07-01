@@ -65,6 +65,12 @@ function matchesRoute(pathname: string, allowedRoute: string) {
   return allowedRoute === "/" ? pathname === "/" : pathname.startsWith(allowedRoute);
 }
 
+function reloadWithServerSession(targetPath?: string) {
+  if (typeof window === "undefined") return;
+  const nextUrl = targetPath ?? `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  window.location.replace(nextUrl);
+}
+
 export function AdminAuthProvider({
   children,
   initialSession,
@@ -269,6 +275,7 @@ function SignInScreen() {
 
     setError(null);
     setPassword("");
+    reloadWithServerSession();
   };
 
   const handleInviteAccept = async () => {
@@ -291,10 +298,8 @@ function SignInScreen() {
       return;
     }
 
-    if (typeof window !== "undefined") {
-      const landingPath = invitePreview?.landingPath ?? "/";
-      window.history.replaceState({}, "", landingPath);
-    }
+    const landingPath = invitePreview?.landingPath ?? "/";
+    reloadWithServerSession(landingPath);
   };
 
   return (
@@ -542,6 +547,7 @@ function SignInScreen() {
                   }
                   setError(null);
                   setPasscode("");
+                  reloadWithServerSession();
                 }}
                 disabled={isSubmitting}
               >
