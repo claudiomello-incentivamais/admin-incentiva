@@ -3,11 +3,14 @@ import {
   Activity,
   ArrowRight,
   Building2,
+  Database,
   Eye,
+  GitBranch,
   LockKeyhole,
   MessageCircle,
   NotebookPen,
   PhoneCall,
+  ServerCog,
   Target,
   TrendingUp,
   Users,
@@ -18,18 +21,14 @@ import { Topbar } from "@/components/admin/Topbar";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  formatPeriodLabel,
-  formatVisibilityModeLabel,
-  useAdminFilters,
-} from "@/components/admin/admin-filters";
+import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
 import {
   buildOperationActionPlan,
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
   buildOperationNotionView,
+  buildOperationRuntimeView,
   buildOperationTrelloView,
-  getScoreDrivers,
   statusMeta,
 } from "@/lib/admin-data";
 import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
@@ -60,12 +59,7 @@ function PortalPage() {
   const dashboard = Route.useLoaderData();
   const search = Route.useSearch();
   const { session } = useAdminAuth();
-  const {
-    selectedOperationId,
-    selectedAccessProfile,
-    selectedPeriod,
-    selectedVisibilityMode,
-  } = useAdminFilters();
+  const { selectedOperationId, selectedPeriod } = useAdminFilters();
   const requestedOperationId = search.operationId;
 
   const portalOperation =
@@ -100,7 +94,11 @@ function PortalPage() {
   const actionPlan = buildOperationActionPlan(scopedPortalOperation);
   const notionView = buildOperationNotionView(scopedPortalOperation, cockpit, dashboard.source);
   const trelloView = buildOperationTrelloView(scopedPortalOperation, cockpit);
-  const drivers = getScoreDrivers(scopedPortalOperation).slice(0, 3);
+  const runtimeView = buildOperationRuntimeView(
+    scopedPortalOperation,
+    cockpit,
+    dashboard.source,
+  );
   const openNotionAction = notionView.actions.find((action) => action.id === "open-notion");
   const openBoardAction = trelloView.actions.find((action) => action.id === "open-board");
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/portal"]);
@@ -115,31 +113,19 @@ function PortalPage() {
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge
-                variant="outline"
-                className="text-[10px] uppercase tracking-[0.18em] border-primary/40 text-primary bg-primary/5 h-5"
-              >
-                Portal privado
-              </Badge>
-              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
-                {selectedAccessProfile.label}
-              </Badge>
-              <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
-                {formatVisibilityModeLabel(selectedVisibilityMode)}
-              </Badge>
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {formatPeriodLabel(selectedPeriod)}
               </Badge>
               <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-mono">
-                {dashboard.snapshotLabel}
+                Atualizado em {dashboard.snapshotLabel}
               </span>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
               Portal de Operação
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Visão de gestão da operação com foco em saúde, gargalos, conversão e próximo passo,
-              sem poluição de bastidor técnico.
+              Visão central da operação com foco em base, cobertura, conversão, ações executáveis
+              e saúde técnica das integrações.
             </p>
           </div>
 
@@ -176,7 +162,7 @@ function PortalPage() {
                   variant="outline"
                   className={cn(
                     "text-[10px] uppercase tracking-[0.16em] h-5",
-                    statusMeta[portalOperation.health].tone,
+                    statusMeta[portalOperation.health].color,
                   )}
                 >
                   {statusMeta[portalOperation.health].label}
@@ -184,80 +170,38 @@ function PortalPage() {
               </div>
               <h2 className="text-xl font-semibold text-display">{portalOperation.name}</h2>
               <p className="text-sm text-muted-foreground max-w-2xl">
-                {selectedVisibilityMode === "client"
-                  ? "Recorte pronto para leitura privada, com foco em saúde da operação, cobertura, conversão e próximos passos."
-                  : "Visão operacional filtrada para apoiar leitura de gestão, sem abrir a camada técnica inteira."}{" "}
-                O período ativo também recorta este painel.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 max-w-sm">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">
-                Regra de exposição ativa
-              </div>
-              <div className="mt-1 text-sm font-medium text-display">
-                {selectedAccessProfile.scope}
-              </div>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                {selectedAccessProfile.description}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">
-                Visão ativa
-              </div>
-              <div className="mt-1 text-sm font-medium text-display">
-                {formatVisibilityModeLabel(selectedVisibilityMode)}
-              </div>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                {selectedVisibilityMode === "client"
-                  ? "Este recorte foi pensado para leitura externa controlada, sem bastidor interno e sem comparativos sensíveis."
-                  : "Este recorte preserva contexto operacional extra para calibrar o que ainda deve ou não sair para cliente."}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Fonte principal
-              </div>
-              <div className="mt-1 text-sm font-medium text-display">
-                {dashboard.source === "live" ? "Leitura viva" : "Snapshot governado"}
-              </div>
-              <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                O portal já mostra de forma mais clara se a leitura desta operação vem de fonte
-                ativa ou de fallback curado, sem misturar outras contas no recorte.
+                Cockpit resumido da operação selecionada, com leitura de base, links de trabalho,
+                priorização e runtime técnico no mesmo lugar.
               </p>
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <PortalKpi
-              label="Leads monitorados"
+              label="Base monitorada"
               value={formatNumber(cockpit.summary.supabaseRecords)}
-              detail="Base visível neste recorte."
+              detail="Registros desta operação no recorte selecionado."
               icon={Users}
               tone="info"
             />
             <PortalKpi
               label="Cobertura"
               value={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
-              detail="Cobertura de base atual."
+              detail="Percentual atual de base ainda disponível para sustentar a cadência."
               icon={Target}
               tone="monitor"
             />
             <PortalKpi
-              label="Conversão"
+              label="Conversão mensal"
               value={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
               detail="Conversão mensal da operação."
               icon={TrendingUp}
               tone="success"
             />
             <PortalKpi
-              label="Score operacional"
-              value={String(scopedPortalOperation.score)}
-              detail={`Prioridade ${scopedPortalOperation.priority}`}
+              label="Reconciliação"
+              value={`${formatPercent(scopedPortalOperation.dataReconciliation)}%`}
+              detail="Coerência atual entre as camadas operacionais da conta."
               icon={Building2}
               tone="info"
             />
@@ -277,118 +221,32 @@ function PortalPage() {
             </div>
 
             <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">
-                Próxima alavanca sugerida
-              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-primary">Prioridade agora</div>
               <div className="mt-1 text-base font-semibold text-display">
                 {actionPlan.actions[0]}
               </div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                {actionPlan.headline}
+                Foco atual em {scopedPortalOperation.focus.toLowerCase()}, com leitura consolidada
+                de cobertura, conversão e reconciliação.
               </p>
             </div>
 
             <div className="mt-3 grid gap-3 md:grid-cols-3">
-              {actionPlan.causes.map((item) => (
-                <PortalNarrativeCard
-                  key={item}
-                  label="Sinal principal"
-                  title={item.split(":")[0] ?? "Leitura"}
-                  detail={item}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Gargalos e oportunidades</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Onde a operação está puxando para cima ou travando resultado.
-                </p>
-              </div>
-              <TrendingUp className="h-3.5 w-3.5 text-primary" />
-            </div>
-
-            <div className="space-y-3">
-              {drivers.map((driver) => (
-                <div key={driver.label} className="rounded-xl border border-border bg-surface p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium">{driver.label}</div>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] uppercase tracking-[0.16em] h-5",
-                        driver.weight > 0 ? "border-emerald-500/30 text-emerald-600" : "border-rose-500/30 text-rose-600",
-                      )}
-                    >
-                      {driver.weight > 0 ? `+${driver.weight}` : driver.weight}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                    {driver.explanation}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
-          <div className="surface-card p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Acessos rápidos da operação</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Tudo que precisa ser aberto para tocar a conta sem caçar em outras telas.
-                </p>
-              </div>
-              <Activity className="h-3.5 w-3.5 text-primary" />
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              {openBoardAction ? (
-                <LiveActionCard
-                  title="Abrir Trello da operação"
-                  detail={trelloView.detail}
-                  href={openBoardAction.href}
-                  external
-                  buttonLabel={openBoardAction.label}
-                />
-              ) : (
-                <PortalNarrativeCard
-                  label="Trello"
-                  title="Quadro ainda não homologado"
-                  detail={trelloView.availabilityLabel}
-                />
-              )}
-              {openNotionAction ? (
-                <LiveActionCard
-                  title={openNotionAction.title}
-                  detail={openNotionAction.detail}
-                  href={openNotionAction.href}
-                  external={openNotionAction.external}
-                  buttonLabel="Abrir Notion da operação"
-                />
-              ) : (
-                <PortalNarrativeCard
-                  label="Notion"
-                  title="Base ainda sem link direto"
-                  detail="A leitura comercial continua disponível no painel, mas o link direto da base ainda não foi homologado neste recorte."
-                />
-              )}
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              {trelloView.metrics.slice(0, 4).map((metric) => (
-                <PortalMiniMetric
-                  key={metric.id}
-                  label={metric.label}
-                  value={metric.value}
-                  detail={metric.detail}
-                />
-              ))}
+              <PortalNarrativeCard
+                label="Foco principal"
+                title={scopedPortalOperation.focus}
+                detail="Tema que mais influencia a priorização atual desta conta."
+              />
+              <PortalNarrativeCard
+                label="Cobertura atual"
+                title={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
+                detail="Mostra se ainda existe base suficiente para sustentar a cadência sem reposição imediata."
+              />
+              <PortalNarrativeCard
+                label="Conversão mensal"
+                title={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
+                detail="Leitura consolidada da conversão da operação no recorte mensal atual."
+              />
             </div>
           </div>
 
@@ -416,6 +274,106 @@ function PortalPage() {
           </div>
         </section>
 
+        <section className="grid grid-cols-1 xl:grid-cols-[0.95fr_1.05fr] gap-4">
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Acessos rápidos da operação</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Tudo que precisa ser aberto para tocar a conta sem caçar em outras telas.
+                </p>
+              </div>
+              <Activity className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {openBoardAction ? (
+                <LiveActionCard
+                  title="Abrir Trello da operação"
+                  detail="Entrada direta no quadro da operação para execução, follow-up e priorização."
+                  href={openBoardAction.href}
+                  external
+                  buttonLabel={openBoardAction.label}
+                />
+              ) : (
+                <PortalNarrativeCard
+                  label="Trello"
+                  title="Quadro ainda não homologado"
+                  detail={trelloView.availabilityLabel}
+                />
+              )}
+              {openNotionAction ? (
+                <LiveActionCard
+                  title={openNotionAction.title}
+                  detail="Entrada direta na base comercial da operação para owner, estágio e próximos passos."
+                  href={openNotionAction.href}
+                  external={openNotionAction.external}
+                  buttonLabel="Abrir Notion da operação"
+                />
+              ) : (
+                <PortalNarrativeCard
+                  label="Notion"
+                  title="Base ainda sem link direto"
+                  detail="A leitura comercial continua disponível no painel, mas o link direto da base ainda não foi homologado neste recorte."
+                />
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <PortalMiniMetric
+                label="Quadro Trello"
+                value={trelloView.boardLabel}
+                detail={trelloView.syncLabel}
+              />
+              <PortalMiniMetric
+                label="Cards reais abertos"
+                value={trelloView.metrics[0]?.value ?? "0"}
+                detail="Cards do Trello já materializados para esta operação."
+              />
+              <PortalMiniMetric
+                label="Pipeline comercial"
+                value={notionView.stageLabel}
+                detail="Situação atual da leitura comercial no Notion."
+              />
+              <PortalMiniMetric
+                label="Última leitura útil"
+                value={notionView.syncLabel}
+                detail="Carimbo mais útil da leitura comercial desta operação."
+              />
+            </div>
+          </div>
+
+          <div className="surface-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-display">Gargalos e oportunidades</h2>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Onde a operação está puxando para cima ou travando resultado.
+                </p>
+              </div>
+              <TrendingUp className="h-3.5 w-3.5 text-primary" />
+            </div>
+
+            <div className="grid gap-3">
+              <PortalNarrativeCard
+                label="Cobertura"
+                title={`${formatPercent(scopedPortalOperation.baseCoverage)}%`}
+                detail="Quando esse número cai, a cadência perde fôlego e reposição de base vira prioridade."
+              />
+              <PortalNarrativeCard
+                label="Reconciliação"
+                title={`${formatPercent(scopedPortalOperation.dataReconciliation)}%`}
+                detail="Mostra o quanto as camadas operacionais estão coerentes para leitura e decisão."
+              />
+              <PortalNarrativeCard
+                label="Conversão mensal"
+                title={`${formatPercent(scopedPortalOperation.monthlyConversion)}%`}
+                detail="Indica a capacidade atual da operação de transformar movimento comercial em avanço real."
+              />
+            </div>
+          </div>
+        </section>
+
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -429,9 +387,12 @@ function PortalPage() {
 
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <div className="rounded-2xl border border-border bg-surface p-4">
-              <div className="text-sm font-medium text-display">{cadenceView.headline}</div>
+              <div className="text-sm font-medium text-display">
+                Base e movimento comercial do recorte
+              </div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                {cadenceView.detail}
+                Leitura da base disponível, do volume movimentado e da distribuição atual do funil
+                comercial da operação.
               </p>
               <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
 
@@ -459,25 +420,29 @@ function PortalPage() {
             </div>
 
             <div className="rounded-2xl border border-border bg-surface p-4">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Tendência recente
-              </div>
-              <div className="mt-1 text-base font-semibold text-display">
-                Curto prazo vs tendência
-              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Leitura rápida</div>
+              <div className="mt-1 text-base font-semibold text-display">Interpretação do recorte</div>
               <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                Leitura resumida para separar oscilação curta de tendência de operação.
+                Aqui fica só a leitura mais útil do recorte atual, sem janela sintética e sem
+                extrapolação artificial.
               </p>
 
               <div className="mt-4 grid gap-3">
-                {cadenceView.windows.slice(0, 2).map((window) => (
-                  <PortalNarrativeCard
-                    key={window.id}
-                    label={window.label}
-                    title={`${window.activeLabel} · ${window.conversionLabel}`}
-                    detail={`${window.velocityLabel}. ${window.detail}`}
-                  />
-                ))}
+                <PortalNarrativeCard
+                  label="Não iniciados"
+                  title={cadenceView.metrics[0]?.value ?? "0"}
+                  detail={cadenceView.metrics[0]?.detail ?? "Base disponível para abastecer a cadência."}
+                />
+                <PortalNarrativeCard
+                  label="Ativos no recorte"
+                  title={cadenceView.metrics[1]?.value ?? "0"}
+                  detail={cadenceView.metrics[1]?.detail ?? "Registros que efetivamente se moveram no recorte."}
+                />
+                <PortalNarrativeCard
+                  label="Cobertura em dias"
+                  title={cadenceView.metrics[2]?.value ?? "0"}
+                  detail={cadenceView.metrics[2]?.detail ?? "Dias estimados de sustentação antes de faltar base nova."}
+                />
               </div>
             </div>
           </div>
@@ -486,116 +451,49 @@ function PortalPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4 gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-display">Pipeline e próximos passos</h2>
+              <h2 className="text-sm font-semibold text-display">Saúde técnica da operação</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Leitura operacional do pipeline com acesso rápido ao detalhe quando necessário.
+                Supabase, Notion, n8n VPS, Evolution API e API4Com em uma leitura única da conta.
               </p>
             </div>
             <Badge
               variant="outline"
               className={cn(
                 "text-[10px] uppercase tracking-[0.16em] h-5",
-                statusMeta[notionView.health].color,
+                statusMeta[portalOperation.health].color,
               )}
             >
-              {notionView.mode === "live" ? "Notion live" : "Notion governado"}
+              {statusMeta[portalOperation.health].label}
             </Badge>
           </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-            <div className="rounded-2xl border border-border bg-surface p-4">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
-                  <NotebookPen className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-display">{notionView.headline}</div>
-                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                    {notionView.detail}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <PortalMiniMetric
-                  label="Pipeline"
-                  value={notionView.stageLabel}
-                  detail="Estado da reconciliação comercial."
-                />
-                <PortalMiniMetric
-                  label="Exposição"
-                  value={notionView.exposureLabel}
-                  detail="Segurança da leitura desta operação."
-                />
-                <PortalMiniMetric
-                  label="Sync"
-                  value={notionView.syncLabel}
-                  detail="Última atualização útil."
-                />
-              </div>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {notionView.metrics.slice(0, 4).map((metric) => (
-                  <PortalMiniMetric
-                    key={metric.id}
-                    label={metric.label}
-                    value={metric.value}
-                    detail={metric.detail}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-4 grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
-                <PortalNarrativeCard
-                  label="Etapa em foco"
-                  title={notionView.stageDrilldown[0]?.label ?? "Etapa não mapeada"}
-                  detail={
-                    notionView.stageDrilldown[0]?.detail ??
-                    "A leitura detalhada por etapa ainda não foi homologada neste recorte."
-                  }
-                />
-                <PortalNarrativeCard
-                  label="Próximo passo desta etapa"
-                  title={notionView.stageDrilldown[0]?.priorityLabel ?? "Próximo passo pendente"}
-                  detail={
-                    notionView.stageDrilldown[0]?.nextStep ??
-                    "Fechar telemetria viva antes de aprofundar a navegação nativa do pipeline."
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-surface p-4">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Execução e acompanhamento
-              </div>
-              <div className="mt-1 text-base font-semibold text-display">{trelloView.headline}</div>
-              <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                {trelloView.availabilityLabel}
-              </p>
-
-              <div className="mt-4 grid gap-3">
-                {trelloView.columns[0]?.cards.slice(0, 2).map((card) => (
-                  <PortalNarrativeCard
-                    key={card.id}
-                    label={card.segmentLabel}
-                    title={card.title}
-                    detail={card.detail}
-                  />
-                ))}
-              </div>
-
-              <div className="mt-4 grid gap-3">
-                {trelloView.columns[2]?.cards.slice(0, 2).map((card) => (
-                  <PortalNarrativeCard
-                    key={card.id}
-                    label={card.owner}
-                    title={card.title}
-                    detail={card.followUp}
-                  />
-                ))}
-              </div>
-            </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {runtimeView.cards.map((card) => (
+              <LiveSourceCard
+                key={card.id}
+                card={{
+                  id: card.id,
+                  title: card.title,
+                  health: card.health,
+                  mode:
+                    card.modeLabel === "Leitura viva"
+                      ? "live"
+                      : card.id === "n8n" || card.id === "evolution" || card.id === "api4com"
+                        ? "operational"
+                        : card.modeLabel === "Leitura governada"
+                          ? "guarded"
+                          : "snapshot",
+                  headline: card.headline,
+                  detail: card.detail,
+                  lastSync: card.lastSync,
+                  ctaLabel: "Modo",
+                  ctaValue: card.modeLabel,
+                  facts: card.facts,
+                  nextStep: card.nextStep,
+                  availabilityLabel: card.sourceOfTruth,
+                }}
+              />
+            ))}
           </div>
         </section>
       </main>

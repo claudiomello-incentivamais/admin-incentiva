@@ -10,10 +10,8 @@ import {
 import { useAdminAuth } from "@/components/admin/auth-context";
 import {
   formatPeriodLabel,
-  formatVisibilityModeLabel,
   useAdminFilters,
   type PeriodPreset,
-  type VisibilityMode,
 } from "@/components/admin/admin-filters";
 import { BrandMark } from "@/components/admin/BrandMark";
 import { Badge } from "@/components/ui/badge";
@@ -44,16 +42,12 @@ export function Topbar({ breadcrumb }: TopbarProps) {
   const {
     selectedOperationId,
     selectedPeriod,
-    selectedVisibilityMode,
     operationOptions,
     selectedAccessProfile,
-    selectedAccessScopeLabel,
     setSelectedOperationId,
     setSelectedPeriod,
-    setSelectedVisibilityMode,
   } = useAdminFilters();
   const { session, signOut } = useAdminAuth();
-  const visibilityLockedToClient = session?.defaultVisibility === "client";
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/88 backdrop-blur-xl topbar-glow">
@@ -102,18 +96,6 @@ export function Topbar({ breadcrumb }: TopbarProps) {
             >
               {session?.name ?? selectedAccessProfile.label}
             </Badge>
-            <Badge
-              variant="outline"
-              className="h-5 rounded-full border-primary/20 bg-primary/5 px-2 text-[10px] uppercase tracking-[0.16em] text-primary"
-            >
-              {formatVisibilityModeLabel(selectedVisibilityMode)}
-            </Badge>
-            <Badge
-              variant="outline"
-              className="h-5 rounded-full border-border bg-surface px-2 text-[10px] uppercase tracking-[0.16em]"
-            >
-              {selectedAccessScopeLabel}
-            </Badge>
           </div>
         </div>
 
@@ -130,24 +112,6 @@ export function Topbar({ breadcrumb }: TopbarProps) {
           </div>
 
           <div className="hidden items-center gap-2 xl:flex">
-            <Select
-              value={selectedVisibilityMode}
-              onValueChange={(value) => setSelectedVisibilityMode(value as VisibilityMode)}
-            >
-              <SelectTrigger
-                className="h-9 w-[170px] bg-surface border-border text-xs"
-                disabled={visibilityLockedToClient}
-              >
-                <SelectValue placeholder="Visibilidade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="internal">
-                  {formatVisibilityModeLabel("internal")}
-                </SelectItem>
-                <SelectItem value="client">{formatVisibilityModeLabel("client")}</SelectItem>
-              </SelectContent>
-            </Select>
-
             <div className="relative">
               <CalendarRange className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Select
@@ -193,9 +157,7 @@ export function Topbar({ breadcrumb }: TopbarProps) {
             <SheetContent side="right" className="w-full max-w-sm">
               <SheetHeader>
                 <SheetTitle>Filtros e contexto</SheetTitle>
-                <SheetDescription>
-                  Ajuste o recorte do painel e a visibilidade ativa desta sessão.
-                </SheetDescription>
+                <SheetDescription>Ajuste o recorte do painel.</SheetDescription>
               </SheetHeader>
 
               <div className="mt-6 space-y-5">
@@ -207,13 +169,9 @@ export function Topbar({ breadcrumb }: TopbarProps) {
                     {session?.name ?? selectedAccessProfile.label}
                   </div>
                   <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                    {selectedVisibilityMode === "internal"
-                      ? "Interno completo mostra leitura executiva, bastidor operacional e checkpoints sensíveis."
-                      : "Cliente-safe limita a visão ao recorte apresentável, sem expor governança interna."}
+                    Recorte e permissões seguem a sessão atual, sem expor controles desnecessários
+                    dentro do cockpit.
                   </p>
-                  <div className="mt-2 text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    {selectedAccessScopeLabel}
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -227,31 +185,6 @@ export function Topbar({ breadcrumb }: TopbarProps) {
                       className="h-11 bg-surface border-border pl-10 text-sm"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Visibilidade
-                  </label>
-                  <Select
-                    value={selectedVisibilityMode}
-                    onValueChange={(value) => setSelectedVisibilityMode(value as VisibilityMode)}
-                  >
-                    <SelectTrigger
-                      className="h-11 bg-surface border-border text-sm"
-                      disabled={visibilityLockedToClient}
-                    >
-                      <SelectValue placeholder="Visibilidade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="internal">
-                        {formatVisibilityModeLabel("internal")}
-                      </SelectItem>
-                      <SelectItem value="client">
-                        {formatVisibilityModeLabel("client")}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -300,13 +233,6 @@ export function Topbar({ breadcrumb }: TopbarProps) {
             className="hidden h-8 rounded-full border-primary/25 bg-primary/8 px-3 text-[10px] uppercase tracking-[0.18em] text-primary 2xl:inline-flex"
           >
             {session?.name ?? selectedAccessProfile.label}
-          </Badge>
-
-          <Badge
-            variant="outline"
-            className="hidden h-8 rounded-full border-border bg-surface px-3 text-[10px] uppercase tracking-[0.18em] 2xl:inline-flex"
-          >
-            {formatVisibilityModeLabel(selectedVisibilityMode)}
           </Badge>
 
           <Button

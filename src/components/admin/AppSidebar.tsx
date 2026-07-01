@@ -82,34 +82,22 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="px-2 py-2.5">
           <BrandMark compact={collapsed} />
-          {(!collapsed || isMobile) && (
+          {(!collapsed || isMobile) && session && (
             <div className="mt-3 rounded-xl border border-sidebar-border bg-sidebar-accent/70 px-3 py-2.5">
               <div className="flex items-center justify-between gap-2">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                  Mapa do console
-                </div>
-                {session && (
-                  <Badge
-                    variant="outline"
-                    className="h-5 border-sidebar-border bg-sidebar px-2 text-[10px] uppercase tracking-[0.16em]"
-                  >
-                    {session.profileId}
-                  </Badge>
-                )}
-              </div>
-              <div className="mt-1 text-[12px] leading-snug text-sidebar-foreground">
-                Cliente entra no Portal. Admin usa Admin Global, integrações, faturamento e
-                configurações. Os drilldowns internos saíram da navegação lateral e passam a ficar
-                concentrados dentro do Admin Global.
-              </div>
-              {session && (
-                <div className="mt-3 rounded-lg border border-sidebar-border/80 bg-sidebar px-3 py-2">
+                <div>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                     Sessão ativa
                   </div>
                   <div className="mt-1 text-xs text-sidebar-foreground">{session.name}</div>
                 </div>
-              )}
+                <Badge
+                  variant="outline"
+                  className="h-5 border-sidebar-border bg-sidebar px-2 text-[10px] uppercase tracking-[0.16em]"
+                >
+                  {session.profileId}
+                </Badge>
+              </div>
             </div>
           )}
         </div>
