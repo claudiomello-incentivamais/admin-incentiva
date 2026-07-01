@@ -81,6 +81,11 @@ function ratioPct(numerator: number, denominator: number) {
   return (numerator / denominator) * 100;
 }
 
+function formatStageConversionValue(numerator: number, denominator: number) {
+  if (denominator <= 0) return "n/d";
+  return `${formatPercent(ratioPct(numerator, denominator))}%`;
+}
+
 function formatDateTimeLabel(value: string | null | undefined) {
   if (!value) return "Leitura indisponível";
   const date = new Date(value);
@@ -182,7 +187,7 @@ function summarizeWorkflowSet(
 
 function formatPipelineStageLabel(stageId: string) {
   if (stageId === "prospecting") return "Prospect";
-  if (stageId === "lead-interessado") return "Lead Interessado";
+  if (stageId === "lead-interessado") return "Lead";
   if (stageId === "mql-agendado") return "MQL Agendado";
   if (stageId === "mql-realizado") return "MQL Realizado";
   if (stageId === "negotiation") return "Negociação";
@@ -314,7 +319,7 @@ function PortalPage() {
   const chartStageData = periodAnalytics
     ? [
         { stage: "Prospect", value: periodAnalytics.stageCounts.prospecting },
-        { stage: "Lead Int.", value: periodAnalytics.stageCounts["lead-interessado"] },
+        { stage: "Lead", value: periodAnalytics.stageCounts["lead-interessado"] },
         { stage: "MQL Ag.", value: periodAnalytics.stageCounts["mql-agendado"] },
         { stage: "Negociação", value: periodAnalytics.stageCounts.negotiation },
         { stage: "Ganhos", value: periodAnalytics.stageCounts.won },
@@ -776,23 +781,35 @@ function PortalPage() {
           {hasPeriodAnalytics ? (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <PortalMiniMetric
-                label="Prospect -> Lead interessado"
-                value={`${formatPercent(periodAnalytics.firstInterestPct)}%`}
-                detail={`${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads interessados sobre ${formatNumber(periodAnalytics.stageCounts.prospecting)} prospects tocados no período.`}
+                label="Prospect -> Lead"
+                value={formatStageConversionValue(
+                  periodAnalytics.stageCounts["lead-interessado"],
+                  periodAnalytics.stageCounts.prospecting,
+                )}
+                detail={`${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads sobre ${formatNumber(periodAnalytics.stageCounts.prospecting)} prospects tocados no período.`}
               />
               <PortalMiniMetric
-                label="Lead interessado -> MQL agendado"
-                value={`${formatPercent(periodAnalytics.scheduledPct)}%`}
-                detail={`${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} MQLs agendados sobre ${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads interessados no período.`}
+                label="Lead -> MQL agendado"
+                value={formatStageConversionValue(
+                  periodAnalytics.stageCounts["mql-agendado"],
+                  periodAnalytics.stageCounts["lead-interessado"],
+                )}
+                detail={`${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} MQLs agendados sobre ${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads no período.`}
               />
               <PortalMiniMetric
                 label="MQL agendado -> Negociação"
-                value={`${formatPercent(periodAnalytics.negotiationPct)}%`}
+                value={formatStageConversionValue(
+                  periodAnalytics.stageCounts.negotiation,
+                  periodAnalytics.stageCounts["mql-agendado"],
+                )}
                 detail={`${formatNumber(periodAnalytics.stageCounts.negotiation)} negociações sobre ${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} reuniões agendadas no período.`}
               />
               <PortalMiniMetric
                 label="Negociação -> Cliente ganho"
-                value={`${formatPercent(periodAnalytics.wonPct)}%`}
+                value={formatStageConversionValue(
+                  periodAnalytics.stageCounts.won,
+                  periodAnalytics.stageCounts.negotiation,
+                )}
                 detail={`${formatNumber(periodAnalytics.stageCounts.won)} clientes ganhos sobre ${formatNumber(periodAnalytics.stageCounts.negotiation)} negociações no período.`}
               />
             </div>
