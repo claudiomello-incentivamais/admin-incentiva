@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, type ComponentType } from "react";
 import {
   AlertOctagon,
@@ -23,6 +23,7 @@ import {
   formatPeriodLabel,
   formatVisibilityModeLabel,
 } from "@/components/admin/admin-filters";
+import { useAdminAuth } from "@/components/admin/auth-context";
 import { cn } from "@/lib/utils";
 
 import {
@@ -63,6 +64,7 @@ function formatNumber(n: number) {
 function AdminGlobal() {
   const dashboard = Route.useLoaderData();
   const { kpis, operations, insights } = dashboard;
+  const { session } = useAdminAuth();
   const { selectedOperationId, selectedOperation, selectedPeriod, selectedVisibilityMode } =
     useAdminFilters();
   const scopedOperations = useMemo(
@@ -172,6 +174,31 @@ function AdminGlobal() {
           },
         ]
       : [];
+  const adminDrilldowns = useMemo(() => {
+    const allowedRoutes = new Set(session?.allowedRoutes ?? []);
+    return [
+      {
+        title: "Operações internas",
+        href: "/operacoes",
+        detail: "Leitura tática mais aberta da conta quando precisar sair do cockpit.",
+      },
+      {
+        title: "Performance interna",
+        href: "/performance",
+        detail: "Painel legado para comparação de conversão, cadência e eficiência comercial.",
+      },
+      {
+        title: "Carteira",
+        href: "/clientes",
+        detail: "Visão administrativa de clientes e escopo de acesso por operação.",
+      },
+      {
+        title: "Governança técnica",
+        href: "/governanca",
+        detail: "Camada interna para reconciliação, trilha técnica e leitura de backend.",
+      },
+    ].filter((item) => allowedRoutes.has(item.href));
+  }, [session]);
 
   return (
     <>
@@ -308,6 +335,48 @@ function AdminGlobal() {
             ) : null}
           </div>
         </section>
+
+        {adminDrilldowns.length > 0 ? (
+          <section className="surface-card p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                  Drilldowns internos em transição
+                </div>
+                <h2 className="mt-1 text-sm font-semibold text-display">
+                  Acessos administrativos que deixaram de poluir a navegação principal
+                </h2>
+                <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-muted-foreground">
+                  Esses acessos continuam disponíveis para leitura interna, mas ficam rebaixados aqui
+                  dentro do Admin Global enquanto a consolidação final de conteúdo não termina.
+                </p>
+              </div>
+              <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
+                Admin only
+              </Badge>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              {adminDrilldowns.map((item) => (
+                <Link
+                  key={item.href}
+                  to={item.href}
+                  className="group rounded-2xl border border-border bg-surface px-4 py-4 transition-colors hover:border-primary/50 hover:bg-primary/[0.04]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{item.title}</div>
+                      <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
+                        {item.detail}
+                      </p>
+                    </div>
+                    <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="surface-card p-4">
