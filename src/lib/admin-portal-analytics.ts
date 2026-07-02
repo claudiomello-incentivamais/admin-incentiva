@@ -17,6 +17,7 @@ type StageId =
   | "lost";
 
 type LeadsBaseRow = {
+  id: string | number | null;
   operation_name: string;
   nome: string | null;
   empresa: string | null;
@@ -28,10 +29,28 @@ type LeadsBaseRow = {
   status_linkedin: string | null;
   status_whatsapp: string | null;
   last_reply_at: string | null;
+  cargo?: string | null;
+  source_table?: string | null;
   segment_cluster?: string | null;
   company_size_cluster?: string | null;
   cargo_cluster?: string | null;
   icp_profile?: string | null;
+};
+
+type OperationalLeadRow = {
+  id: string | number | null;
+  Setor?: string | null;
+  Tecnologia?: string | null;
+  Funcionários?: string | null;
+  Cargo?: string | null;
+  "Data do Envio"?: string | null;
+  "Data de Início"?: string | null;
+  Status?: string | null;
+  Estágio?: string | null;
+  Canal?: string | null;
+  "Status E-mail"?: string | null;
+  "Status LinkedIn"?: string | null;
+  Status_wpp?: string | null;
 };
 
 type NotionCanonicalRow = {
@@ -258,6 +277,38 @@ async function fetchAllRows<T>(
   return rows;
 }
 
+async function fetchAllRowsFromSourceTable<T>(
+  config: SupabaseClientConfig,
+  table: string,
+  select: string,
+): Promise<T[]> {
+  const pageSize = 1000;
+  let offset = 0;
+  const rows: T[] = [];
+
+  while (true) {
+    const endpoint = new URL(`${config.url.replace(/\/$/, "")}/rest/v1/${encodeURIComponent(table)}`);
+    endpoint.searchParams.set("select", select);
+    endpoint.searchParams.set("limit", String(pageSize));
+    endpoint.searchParams.set("offset", String(offset));
+
+    const response = await fetch(endpoint.toString(), {
+      headers: buildHeaders(config),
+    });
+
+    if (!response.ok) {
+      throw new Error(`supabase_${table}_fetch_failed_${response.status}`);
+    }
+
+    const page = (await response.json()) as T[];
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return rows;
+}
+
 function normalizeText(value: string | null | undefined) {
   return (value ?? "")
     .normalize("NFD")
@@ -377,20 +428,30 @@ function localDayLabel(value: string | null | undefined) {
 }
 
 function mapStage(rawStage: string | null | undefined): StageId | null {
-  switch (rawStage) {
+  const normalized = normalizeText(rawStage);
+  switch (normalized) {
     case "prospecting":
+    case "prospect":
       return "prospecting";
     case "lead_interessado":
+    case "lead interessado":
       return "lead-interessado";
     case "mql_agendado":
+    case "mql agendado":
       return "mql-agendado";
     case "mql_realizado":
+    case "mql realizado":
       return "mql-realizado";
     case "negotiation":
+    case "negociacao":
+    case "negociação":
       return "negotiation";
     case "won":
+    case "cliente ganho":
+    case "ganho":
       return "won";
     case "lost":
+    case "perdido":
       return "lost";
     default:
       return null;
@@ -448,17 +509,96 @@ function extractDispatchChannelFromRawProperties(rawProperties: unknown): Channe
 }
 
 function normalizeBucketValue(value: string | null | undefined) {
-  return value?.replace(/\s+/g, " ").trim() ?? "";
+  const normalized = value?.replace(/\s+/g, " ").trim() ?? "";
+  if (!normalized) return "";
+  if (["unknown", "desconhecido", "na", "n/a", "null"].includes(normalizeText(normalized))) {
+    return "";
+  }
+  return normalized;
+}
+
+function normalizeOperationalValue(value: string | null | undefined) {
+  return normalizeBucketValue(value);
+}
+
+function extractOperationalSector(rawRow: OperationalLeadRow | null) {
+  return (
+    normalizeOperationalValue(rawRow?.Setor) ||
+    normalizeOperationalValue(rawRow?.Tecnologia) ||
+    null
+  );
+}
+
+function parseEmployeeRangeUpperBound(value: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) return null;
+  if (normalized.includes("10001")) return 10001;
+  if (normalized.includes("5001")) return 10000;
+  if (normalized.includes("1001")) return 5000;
+  if (normalized.includes("501")) return 1000;
+  if (normalized.includes("201")) return 500;
+  if (normalized.includes("101")) return 200;
+  if (normalized.includes("100")) return 100;
+  if (normalized.includes("51")) return 200;
+  if (normalized.includes("11")) return 50;
+  if (normalized.includes("1 a 10") || normalized.includes("1-10") || normalized.includes("1 ate 10")) return 10;
+
+  const matches = value.match(/\d+/g)?.map((item) => Number(item)).filter((item) => !Number.isNaN(item)) ?? [];
+  if (matches.length === 0) return null;
+  return Math.max(...matches);
+}
+
+function deriveCompanySizeBucket(rawValue: string | null | undefined) {
+  const normalized = normalizeOperationalValue(rawValue);
+  if (!normalized) return null;
+  const upperBound = parseEmployeeRangeUpperBound(normalized);
+  if (upperBound == null) return null;
+  if (upperBound <= 10) return "micro_smb";
+  if (upperBound <= 99) return "smb";
+  if (upperBound <= 499) return "midmarket";
+  return "enterprise";
+}
+
+function formatCompanySizeBucketLabel(value: string) {
+  switch (value) {
+    case "micro_smb":
+      return "Micro SMB (1-10)";
+    case "smb":
+      return "SMB (11-99)";
+    case "midmarket":
+      return "Midmarket (100-499)";
+    case "enterprise":
+      return "Enterprise (500+)";
+    default:
+      return value;
+  }
+}
+
+function extractOperationalCargo(baseRow: LeadsBaseRow | null, rawRow: OperationalLeadRow | null) {
+  return (
+    normalizeOperationalValue(rawRow?.Cargo) ||
+    normalizeOperationalValue(baseRow?.cargo) ||
+    null
+  );
+}
+
+function inferOperationalDispatchChannel(
+  baseRow: LeadsBaseRow | null,
+  rawRow: OperationalLeadRow | null,
+): ChannelId | null {
+  const explicitRawChannel = mapRawChannel(rawRow?.Canal);
+  if (explicitRawChannel) return explicitRawChannel;
+  const baseChannel = baseRow ? inferPrimaryChannel(baseRow) : null;
+  if (baseChannel) return baseChannel;
+  if (nonBlank(rawRow?.["Status E-mail"])) return "email";
+  if (nonBlank(rawRow?.["Status LinkedIn"])) return "linkedin";
+  if (nonBlank(rawRow?.Status_wpp)) return "whatsapp";
+  return null;
 }
 
 function formatBucketLabel(dimensionId: PortalIcpDimensionId, value: string) {
   if (dimensionId === "company_size_cluster") {
-    return value
-      .split(/[/,-]| e /i)
-      .map((part) => part.trim())
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" / ");
+    return formatCompanySizeBucketLabel(value);
   }
   return value;
 }
@@ -504,20 +644,32 @@ function ensureBreakdownBucket(
 function resolveLeadBreakdownBuckets(
   breakdowns: PortalIcpBreakdownAccumulator,
   baseRow: LeadsBaseRow | null,
+  rawRow: OperationalLeadRow | null,
   periods: PortalPeriodPreset[],
 ) {
   if (!baseRow) return [];
 
-  return ICP_DIMENSIONS.map(({ id }) => ensureBreakdownBucket(breakdowns, id, baseRow[id], periods)).filter(
-    Boolean,
-  ) as PortalIcpBucketAccumulator[];
+  const dimensions = extractDimensions(baseRow, rawRow);
+  return ICP_DIMENSIONS.map(({ id }) => ensureBreakdownBucket(breakdowns, id, dimensions[id], periods)).filter(Boolean) as PortalIcpBucketAccumulator[];
 }
 
-function extractDimensions(baseRow: LeadsBaseRow | null): Record<PortalIcpDimensionId, string | null> {
+function extractDimensions(
+  baseRow: LeadsBaseRow | null,
+  rawRow: OperationalLeadRow | null = null,
+): Record<PortalIcpDimensionId, string | null> {
   return {
-    segment_cluster: normalizeBucketValue(baseRow?.segment_cluster) || null,
-    company_size_cluster: normalizeBucketValue(baseRow?.company_size_cluster) || null,
-    cargo_cluster: normalizeBucketValue(baseRow?.cargo_cluster) || null,
+    segment_cluster:
+      extractOperationalSector(rawRow) ||
+      normalizeBucketValue(baseRow?.segment_cluster) ||
+      null,
+    company_size_cluster:
+      deriveCompanySizeBucket(rawRow?.Funcionários) ||
+      normalizeBucketValue(baseRow?.company_size_cluster) ||
+      null,
+    cargo_cluster:
+      extractOperationalCargo(baseRow, rawRow) ||
+      normalizeBucketValue(baseRow?.cargo_cluster) ||
+      null,
   };
 }
 
@@ -704,13 +856,13 @@ export async function loadPortalAnalytics(params: {
     fetchAllRows<LeadsBaseRow>(
       config,
       "leads_base_v1",
-      "operation_name,nome,empresa,created_at,status,estagio,canal,status_email,status_linkedin,status_whatsapp,last_reply_at,segment_cluster,company_size_cluster,cargo_cluster,icp_profile",
+      "id,source_table,operation_name,nome,empresa,created_at,status,estagio,canal,status_email,status_linkedin,status_whatsapp,last_reply_at,cargo,segment_cluster,company_size_cluster,cargo_cluster,icp_profile",
       operationNames,
     ).catch(() =>
       fetchAllRows<LeadsBaseRow>(
         config,
         "leads_base_v1",
-        "operation_name,nome,empresa,created_at,status,estagio,canal,status_email,status_linkedin,status_whatsapp,last_reply_at",
+        "id,source_table,operation_name,nome,empresa,created_at,status,estagio,canal,status_email,status_linkedin,status_whatsapp,last_reply_at,cargo",
         operationNames,
       ),
     ),
@@ -736,6 +888,23 @@ export async function loadPortalAnalytics(params: {
       { event_at: `gte.${recentIsoFloor}` },
     ).catch(() => []),
   ]);
+
+  const sourceTables = [...new Set(leadRows.map((row) => row.source_table).filter(nonBlank))];
+  const operationalRowsBySourceTable = new Map<string, Map<string, OperationalLeadRow>>();
+
+  await Promise.all(
+    sourceTables.map(async (sourceTable) => {
+      const rows = await fetchAllRowsFromSourceTable<OperationalLeadRow>(
+        config,
+        sourceTable,
+        'id,"Setor","Tecnologia","Funcionários","Cargo","Data do Envio","Data de Início","Status","Estágio","Canal","Status E-mail","Status LinkedIn","Status_wpp"',
+      ).catch(() => []);
+      operationalRowsBySourceTable.set(
+        sourceTable,
+        new Map(rows.map((row) => [String(row.id ?? ""), row])),
+      );
+    }),
+  );
 
   const baseMaps = new Map<string, Map<string, LeadsBaseRow>>();
   const companyBaseMaps = new Map<string, Map<string, LeadsBaseRow[]>>();
@@ -818,6 +987,8 @@ export async function loadPortalAnalytics(params: {
       dispatchChannelByOperationLead.get(operation.name) ?? new Map<string, ChannelId>();
     const operationDispatchPageMap =
       dispatchChannelByOperationPage.get(operation.name) ?? new Map<string, ChannelId>();
+    const operationCanonicalLeadKeys = new Set<string>();
+    const operationDispatchFallbackKeys = new Set<string>();
 
     (notionRowsByOperation.get(operation.name) ?? []).forEach((row) => {
         const stageId = mapStage(row.canonical_stage);
@@ -825,6 +996,7 @@ export async function loadPortalAnalytics(params: {
         const editedAt = new Date(row.last_edited_at);
         if (Number.isNaN(editedAt.getTime())) return;
         const leadKey = normalizeLeadKey(row.nome, row.empresa);
+        if (leadKey) operationCanonicalLeadKeys.add(leadKey);
         let baseRow = leadKey ? operationBaseMap.get(leadKey) ?? null : null;
         let usedCompanyFallback = false;
         if (!baseRow) {
@@ -837,6 +1009,10 @@ export async function loadPortalAnalytics(params: {
             usedCompanyFallback = true;
           }
         }
+        const rawRow =
+          baseRow?.source_table && baseRow.id != null
+            ? operationalRowsBySourceTable.get(baseRow.source_table)?.get(String(baseRow.id)) ?? null
+            : null;
         const snapshotRow =
           (row.page_id ? operationSnapshotMap.get(row.page_id) : null) ??
           (leadKey ? operationSnapshotMap.get(leadKey) ?? null : null);
@@ -852,8 +1028,8 @@ export async function loadPortalAnalytics(params: {
           eventChannel ??
           extractDispatchChannelFromRawProperties(snapshotRow?.raw_properties) ??
           (baseRow?.status_linkedin && primaryChannel === "linkedin" ? "linkedin" : null);
-        const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, baseRow, periods);
-        const dimensions = extractDimensions(baseRow);
+        const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, baseRow, rawRow, periods);
+        const dimensions = extractDimensions(baseRow, rawRow);
         const attributedChannels =
           primaryChannel
             ? [primaryChannel]
@@ -914,8 +1090,12 @@ export async function loadPortalAnalytics(params: {
           [baseRow] = companyRows;
         }
       }
-      const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, baseRow, periods);
-      const dimensions = extractDimensions(baseRow);
+      const rawRow =
+        baseRow?.source_table && baseRow.id != null
+          ? operationalRowsBySourceTable.get(baseRow.source_table)?.get(String(baseRow.id)) ?? null
+          : null;
+      const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, baseRow, rawRow, periods);
+      const dimensions = extractDimensions(baseRow, rawRow);
 
       periods.forEach((period) => {
         if (!isWithinPeriod(eventAt, period, now)) return;
@@ -942,9 +1122,97 @@ export async function loadPortalAnalytics(params: {
       .map((row) => ({
         createdAt: row.created_at,
         isUnstarted: !nonBlank(row.status) && !nonBlank(row.estagio),
-        dimensions: extractDimensions(row),
+        dimensions: extractDimensions(
+          row,
+          row.source_table && row.id != null
+            ? operationalRowsBySourceTable.get(row.source_table)?.get(String(row.id)) ?? null
+            : null,
+        ),
         row,
       }));
+
+    operationBaseLeads.forEach(({ row }) => {
+      const rawRow =
+        row.source_table && row.id != null
+          ? operationalRowsBySourceTable.get(row.source_table)?.get(String(row.id)) ?? null
+          : null;
+      if (!rawRow) return;
+
+      const leadKey = normalizeLeadKey(row.nome, row.empresa);
+      const operationalDispatchAt = rawRow["Data do Envio"] ?? null;
+      const dispatchChannel = inferOperationalDispatchChannel(row, rawRow);
+      if (leadKey && operationalDispatchAt && dispatchChannel) {
+        const dispatchDate = new Date(operationalDispatchAt);
+        const dispatchFactKey = `${leadKey}:${dispatchChannel}:${operationalDispatchAt.slice(0, 10)}`;
+        if (!Number.isNaN(dispatchDate.getTime()) && !operationDispatchLeadMap.has(leadKey) && !operationDispatchFallbackKeys.has(dispatchFactKey)) {
+          const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, rawRow, periods);
+          const dimensions = extractDimensions(row, rawRow);
+          periods.forEach((period) => {
+            if (!isWithinPeriod(dispatchDate, period, now)) return;
+            operationPeriods[period].channels[dispatchChannel].dispatches += 1;
+            if (operationPeriods[period].channels[dispatchChannel].dispatchSource === "none") {
+              operationPeriods[period].channels[dispatchChannel].dispatchSource = "fallback";
+            }
+            breakdownBuckets.forEach((bucket) => {
+              bucket.periods[period].channels[dispatchChannel].dispatches += 1;
+              if (bucket.periods[period].channels[dispatchChannel].dispatchSource === "none") {
+                bucket.periods[period].channels[dispatchChannel].dispatchSource = "fallback";
+              }
+            });
+          });
+          facts.push({
+            kind: "dispatch",
+            eventAt: operationalDispatchAt,
+            stageId: null,
+            channel: dispatchChannel,
+            dimensions,
+          });
+          operationDispatchFallbackKeys.add(dispatchFactKey);
+        }
+      }
+
+      if (leadKey && operationCanonicalLeadKeys.has(leadKey)) return;
+      const syntheticStageAt = rawRow["Data do Envio"] ?? rawRow["Data de Início"] ?? row.created_at;
+      const syntheticStage = mapStage(rawRow.Estágio ?? row.estagio ?? rawRow.Status ?? row.status);
+      if (!syntheticStageAt || !syntheticStage) return;
+      const syntheticDate = new Date(syntheticStageAt);
+      if (Number.isNaN(syntheticDate.getTime())) return;
+      const attributedChannels = dispatchChannel ? [dispatchChannel] : [];
+      const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, rawRow, periods);
+      const dimensions = extractDimensions(row, rawRow);
+
+      periods.forEach((period) => {
+        if (!isWithinPeriod(syntheticDate, period, now)) return;
+        applyStageMovement(
+          operationPeriods[period],
+          syntheticStage,
+          syntheticStageAt,
+          attributedChannels,
+          false,
+          dispatchChannel,
+          false,
+        );
+        breakdownBuckets.forEach((bucket) => {
+          applyStageMovement(
+            bucket.periods[period],
+            syntheticStage,
+            syntheticStageAt,
+            attributedChannels,
+            false,
+            dispatchChannel,
+            false,
+          );
+        });
+      });
+
+      facts.push({
+        kind: "stage",
+        eventAt: syntheticStageAt,
+        stageId: syntheticStage,
+        channel: dispatchChannel,
+        dimensions,
+      });
+    });
 
     operationBaseLeads.forEach(({ row }) => {
       if (!row.last_reply_at) return;
@@ -955,8 +1223,12 @@ export async function loadPortalAnalytics(params: {
         if (!primaryChannel || !row.last_reply_at) return;
         const replyAt = new Date(row.last_reply_at);
         if (Number.isNaN(replyAt.getTime())) return;
-        const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, periods);
-        const dimensions = extractDimensions(row);
+        const rawRow =
+          row.source_table && row.id != null
+            ? operationalRowsBySourceTable.get(row.source_table)?.get(String(row.id)) ?? null
+            : null;
+        const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, rawRow, periods);
+        const dimensions = extractDimensions(row, rawRow);
 
         periods.forEach((period) => {
           if (!isWithinPeriod(replyAt, period, now)) return;

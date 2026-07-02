@@ -211,6 +211,19 @@ function formatIcpDimensionLabel(value: PortalIcpDimensionId) {
   return "Cargo";
 }
 
+function formatIcpFilterValue(
+  dimensionId: PortalIcpDimensionId,
+  value: string,
+) {
+  if (dimensionId === "company_size_cluster") {
+    if (value === "micro_smb") return "Micro SMB (1-10)";
+    if (value === "smb") return "SMB (11-99)";
+    if (value === "midmarket") return "Midmarket (100-499)";
+    if (value === "enterprise") return "Enterprise (500+)";
+  }
+  return value;
+}
+
 const ICP_FILTERS: Array<{ id: PortalIcpDimensionId; label: string; allLabel: string }> = [
   { id: "segment_cluster", label: "Setor", allLabel: "Todos os setores" },
   { id: "company_size_cluster", label: "Porte", allLabel: "Todos os portes" },
@@ -626,7 +639,7 @@ function PortalPage() {
       : portalAnalyticsOperation?.periods[selectedPeriod] ?? null;
   const periodScopeLabel = hasActiveIcpFilters
     ? activeIcpFilters
-        .map(({ id, label }) => `${label}: ${selectedIcpFilters[id]}`)
+        .map(({ id, label }) => `${label}: ${formatIcpFilterValue(id, selectedIcpFilters[id])}`)
         .join(" · ")
     : "Operação inteira";
   const latestCommercialEventAt =
@@ -1133,7 +1146,7 @@ function PortalPage() {
                         <SelectItem value="all">{allLabel}</SelectItem>
                         {icpValueOptions[id].map((value) => (
                           <SelectItem key={`${id}-${value}`} value={value}>
-                            {value}
+                            {formatIcpFilterValue(id, value)}
                           </SelectItem>
                         ))}
                       </SelectContent>
