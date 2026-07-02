@@ -70,7 +70,14 @@ async function walkFiles(dir) {
 await mkdir(dirname(previewShimPath), { recursive: true });
 await writeFile(previewShimPath, previewShimSource, "utf8");
 
-const serverOutputFiles = await walkFiles(resolve(projectRoot, ".output/server"));
+const legacyServerOutputDir = resolve(projectRoot, ".output/server");
+let serverOutputFiles = [];
+try {
+  serverOutputFiles = await walkFiles(legacyServerOutputDir);
+} catch (error) {
+  if (error?.code !== "ENOENT") throw error;
+  process.stdout.write(`skip runtime patch: ${legacyServerOutputDir} not present\n`);
+}
 const patchedRuntimeFiles = [];
 
 for (const filePath of serverOutputFiles) {
