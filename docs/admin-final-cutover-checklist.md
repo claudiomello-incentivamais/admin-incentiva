@@ -12,7 +12,7 @@ Transformar a última milha da publicação final em um checklist mínimo, com:
 
 1. Credencial de deploy ativa
 - Dono: `Claudio + Claw`
-- Evidência: `CLOUDFLARE_API_TOKEN` disponível no runtime
+- Evidência: `CLOUDFLARE_API_TOKEN` disponível no runtime **ou** sessão válida do `Wrangler`
 - Saída: `nitro deploy --prebuilt` sem erro de autenticação
 
 2. Cutover da URL pública
@@ -32,13 +32,26 @@ Transformar a última milha da publicação final em um checklist mínimo, com:
 
 ## Roteiro direto de execução
 
-1. Disponibilizar a credencial no runtime
+1. Disponibilizar a autenticação de deploy no runtime
 
 ```bash
 export CLOUDFLARE_API_TOKEN='<token>'
 ```
 
-2. Rodar o deploy final
+Alternativa válida:
+
+```bash
+npx wrangler login
+```
+
+2. Rodar o check de prontidão
+
+```bash
+cd /root/.openclaw/workspace/admin-incentiva
+npm run cutover:ready
+```
+
+3. Rodar o deploy final
 
 ```bash
 cd /root/.openclaw/workspace/admin-incentiva
@@ -51,7 +64,7 @@ Atalho operacional já disponível:
 npm run cutover:final
 ```
 
-3. Validar a URL publicada
+4. Validar a URL publicada
 
 ```bash
 curl -L -s https://incentivamais-admin.lovable.app/configuracoes | rg "Paridade da publicação final|90%"

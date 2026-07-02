@@ -284,6 +284,28 @@ async function supabaseFetch<T>(path: string, search: URLSearchParams) {
   return (await response.json()) as T;
 }
 
+async function supabaseFetchAllRows<T>(
+  path: string,
+  search: URLSearchParams,
+) {
+  const pageSize = 1000;
+  let offset = 0;
+  const rows: T[] = [];
+
+  while (true) {
+    const pageSearch = new URLSearchParams(search);
+    pageSearch.set("limit", String(pageSize));
+    pageSearch.set("offset", String(offset));
+    const page = await supabaseFetch<T[]>(path, pageSearch);
+    if (!page?.length) break;
+    rows.push(...page);
+    if (page.length < pageSize) break;
+    offset += pageSize;
+  }
+
+  return rows;
+}
+
 export async function loadN8nTelemetryDashboard(params?: {
   operationIds?: string[] | "all";
 }): Promise<N8nTelemetryDashboard> {
@@ -301,14 +323,13 @@ export async function loadN8nTelemetryDashboard(params?: {
       "workflow_id,workflow_name,operation_id,operation_name,workflow_family,active,exec_today,success_today,error_today,waiting_today,canceled_today,exec_yesterday,success_yesterday,error_yesterday,waiting_yesterday,canceled_yesterday,exec_7d,success_7d,error_7d,waiting_7d,canceled_7d,last_run_at,last_status,last_error_at,last_error_message,snapshot_at",
     );
     workflowSearch.set("order", "error_today.desc,error_7d.desc,waiting_today.desc,exec_today.desc,workflow_name.asc");
-    workflowSearch.set("limit", "80");
     if (params?.operationIds && params.operationIds !== "all" && params.operationIds.length > 0) {
       workflowSearch.set("operation_id", `in.(${params.operationIds.join(",")})`);
     }
 
     const [operationRows, workflowRows] = await Promise.all([
-      supabaseFetch<SupabaseOperationRow[]>("admin_n8n_operation_telemetry_v1", operationSearch),
-      supabaseFetch<SupabaseWorkflowRow[]>("admin_n8n_workflow_telemetry_v1", workflowSearch),
+      supabaseFetchAllRows<SupabaseOperationRow>("admin_n8n_operation_telemetry_v1", operationSearch),
+      supabaseFetchAllRows<SupabaseWorkflowRow>("admin_n8n_workflow_telemetry_v1", workflowSearch),
     ]);
 
     if (!operationRows?.length || !workflowRows?.length) {
@@ -324,7 +345,11 @@ export async function loadN8nTelemetryDashboard(params?: {
     const operations = operationRows.map(mapOperationRow);
     const workflows = workflowRows.map(mapWorkflowRow);
     const snapshotLabel = toSnapshotLabel(
-      operations[0]?.snapshotAt ?? workflows[0]?.snapshotAt ?? null,
+      [...operations, ...workflows]
+        .map((row) => row.snapshotAt)
+        .filter(Boolean)
+        .sort()
+        .at(-1) ?? null,
     );
 
     return {

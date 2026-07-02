@@ -125,8 +125,8 @@ export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
+                    <SelectItem value="prev_month">{formatPeriodLabel("prev_month")}</SelectItem>
                     <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
-                    <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
                     <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -204,8 +204,8 @@ export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="mtd">{formatPeriodLabel("mtd")}</SelectItem>
+                        <SelectItem value="prev_month">{formatPeriodLabel("prev_month")}</SelectItem>
                         <SelectItem value="7d">{formatPeriodLabel("7d")}</SelectItem>
-                        <SelectItem value="30d">{formatPeriodLabel("30d")}</SelectItem>
                         <SelectItem value="90d">{formatPeriodLabel("90d")}</SelectItem>
                       </SelectContent>
                     </Select>

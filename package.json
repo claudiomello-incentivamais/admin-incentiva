@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && node ./scripts/fix-preview-server.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "deploy:prebuilt": "npx nitro deploy --prebuilt",
+    "cutover:ready": "bash ./scripts/check-cutover-readiness.sh",
     "verify:publish": "bash ./scripts/verify-publish.sh",
     "verify:registry": "bash ./scripts/verify-access-registry.sh",
     "cutover:final": "bash ./scripts/final-cutover.sh",

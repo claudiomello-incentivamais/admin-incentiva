@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -28,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { formatPeriodLabel, useAdminFilters } from "@/components/admin/admin-filters";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   buildOperationActionPlan,
   buildOperationCadenceView,
   buildOperationCockpitFromOperation,
@@ -35,11 +43,9 @@ import {
   buildOperationTrelloView,
   statusMeta,
 } from "@/lib/admin-data";
-import { loadEvolutionTelemetryDashboardServerFn } from "@/lib/admin-evolution-rpc";
-import { loadScopedGlobalDashboardServerFn } from "@/lib/admin-global-rpc";
-import { loadN8nTelemetryDashboardServerFn } from "@/lib/admin-n8n-rpc";
 import { applyPeriodToCockpit } from "@/lib/admin-period";
-import { loadPortalAnalyticsServerFn } from "@/lib/admin-portal-rpc";
+import { loadPortalPageBundleServerFn } from "@/lib/admin-portal-rpc";
+import type { PortalIcpDimensionId } from "@/lib/admin-portal-analytics";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal")({
@@ -47,21 +53,8 @@ export const Route = createFileRoute("/portal")({
   validateSearch: z.object({
     operationId: z.string().optional(),
   }),
-  loader: async () => {
-    const [dashboard, evolution, n8n, analytics] = await Promise.all([
-      loadScopedGlobalDashboardServerFn(),
-      loadEvolutionTelemetryDashboardServerFn(),
-      loadN8nTelemetryDashboardServerFn(),
-      loadPortalAnalyticsServerFn(),
-    ]);
-
-    return {
-      dashboard,
-      evolution,
-      n8n,
-      analytics,
-    };
-  },
+  loaderDeps: ({ search }) => ({ operationId: search.operationId }),
+  loader: ({ deps }) => loadPortalPageBundleServerFn({ data: deps }),
   component: PortalPage,
 });
 
@@ -84,6 +77,12 @@ function ratioPct(numerator: number, denominator: number) {
 function formatStageConversionValue(numerator: number, denominator: number) {
   if (denominator <= 0) return "n/d";
   return `${formatPercent(ratioPct(numerator, denominator))}%`;
+}
+
+function formatDispatchSourceLabel(value: "events" | "fallback" | "none") {
+  if (value === "events") return "eventos";
+  if (value === "fallback") return "fallback";
+  return "sem trilha";
 }
 
 function formatDateTimeLabel(value: string | null | undefined) {
@@ -132,8 +131,24 @@ function isPortalScopedWorkflow(workflow: {
   return (
     workflow.operationId === operation.id ||
     workflow.operationName === operation.name ||
-    workflowMatchesOperationName(workflow.workflowName, operation.name)
+    ((!workflow.operationId || !workflow.operationName) &&
+      workflowMatchesOperationName(workflow.workflowName, operation.name))
   );
+}
+
+function isCoreOperationWorkflowFamily(workflowFamily: string) {
+  return [
+    "lista_upload",
+    "agente_conversa",
+    "retorno_email",
+    "sync_crm",
+    "email_fup",
+    "whatsapp_fup",
+    "linkedin_conexao",
+    "linkedin_fup",
+    "reativacao",
+    "inbound",
+  ].includes(workflowFamily);
 }
 
 function summarizeWorkflowSet(
@@ -183,12 +198,31 @@ function formatPipelineStageLabel(stageId: string) {
   return stageId;
 }
 
+function formatIcpDimensionLabel(value: PortalIcpDimensionId) {
+  if (value === "segment_cluster") return "Setor";
+  if (value === "company_size_cluster") return "Porte";
+  return "Cargo";
+}
+
 function PortalPage() {
-  const loaderData = Route.useLoaderData();
-  const { dashboard, evolution, n8n, analytics } = loaderData;
   const search = Route.useSearch();
   const { session } = useAdminAuth();
+  const loaderData = Route.useLoaderData();
+  const [bundleData, setBundleData] = useState(loaderData);
+  const [isBundleRefreshing, setIsBundleRefreshing] = useState(false);
   const { selectedOperationId, selectedPeriod } = useAdminFilters();
+
+  useEffect(() => {
+    setBundleData(loaderData);
+  }, [loaderData]);
+
+  const { dashboard, evolution, n8n, analytics, focusOperationId } = bundleData;
+  const [selectedIcpDimension, setSelectedIcpDimension] = useState<"all" | PortalIcpDimensionId>("all");
+  const [selectedIcpValue, setSelectedIcpValue] = useState("all");
+
+  if (!session || !dashboard || !evolution || !n8n || !analytics) {
+    return null;
+  }
   const requestedOperationId = search.operationId;
   const effectiveOperationId =
     selectedOperationId !== "all" ? selectedOperationId : requestedOperationId;
@@ -202,6 +236,30 @@ function PortalPage() {
         dashboard.operations.find((operation) => operation.health === "monitor") ??
         dashboard.operations[0]
       : dashboard.operations.find((operation) => operation.id === selectedOperationId))) ?? null;
+
+  useEffect(() => {
+    if (!portalOperation?.id) return;
+    if (focusOperationId === portalOperation.id) return;
+
+    let cancelled = false;
+    setIsBundleRefreshing(true);
+
+    loadPortalPageBundleServerFn({
+      data: { operationId: portalOperation.id },
+    })
+      .then((nextBundle) => {
+        if (cancelled) return;
+        setBundleData(nextBundle);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setIsBundleRefreshing(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [focusOperationId, portalOperation?.id]);
 
   if (!portalOperation) {
     return (
@@ -250,10 +308,26 @@ function PortalPage() {
   const scheduledPct = ratioPct(scheduledTouched, leadTouched);
   const negotiationPct = ratioPct(negotiationTouched, scheduledTouched);
   const wonPct = ratioPct(wonTouched, negotiationTouched);
+  const portalAnalyticsOperation =
+    analytics.operations.find((operation) => operation.operationId === portalOperation.id) ?? null;
+  const selectedIcpBreakdown =
+    selectedIcpDimension !== "all"
+      ? portalAnalyticsOperation?.breakdowns[selectedIcpDimension] ?? null
+      : null;
+  const icpBucketOptions = selectedIcpBreakdown?.buckets ?? [];
+  const selectedIcpBucket =
+    selectedIcpBreakdown && selectedIcpValue !== "all"
+      ? selectedIcpBreakdown.buckets.find((bucket) => bucket.value === selectedIcpValue) ?? null
+      : null;
   const periodAnalytics =
-    analytics.operations.find((operation) => operation.operationId === portalOperation.id)?.periods[
-      selectedPeriod
-    ] ?? null;
+    selectedIcpBucket?.periods[selectedPeriod] ??
+    portalAnalyticsOperation?.periods[selectedPeriod] ??
+    null;
+  const periodScopeLabel = selectedIcpBucket
+    ? `${selectedIcpBreakdown?.label}: ${selectedIcpBucket.label}`
+      : selectedIcpBreakdown
+        ? `${selectedIcpBreakdown.label}: todos`
+        : "Operação inteira";
   const evolutionRow =
     evolution.operations.find((row) => row.operationId === portalOperation.id) ?? null;
   const evolutionInstances = evolution.instances.filter((row) => row.operationId === portalOperation.id);
@@ -261,9 +335,13 @@ function PortalPage() {
   const linkedinChannel = currentCockpit.channels.find((channel) => channel.id === "linkedin") ?? null;
   const n8nOperation = n8n.operations.find((row) => row.operationId === portalOperation.id) ?? null;
   const n8nWorkflows = n8n.workflows.filter((row) => isPortalScopedWorkflow(row, portalOperation));
+  const n8nCoreWorkflows = n8nWorkflows.filter((row) => isCoreOperationWorkflowFamily(row.workflowFamily));
+  const n8nSupportWorkflows = n8nWorkflows.filter((row) => !isCoreOperationWorkflowFamily(row.workflowFamily));
   const portalScopedN8nSummary = summarizeWorkflowSet(n8nWorkflows);
+  const portalCoreN8nSummary = summarizeWorkflowSet(n8nCoreWorkflows);
+  const portalSupportN8nSummary = summarizeWorkflowSet(n8nSupportWorkflows);
   const topN8nWorkflow =
-    [...n8nWorkflows].sort(
+    [...(n8nCoreWorkflows.length > 0 ? n8nCoreWorkflows : n8nWorkflows)].sort(
       (a, b) =>
         b.errorToday - a.errorToday ||
         b.waitingToday - a.waitingToday ||
@@ -273,16 +351,6 @@ function PortalPage() {
         b.exec7d - a.exec7d,
     )[0] ?? null;
   const inactiveN8nWorkflowCount = Math.max(0, portalScopedN8nSummary.total - portalScopedN8nSummary.active);
-  const n8nExecutionWindow =
-    selectedPeriod === "7d"
-      ? {
-          label: "Execuções 7d",
-          value: formatNumber(portalScopedN8nSummary.exec7d),
-        }
-      : {
-          label: "Execuções hoje",
-          value: formatNumber(portalScopedN8nSummary.execToday),
-        };
   const topEvolutionInstance =
     [...evolutionInstances].sort((a, b) => {
       const severityWeight = (severity: string) =>
@@ -312,6 +380,30 @@ function PortalPage() {
       ["linkedin_conexao", "linkedin_fup", "linkedin_social"].includes(workflow.workflowFamily),
     )
     .reduce((sum, workflow) => sum + workflow.exec7d, 0);
+  const reactivationWorkflows = n8nWorkflows.filter((workflow) => workflow.workflowFamily === "reativacao");
+  const socialSellingWorkflows = n8nWorkflows.filter((workflow) => workflow.workflowFamily === "linkedin_social");
+  const reactivationSummary = summarizeWorkflowSet(reactivationWorkflows);
+  const socialSellingSummary = summarizeWorkflowSet(socialSellingWorkflows);
+  const topReactivationWorkflow =
+    [...reactivationWorkflows].sort(
+      (a, b) =>
+        b.errorToday - a.errorToday ||
+        b.waitingToday - a.waitingToday ||
+        b.error7d - a.error7d ||
+        b.waiting7d - a.waiting7d ||
+        b.execToday - a.execToday ||
+        b.exec7d - a.exec7d,
+    )[0] ?? null;
+  const topSocialSellingWorkflow =
+    [...socialSellingWorkflows].sort(
+      (a, b) =>
+        b.errorToday - a.errorToday ||
+        b.waitingToday - a.waitingToday ||
+        b.error7d - a.error7d ||
+        b.waiting7d - a.waiting7d ||
+        b.execToday - a.execToday ||
+        b.exec7d - a.exec7d,
+    )[0] ?? null;
   const chartStageData = periodAnalytics
     ? [
         { stage: "Prospect", value: periodAnalytics.stageCounts.prospecting },
@@ -329,6 +421,20 @@ function PortalPage() {
   );
   const firstInterestPctDisplay = periodAnalytics?.firstInterestPct ?? firstInterestPct;
   const wonTouchedDisplay = periodAnalytics?.stageCounts.won ?? wonTouched;
+
+  useEffect(() => {
+    setSelectedIcpValue("all");
+  }, [selectedIcpDimension, portalOperation.id]);
+
+  useEffect(() => {
+    if (selectedIcpDimension === "all") return;
+    if (selectedIcpValue === "all") return;
+    const bucketExists = icpBucketOptions.some((bucket) => bucket.value === selectedIcpValue);
+    if (!bucketExists) {
+      setSelectedIcpValue("all");
+    }
+  }, [icpBucketOptions, selectedIcpDimension, selectedIcpValue]);
+
   const n8nLiveCard = {
     id: "n8n" as const,
     title: "n8n VPS",
@@ -346,8 +452,8 @@ function PortalPage() {
       n8n.source !== "live" || !n8nOperation
         ? "A leitura viva do n8n não carregou nesta operação."
         : topN8nWorkflow
-          ? `${formatNumber(portalScopedN8nSummary.active)} workflow(s) ativos e ${formatNumber(inactiveN8nWorkflowCount)} inativo(s) no escopo nominal da operação. Erros hoje: ${formatNumber(portalScopedN8nSummary.errorToday)}. Waiting hoje: ${formatNumber(portalScopedN8nSummary.waitingToday)}. Workflow foco: ${topN8nWorkflow.workflowName}. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
-          : `Sem workflow foco consolidado. Ativos: ${formatNumber(portalScopedN8nSummary.active)} de ${formatNumber(portalScopedN8nSummary.total)}. Erros hoje: ${formatNumber(portalScopedN8nSummary.errorToday)}. Waiting hoje: ${formatNumber(portalScopedN8nSummary.waitingToday)}.`,
+          ? `A fonte governada marca ${formatNumber(n8nOperation.activeWorkflowCount)}/${formatNumber(n8nOperation.workflowCount)} workflow(s) ativos no total desta operação. Dentro do Portal, a régua operacional destaca ${formatNumber(portalCoreN8nSummary.active)}/${formatNumber(portalCoreN8nSummary.total)} workflow(s) core e ${formatNumber(portalSupportN8nSummary.active)}/${formatNumber(portalSupportN8nSummary.total)} de apoio. Erros hoje: ${formatNumber(portalScopedN8nSummary.errorToday)}. Waiting hoje: ${formatNumber(portalScopedN8nSummary.waitingToday)}. Workflow foco: ${topN8nWorkflow.workflowName}. Execuções ficam como apoio de leitura, não como protagonista. ${trimDetail(topN8nWorkflow.lastErrorMessage, topN8nWorkflow.lastStatus ? `Último status: ${topN8nWorkflow.lastStatus}.` : "Sem mensagem de erro consolidada.")}`
+          : `A fonte governada marca ${formatNumber(n8nOperation.activeWorkflowCount)}/${formatNumber(n8nOperation.workflowCount)} workflow(s) ativos no total desta operação. O Portal separa ${formatNumber(portalCoreN8nSummary.active)}/${formatNumber(portalCoreN8nSummary.total)} workflow(s) core e ${formatNumber(portalSupportN8nSummary.active)}/${formatNumber(portalSupportN8nSummary.total)} de apoio. Erros hoje: ${formatNumber(portalScopedN8nSummary.errorToday)}. Waiting hoje: ${formatNumber(portalScopedN8nSummary.waitingToday)}.`,
     lastSync:
       n8n.source === "live"
         ? n8n.snapshotLabel
@@ -356,18 +462,20 @@ function PortalPage() {
     ctaValue: "Hoje + 7 dias",
     facts: [
       {
-        label: "Ativos",
+        label: "Core ativos",
         value: n8nOperation
-          ? `${formatNumber(portalScopedN8nSummary.active)}/${formatNumber(portalScopedN8nSummary.total)}`
+          ? `${formatNumber(portalCoreN8nSummary.active)}/${formatNumber(portalCoreN8nSummary.total)}`
           : "Sem leitura",
       },
       {
-        label: "Inativos",
-        value: n8nOperation ? formatNumber(inactiveN8nWorkflowCount) : "Sem leitura",
+        label: "Apoio ativos",
+        value: n8nOperation
+          ? `${formatNumber(portalSupportN8nSummary.active)}/${formatNumber(portalSupportN8nSummary.total)}`
+          : "Sem leitura",
       },
       {
-        label: n8nExecutionWindow.label,
-        value: n8nOperation ? n8nExecutionWindow.value : "Sem leitura",
+        label: "Waiting hoje",
+        value: n8nOperation ? formatNumber(portalScopedN8nSummary.waitingToday) : "Sem leitura",
       },
       {
         label: "Erros hoje",
@@ -379,7 +487,7 @@ function PortalPage() {
         ? "Restabelecer a telemetria viva do n8n antes de usar este bloco para decisão."
         : topN8nWorkflow && (topN8nWorkflow.errorToday > 0 || topN8nWorkflow.waitingToday > 0 || topN8nWorkflow.error7d > 0)
           ? `Abrir ${topN8nWorkflow.workflowName} e tratar ${topN8nWorkflow.errorToday > 0 ? "erro" : "waiting"} com base na última mensagem registrada.`
-          : "Sem erro material agora; acompanhar workflows inativos e waiting dentro do escopo nominal da operação.",
+          : `Sem erro material agora; acompanhar ${formatNumber(inactiveN8nWorkflowCount)} workflow(s) inativo(s) e revisar se o total ${formatNumber(n8nOperation.workflowCount)} continua coerente com a régua core desta operação.`,
   };
   const evolutionLiveCard = {
     id: "evolution" as const,
@@ -389,7 +497,12 @@ function PortalPage() {
         ? ("monitor" as const)
         : evolutionRow && evolutionRow.criticalInstances > 0
           ? ("risk" as const)
-          : evolutionRow && (evolutionRow.attentionInstances > 0 || evolutionRow.errors24h > 0 || evolutionRow.stalled24h > 0)
+          : evolutionRow && (
+              evolutionRow.missingInstanceCount > 0 ||
+              evolutionRow.attentionInstances > 0 ||
+              evolutionRow.errors24h > 0 ||
+              evolutionRow.stalled24h > 0
+            )
             ? ("monitor" as const)
             : ("healthy" as const),
     mode: (evolution.source === "live" ? "live" : "snapshot") as "live" | "snapshot",
@@ -398,8 +511,8 @@ function PortalPage() {
       evolution.source !== "live" || !evolutionRow
         ? "A leitura viva da Evolution não carregou nesta operação."
         : topEvolutionInstance
-          ? `${topEvolutionInstance.instanceName} está em ${topEvolutionInstance.severity}. 24h: ${formatNumber(topEvolutionInstance.outbound24h)} envios, ${formatNumber(topEvolutionInstance.inbound24h)} inbound, ${formatNumber(topEvolutionInstance.replyContacts24h)} contatos com resposta, ${formatNumber(topEvolutionInstance.errors24h)} erro(s) e ${formatNumber(topEvolutionInstance.stalled24h)} item(ns) parados. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
-          : `Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
+          ? `${topEvolutionInstance.instanceName} está em ${topEvolutionInstance.severity}. Materialização: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. 24h: ${formatNumber(topEvolutionInstance.outbound24h)} envios, ${formatNumber(topEvolutionInstance.inbound24h)} inbound, ${formatNumber(topEvolutionInstance.replyContacts24h)} contatos com resposta, ${formatNumber(topEvolutionInstance.errors24h)} erro(s) e ${formatNumber(topEvolutionInstance.stalled24h)} item(ns) parados. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
+          : `Materialização atual: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
     lastSync:
       evolution.source === "live"
         ? evolution.snapshotLabel
@@ -408,9 +521,9 @@ function PortalPage() {
     ctaValue: "24h + 7 dias",
     facts: [
       {
-        label: "Instâncias",
+        label: "Materializadas",
         value: evolutionRow
-          ? `${formatNumber(evolutionRow.healthyInstances)}/${formatNumber(evolutionRow.instanceCount)} saudáveis`
+          ? `${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)}`
           : "Sem leitura",
       },
       {
@@ -429,6 +542,8 @@ function PortalPage() {
     nextStep:
       evolution.source !== "live" || !evolutionRow
         ? "Restabelecer a telemetria viva da Evolution antes de usar este bloco para decisão."
+        : evolutionRow.missingInstanceCount > 0
+          ? `Materializar ${formatNumber(evolutionRow.missingInstanceCount)} instância(s) esperada(s) no card antes de tratar esta leitura como fotografia completa da operação.`
         : topEvolutionInstance && topEvolutionInstance.severity !== "healthy"
           ? `Checar ${topEvolutionInstance.instanceName}, webhook e motivo '${topEvolutionInstance.reason}'.`
           : "Sem pressão técnica material agora; acompanhar entrega, reply e erros pela janela técnica.",
@@ -470,6 +585,7 @@ function PortalPage() {
             <p className="text-sm text-muted-foreground max-w-3xl">
               Visão central da operação com foco em base, cobertura, conversão, ações executáveis
               e saúde técnica das integrações.
+              {isBundleRefreshing ? " Atualizando recorte da operação..." : ""}
             </p>
           </div>
 
@@ -536,12 +652,12 @@ function PortalPage() {
               tone="monitor"
             />
             <PortalKpi
-              label="1º interesse"
+              label="Virada para Lead"
               value={`${formatPercent(firstInterestPctDisplay)}%`}
               detail={
                 hasPeriodAnalytics
-                  ? "Lead interessado sobre prospects tocados no recorte selecionado."
-                  : "Lead interessado sobre prospects tocados na melhor leitura disponível."
+                  ? "Leads sobre prospects tocados no recorte selecionado."
+                  : "Leads sobre prospects tocados na melhor leitura disponível."
               }
               icon={TrendingUp}
               tone="success"
@@ -709,9 +825,73 @@ function PortalPage() {
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-sm font-medium text-display">Base e movimento comercial do recorte</div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                O bloco abaixo considera a movimentação real do período filtrado para a operação atual.
+                O bloco abaixo considera a movimentação real do período filtrado para a operação atual, com recorte opcional de ICP para leitura de disparo e conversão.
               </p>
               <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
+
+              <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-background/70 p-4 lg:grid-cols-[220px,220px,1fr]">
+                <div className="space-y-2">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Recorte ICP
+                  </div>
+                  <Select
+                    value={selectedIcpDimension}
+                    onValueChange={(value) =>
+                      setSelectedIcpDimension(value as "all" | PortalIcpDimensionId)
+                    }
+                  >
+                    <SelectTrigger className="h-10 bg-surface border-border text-sm">
+                      <SelectValue placeholder="Escolher recorte" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Operação inteira</SelectItem>
+                      <SelectItem value="segment_cluster">Setor</SelectItem>
+                      <SelectItem value="company_size_cluster">Porte</SelectItem>
+                      <SelectItem value="cargo_cluster">Cargo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Valor do recorte
+                  </div>
+                  <Select
+                    value={selectedIcpValue}
+                    onValueChange={setSelectedIcpValue}
+                    disabled={selectedIcpDimension === "all" || icpBucketOptions.length === 0}
+                  >
+                    <SelectTrigger className="h-10 bg-surface border-border text-sm">
+                      <SelectValue
+                        placeholder={
+                          selectedIcpDimension === "all" ? "Sem recorte adicional" : "Escolher valor"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        {selectedIcpDimension === "all"
+                          ? "Sem recorte adicional"
+                          : `Todos os ${formatIcpDimensionLabel(selectedIcpDimension).toLowerCase()}s`}
+                      </SelectItem>
+                      {icpBucketOptions.map((bucket) => (
+                        <SelectItem key={bucket.value} value={bucket.value}>
+                          {bucket.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+                  <span className="font-medium text-foreground">Escopo atual:</span> {periodScopeLabel}. O
+                  recorte abaixo reaproveita a mesma leitura de período para comparar `disparos`,
+                  `lead`, `MQL`, `negociação` e `cliente ganho` por setor, porte ou cargo.
+                  {selectedIcpDimension !== "all" && icpBucketOptions.length === 0
+                    ? ` Nesta carga, ${formatIcpDimensionLabel(selectedIcpDimension).toLowerCase()} ainda não veio materializado na fonte viva desta operação.`
+                    : ""}
+                </div>
+              </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <PortalMiniMetric
@@ -766,7 +946,7 @@ function PortalPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Conversões do mês por etapa</h2>
+              <h2 className="text-sm font-semibold text-display">Conversões do recorte por etapa</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Conversões calculadas com relação explícita entre origem e destino no período selecionado.
               </p>
@@ -833,15 +1013,15 @@ function PortalPage() {
                 <ChannelActivityCard
                   title="E-mail"
                   icon={Mail}
-                  sourceLabel="disparo"
-                  detail="Conversão comercial do recorte com apoio do campo de disparo registrado no Notion. A camada operacional do n8n segue como apoio de cadência."
+                  sourceLabel={formatDispatchSourceLabel(periodAnalytics.channels.email.dispatchSource)}
+                  detail="Conversão comercial do recorte priorizando a trilha append-only de eventos de e-mail. O Notion fica apenas como fallback de contingência para estado operacional."
                   metrics={[
                     {
                       label: "Prospects no canal",
                       value: formatNumber(periodAnalytics.channels.email.touched),
                     },
                     {
-                      label: "1º interesse",
+                      label: "Virada para Lead",
                       value: `${formatPercent(periodAnalytics.channels.email.firstInterestPct)}%`,
                     },
                     {
@@ -863,15 +1043,15 @@ function PortalPage() {
                 <ChannelActivityCard
                   title="WhatsApp"
                   icon={MessageCircle}
-                  sourceLabel="disparo"
-                  detail="Conversão comercial do recorte com apoio do disparo registrado no Notion, cruzado com a telemetria viva da Evolution."
+                  sourceLabel={formatDispatchSourceLabel(periodAnalytics.channels.whatsapp.dispatchSource)}
+                  detail="Conversão comercial do recorte priorizando a trilha append-only de WhatsApp, cruzada com a telemetria viva da Evolution. Status atual do lead não serve mais como evidência histórica de disparo."
                   metrics={[
                     {
                       label: "Prospects no canal",
                       value: formatNumber(periodAnalytics.channels.whatsapp.touched),
                     },
                     {
-                      label: "1º interesse",
+                      label: "Virada para Lead",
                       value: `${formatPercent(periodAnalytics.channels.whatsapp.firstInterestPct)}%`,
                     },
                     {
@@ -895,15 +1075,15 @@ function PortalPage() {
                 <ChannelActivityCard
                   title="LinkedIn"
                   icon={Workflow}
-                  sourceLabel="sinal"
-                  detail="Conversão comercial do recorte com apoio de sinal operacional de LinkedIn na base. Aqui a leitura usa status do canal e execução do n8n como evidência."
+                  sourceLabel={formatDispatchSourceLabel(periodAnalytics.channels.linkedin.dispatchSource)}
+                  detail="Conversão comercial do recorte priorizando a trilha append-only de LinkedIn quando materializada. Status do canal e execução do n8n ficam apenas como fallback temporário."
                   metrics={[
                     {
                       label: "Prospects no canal",
                       value: formatNumber(periodAnalytics.channels.linkedin.touched),
                     },
                     {
-                      label: "1º interesse",
+                      label: "Virada para Lead",
                       value: `${formatPercent(periodAnalytics.channels.linkedin.firstInterestPct)}%`,
                     },
                     {
@@ -996,7 +1176,7 @@ function PortalPage() {
                 <ChartContainer
                   config={{
                     prospecting: { label: "Prospect", color: "#d4a373" },
-                    leadInteressado: { label: "Lead interessado", color: "#588157" },
+                    leadInteressado: { label: "Lead", color: "#588157" },
                     mqlAgendado: { label: "MQL agendado", color: "#457b9d" },
                     won: { label: "Cliente ganho", color: "#1d3557" },
                   }}
@@ -1027,12 +1207,139 @@ function PortalPage() {
         </section>
 
         <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Reativação e Social Selling</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Frentes modulares de expansão do Portal, separando o que já é leitura operacional do que ainda depende de maturidade da fonte.
+              </p>
+            </div>
+            <Workflow className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Reativação / retomada</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Módulo de prospecção para base já trabalhada ou parada.
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
+                  V1
+                </Badge>
+              </div>
+
+              <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                Esta frente já entra no Portal com leitura técnica própria. A conversão comercial por
+                ICP entra na próxima camada, quando a trilha append-only também marcar a origem da ação
+                como reativação em vez de misturar tudo no outbound principal.
+              </p>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <PortalMiniMetric
+                  label="Workflows ativos"
+                  value={`${formatNumber(reactivationSummary.active)}/${formatNumber(reactivationSummary.total)}`}
+                  detail="Família de reativação materializada hoje na telemetria governada do n8n."
+                />
+                <PortalMiniMetric
+                  label="Execuções 7d"
+                  value={formatNumber(reactivationSummary.exec7d)}
+                  detail="Volume técnico dos workflows de retomada nos últimos 7 dias."
+                />
+                <PortalMiniMetric
+                  label="Erros hoje"
+                  value={formatNumber(reactivationSummary.errorToday)}
+                  detail="Falhas técnicas atuais desta frente dentro do n8n."
+                />
+                <PortalMiniMetric
+                  label="Waiting hoje"
+                  value={formatNumber(reactivationSummary.waitingToday)}
+                  detail="Itens aguardando processamento na família de reativação."
+                />
+              </div>
+
+              <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                {reactivationSummary.total > 0
+                  ? topReactivationWorkflow
+                    ? `Workflow foco agora: ${topReactivationWorkflow.workflowName}. Se a gente quiser responder “qual setor, porte ou cargo converte mais na reativação”, o próximo passo estrutural é fazer a trilha de disparos carregar a origem da ação.`
+                    : "A família de reativação já aparece no Portal; o próximo ganho vem da marcação semântica da origem do disparo."
+                  : "Ainda não existe workflow de reativação materializado nesta operação. Quando a frente subir, este bloco já nasce no Portal sem precisar redesenhar a tela."}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                    <NotebookPen className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-foreground">Social Selling / conteúdo</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Camada progressiva para calendário, produção e ponte conteúdo {">"} outreach.
+                    </div>
+                  </div>
+                </div>
+                <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
+                  V2 / V3
+                </Badge>
+              </div>
+
+              <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
+                Aqui eu prefiro separar maturidade técnica de maturidade de produto: a telemetria dos
+                workflows sociais já pode aparecer, mas o dashboard client-facing mais rico só faz
+                sentido quando o calendário editorial e a produção de conteúdo começarem a rodar de
+                verdade.
+              </p>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <PortalMiniMetric
+                  label="Workflows ativos"
+                  value={`${formatNumber(socialSellingSummary.active)}/${formatNumber(socialSellingSummary.total)}`}
+                  detail="Família `linkedin_social` já visível na fonte governada do n8n."
+                />
+                <PortalMiniMetric
+                  label="Execuções 7d"
+                  value={formatNumber(socialSellingSummary.exec7d)}
+                  detail="Volume técnico recente da camada de social selling."
+                />
+                <PortalMiniMetric
+                  label="Erros hoje"
+                  value={formatNumber(socialSellingSummary.errorToday)}
+                  detail="Falhas técnicas atuais desta frente."
+                />
+                <PortalMiniMetric
+                  label="Waiting hoje"
+                  value={formatNumber(socialSellingSummary.waitingToday)}
+                  detail="Itens aguardando processamento na família social."
+                />
+              </div>
+
+              <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                {socialSellingSummary.total > 0
+                  ? topSocialSellingWorkflow
+                    ? `Workflow foco agora: ${topSocialSellingWorkflow.workflowName}. Quando a frente de conteúdo entrar em operação, este módulo passa a somar calendário, produção pendente, publicações e sinais de engajamento sem canibalizar o Notion.`
+                    : "A telemetria social já está pronta para virar módulo dedicado quando a frente de conteúdo começar a operar."
+                  : "A frente de social selling ainda está em prontidão. O Portal já ficou preparado para encaixar calendário editorial, produção e publicação assim que essa camada sair do papel."}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4 gap-3">
             <div>
               <h2 className="text-sm font-semibold text-display">Saúde técnica da operação</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Leitura executiva do runtime da operação, em janela técnica própria. Este bloco não
-                segue o filtro comercial de 7d/30d/90d/mês.
+                segue o filtro comercial de mês atual, mês anterior, 7 dias ou 90 dias.
               </p>
             </div>
             <Badge

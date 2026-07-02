@@ -6,6 +6,9 @@ export interface EvolutionOperationTelemetryRow {
   operationId: string;
   operationName: string;
   instanceCount: number;
+  expectedInstanceCount: number;
+  materializedInstanceCount: number;
+  missingInstanceCount: number;
   healthyInstances: number;
   attentionInstances: number;
   criticalInstances: number;
@@ -61,6 +64,11 @@ export interface EvolutionTelemetryDashboard {
   instances: EvolutionInstanceTelemetryRow[];
 }
 
+type EvolutionOperationScope = {
+  id: string;
+  name: string;
+};
+
 type SupabaseOperationRow = {
   operation_id: string;
   operation_name: string;
@@ -104,10 +112,28 @@ type SupabaseInstanceRow = {
   snapshot_at: string | null;
 };
 
+type SupabaseRegistryRow = {
+  operation_name: string;
+  instance_name: string;
+  instance_role: string;
+  status: string | null;
+  send_enabled: boolean;
+  parallel_send_enabled: boolean;
+};
+
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number") return value;
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeOperationKey(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function toSnapshotLabel(value: string | null | undefined) {
@@ -172,6 +198,9 @@ function mapOperationRow(row: SupabaseOperationRow): EvolutionOperationTelemetry
     operationId: row.operation_id,
     operationName: row.operation_name,
     instanceCount: toNumber(row.instance_count),
+    expectedInstanceCount: toNumber(row.instance_count),
+    materializedInstanceCount: toNumber(row.instance_count),
+    missingInstanceCount: 0,
     healthyInstances: toNumber(row.healthy_instances),
     attentionInstances: toNumber(row.attention_instances),
     criticalInstances: toNumber(row.critical_instances),
@@ -216,7 +245,12 @@ function mapInstanceRow(row: SupabaseInstanceRow): EvolutionInstanceTelemetryRow
 
 async function supabaseFetch<T>(path: string, search: URLSearchParams) {
   const url = readEnvString("ADMIN_INCENTIVA_SUPABASE_URL", "VITE_SUPABASE_URL");
-  const key = readEnvString("ADMIN_INCENTIVA_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
+  const key =
+    readEnvString(
+      "ADMIN_INCENTIVA_SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_SERVICE_ROLE_KEY",
+      "SUPABASE_SERVICE_ROLE",
+    ) || readEnvString("ADMIN_INCENTIVA_SUPABASE_ANON_KEY", "VITE_SUPABASE_ANON_KEY");
 
   if (!url || !key) return null;
 
@@ -240,6 +274,7 @@ async function supabaseFetch<T>(path: string, search: URLSearchParams) {
 
 export async function loadEvolutionTelemetryDashboard(params?: {
   operationIds?: string[] | "all";
+  operationScope?: EvolutionOperationScope[];
 }): Promise<EvolutionTelemetryDashboard> {
   try {
     const operationSearch = new URLSearchParams();
@@ -260,12 +295,30 @@ export async function loadEvolutionTelemetryDashboard(params?: {
       instanceSearch.set("operation_id", `in.(${params.operationIds.join(",")})`);
     }
 
-    const [operationRows, instanceRows] = await Promise.all([
+    const registrySearch = new URLSearchParams();
+    registrySearch.set(
+      "select",
+      "operation_name,instance_name,instance_role,status,send_enabled,parallel_send_enabled",
+    );
+    registrySearch.set("channel", "eq.whatsapp");
+    registrySearch.set("scale_enabled", "eq.true");
+    registrySearch.set("order", "operation_name.asc,instance_role.asc,instance_name.asc");
+    const [operationRows, instanceRows, registryRows] = await Promise.all([
       supabaseFetch<SupabaseOperationRow[]>("admin_evolution_operation_telemetry_v1", operationSearch),
       supabaseFetch<SupabaseInstanceRow[]>("admin_evolution_instance_telemetry_v1", instanceSearch),
+      supabaseFetch<SupabaseRegistryRow[]>("wa_instances_registry", registrySearch).catch(() => []),
     ]);
 
-    if (!operationRows?.length || !instanceRows?.length) {
+    const allowedOperationKeys =
+      params?.operationScope && params.operationScope.length > 0
+        ? new Set(params.operationScope.map((operation) => normalizeOperationKey(operation.name)))
+        : null;
+    const scopedRegistryRows = (registryRows ?? []).filter((row) => {
+      if (!allowedOperationKeys) return true;
+      return allowedOperationKeys.has(normalizeOperationKey(row.operation_name));
+    });
+
+    if ((!operationRows?.length && !scopedRegistryRows.length) || (!instanceRows?.length && !scopedRegistryRows.length)) {
       return {
         source: "snapshot",
         snapshotLabel: "Telemetria Evolution ainda não materializada",
@@ -275,13 +328,121 @@ export async function loadEvolutionTelemetryDashboard(params?: {
       };
     }
 
-    const operations = operationRows.map(mapOperationRow);
-    const instances = instanceRows.map(mapInstanceRow);
+    const liveOperations = operationRows?.map(mapOperationRow) ?? [];
+    const liveInstances = instanceRows?.map(mapInstanceRow) ?? [];
+    const scopedOperationIds = new Map(
+      (params?.operationScope ?? []).map((operation) => [normalizeOperationKey(operation.name), operation.id]),
+    );
+    const operationIdByName = new Map(
+      liveOperations.map((row) => [normalizeOperationKey(row.operationName), row.operationId]),
+    );
+    const registryByOperation = new Map<string, { operationName: string; rows: SupabaseRegistryRow[] }>();
+    scopedRegistryRows.forEach((row) => {
+      const operationKey = normalizeOperationKey(row.operation_name);
+      const current = registryByOperation.get(operationKey)?.rows ?? [];
+      current.push(row);
+      registryByOperation.set(operationKey, {
+        operationName: row.operation_name,
+        rows: current,
+      });
+    });
+
+    const liveInstanceNames = new Set(liveInstances.map((row) => row.instanceName));
+    const syntheticInstances: EvolutionInstanceTelemetryRow[] = [];
+    registryByOperation.forEach(({ operationName, rows }, operationKey) => {
+      rows.forEach((row) => {
+        if (liveInstanceNames.has(row.instance_name)) return;
+        const operationId =
+          operationIdByName.get(operationKey) ??
+          scopedOperationIds.get(operationKey) ??
+          operationName;
+        syntheticInstances.push({
+          operationId,
+          operationName,
+          instanceName: row.instance_name,
+          instanceRole: row.instance_role,
+          registryStatus: row.status,
+          sendEnabled: Boolean(row.send_enabled),
+          parallelSendEnabled: Boolean(row.parallel_send_enabled),
+          severity: "insufficient",
+          reason: "Instância esperada no registry ainda não materializada na telemetria viva.",
+          spikeAlert: false,
+          spikeReason: null,
+          outbound24h: 0,
+          inbound24h: 0,
+          uniqueTargets24h: 0,
+          replyContacts24h: 0,
+          delivered24h: 0,
+          read24h: 0,
+          errors24h: 0,
+          stalled24h: 0,
+          outbound7d: 0,
+          inbound7d: 0,
+          disconnectCode: null,
+          disconnectAt: null,
+          snapshotAt: null,
+        });
+      });
+    });
+
+    const instances = [...liveInstances, ...syntheticInstances];
+    const operations = new Map<string, EvolutionOperationTelemetryRow>();
+
+    liveOperations.forEach((row) => {
+      const operationKey = normalizeOperationKey(row.operationName);
+      const expected = registryByOperation.get(operationKey)?.rows.length ?? row.instanceCount;
+      const materialized = liveInstances.filter(
+        (instance) => normalizeOperationKey(instance.operationName) === operationKey,
+      ).length;
+      operations.set(operationKey, {
+        ...row,
+        instanceCount: expected,
+        expectedInstanceCount: expected,
+        materializedInstanceCount: materialized,
+        missingInstanceCount: Math.max(0, expected - materialized),
+      });
+    });
+
+    registryByOperation.forEach(({ operationName, rows }, operationKey) => {
+      if (operations.has(operationKey)) return;
+      const materialized = liveInstances.filter(
+        (instance) => normalizeOperationKey(instance.operationName) === operationKey,
+      ).length;
+      const operationId =
+        operationIdByName.get(operationKey) ??
+        scopedOperationIds.get(operationKey) ??
+        operationName;
+      operations.set(operationKey, {
+        operationId,
+        operationName,
+        instanceCount: rows.length,
+        expectedInstanceCount: rows.length,
+        materializedInstanceCount: materialized,
+        missingInstanceCount: Math.max(0, rows.length - materialized),
+        healthyInstances: 0,
+        attentionInstances: 0,
+        criticalInstances: 0,
+        outbound24h: 0,
+        replies24h: 0,
+        delivered24h: 0,
+        read24h: 0,
+        errors24h: 0,
+        stalled24h: 0,
+        snapshotAt: null,
+      });
+    });
+
+    const operationList = [...operations.values()].sort((a, b) => a.operationName.localeCompare(b.operationName));
+    const freshestSnapshot = [...operationList, ...instances]
+      .map((row) => row.snapshotAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
     return {
       source: "live",
-      snapshotLabel: toSnapshotLabel(operations[0]?.snapshotAt ?? instances[0]?.snapshotAt ?? null),
-      metrics: buildMetrics(operations, instances),
-      operations,
+      snapshotLabel: toSnapshotLabel(freshestSnapshot),
+      metrics: buildMetrics(operationList, instances),
+      operations: operationList,
       instances,
     };
   } catch (error) {

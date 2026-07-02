@@ -11,7 +11,7 @@ import { fetchOperations, type Operation } from "@/lib/admin-data";
 import { useAdminAuth, type AccessProfileId, type VisibilityMode } from "@/components/admin/auth-context";
 import { ACCESS_SCOPE_LABELS, resolveAccessScopeMode } from "@/lib/admin-auth.shared";
 
-export type PeriodPreset = "mtd" | "7d" | "30d" | "90d";
+export type PeriodPreset = "mtd" | "prev_month" | "7d" | "90d";
 
 type AdminFiltersContextValue = {
   selectedOperationId: string;
@@ -51,8 +51,8 @@ const VISIBILITY_MODE_STORAGE_KEY = "admin-incentiva-visibility-mode";
 
 const periodOptions: Record<PeriodPreset, string> = {
   mtd: "Mês atual",
+  prev_month: "Mês anterior",
   "7d": "Últimos 7 dias",
-  "30d": "Últimos 30 dias",
   "90d": "Últimos 90 dias",
 };
 

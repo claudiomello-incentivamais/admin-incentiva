@@ -13,13 +13,25 @@ export const loadEvolutionTelemetryDashboardServerFn = createServerFn({ method: 
   .middleware([requestContextMiddleware])
   .handler(async ({ context }) => {
     const { request } = requestContext.parse(context);
-    const [{ readAuthSessionFromRequest }, { loadEvolutionTelemetryDashboard }] = await Promise.all([
+    const [
+      { readAuthSessionFromRequest },
+      { loadScopedGlobalDashboard },
+      { loadEvolutionTelemetryDashboard },
+    ] = await Promise.all([
       import("./admin-auth.server"),
+      import("./admin-data"),
       import("./admin-evolution-telemetry"),
     ]);
 
     const session = await readAuthSessionFromRequest(request);
+    const dashboard = await loadScopedGlobalDashboard({
+      operationIds: session?.operationIds ?? "all",
+    });
     return loadEvolutionTelemetryDashboard({
       operationIds: session?.operationIds ?? "all",
+      operationScope: dashboard.operations.map((operation) => ({
+        id: operation.id,
+        name: operation.name,
+      })),
     });
   });

@@ -1,6 +1,6 @@
 import type { GlobalKpis, IncentivaCockpitData, IncentivaFunnelStage, Operation } from "@/lib/admin-data";
 
-export type DashboardPeriodPreset = "mtd" | "7d" | "30d" | "90d";
+export type DashboardPeriodPreset = "mtd" | "prev_month" | "7d" | "90d";
 
 type PeriodProfile = {
   activityFactor: number;
@@ -34,7 +34,7 @@ const periodProfiles: Record<DashboardPeriodPreset, PeriodProfile> = {
     leadFactor: 0.36,
     deltaFactor: 0.58,
   },
-  "30d": {
+  prev_month: {
     activityFactor: 1,
     funnelFactor: 1,
     coverageShift: -1,

@@ -29,8 +29,13 @@ A conversa deixa de ser "já está pronto?" de forma subjetiva e passa a ser:
 
 O build já explicita a trilha técnica disponível hoje:
 
-- preview local: `npx vite preview`
+- homologação local confiável: `wrangler dev` em cima do build gerado
 - deploy do build pré-gerado: `npx nitro deploy --prebuilt`
+
+Observação prática:
+
+- `vite preview` segue instável nesta stack para SSR por incompatibilidade com `Request.ip`
+- a validação real do corte deve continuar sendo feita pelo runtime Cloudflare local (`wrangler dev`)
 
 Isso não substitui a governança do publish, mas reduz a ambiguidade sobre o passo técnico final.
 
