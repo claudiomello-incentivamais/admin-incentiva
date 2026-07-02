@@ -87,8 +87,15 @@ function formatStageConversionValue(numerator: number, denominator: number) {
 }
 
 function firstInterestCountForSummary(summary: PortalPeriodSummary) {
+  const stageBasedFirstInterestCount =
+    summary.stageCounts["lead-interessado"] +
+    summary.stageCounts["mql-agendado"] +
+    summary.stageCounts["mql-realizado"] +
+    summary.stageCounts.negotiation +
+    summary.stageCounts.won +
+    summary.stageCounts.lost;
   return Math.max(
-    summary.stageCounts["lead-interessado"],
+    stageBasedFirstInterestCount,
     summary.channels.email.replies +
       summary.channels.linkedin.replies +
       summary.channels.whatsapp.replies,
@@ -96,7 +103,14 @@ function firstInterestCountForSummary(summary: PortalPeriodSummary) {
 }
 
 function firstInterestCountForChannel(channel: PortalChannelPeriodSummary) {
-  return Math.max(channel.leadInteressado, channel.replies);
+  const stageBasedFirstInterestCount =
+    channel.leadInteressado +
+    channel.mqlAgendado +
+    channel.mqlRealizado +
+    channel.negotiation +
+    channel.won +
+    channel.lost;
+  return Math.max(stageBasedFirstInterestCount, channel.replies);
 }
 
 function groupDispatchesByDay(facts: PortalAnalyticsFact[]) {
@@ -117,6 +131,25 @@ function groupRepliesByDay(facts: PortalAnalyticsFact[]) {
     if (fact.kind !== "reply") return;
     const dayKey = fact.eventAt.slice(0, 10);
     grouped.set(dayKey, (grouped.get(dayKey) ?? 0) + 1);
+  });
+  return grouped;
+}
+
+function groupFirstInterestByDay(facts: PortalAnalyticsFact[]) {
+  const grouped = new Map<string, number>();
+  facts.forEach((fact) => {
+    const dayKey = fact.eventAt.slice(0, 10);
+    if (
+      fact.kind === "stage" &&
+      fact.stageId &&
+      fact.stageId !== "prospecting"
+    ) {
+      grouped.set(dayKey, (grouped.get(dayKey) ?? 0) + 1);
+      return;
+    }
+    if (fact.kind === "reply") {
+      grouped.set(dayKey, (grouped.get(dayKey) ?? 0) + 1);
+    }
   });
   return grouped;
 }
@@ -429,6 +462,11 @@ function matchesIcpFilters(
   return ICP_FILTERS.every(({ id }) => filters[id] === "all" || dimensions[id] === filters[id]);
 }
 
+function formatFrontLabel(value: string | null | undefined) {
+  const normalized = value?.replace(/[_]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
+  return normalized || "Frente não identificada";
+}
+
 function summarizeFactsForPeriod(
   facts: PortalAnalyticsFact[],
   period: PortalPeriodPreset,
@@ -515,7 +553,7 @@ function summarizeFactsForPeriod(
   summary.wonPct = ratioPct(summary.stageCounts.won, summary.stageCounts.negotiation);
   (["email", "linkedin", "whatsapp"] as const).forEach((channelId) => {
     const channel = summary.channels[channelId];
-    const channelFirstInterestCount = Math.max(channel.leadInteressado, channel.replies);
+    const channelFirstInterestCount = firstInterestCountForChannel(channel);
     channel.firstInterestPct = ratioPct(channelFirstInterestCount, channel.touched);
     channel.scheduledPct = ratioPct(channel.mqlAgendado, channelFirstInterestCount);
     channel.negotiationPct = ratioPct(channel.negotiation, channel.mqlAgendado);
@@ -615,6 +653,7 @@ function PortalPage() {
     company_size_cluster: "all",
     cargo_cluster: "all",
   });
+  const [selectedFront, setSelectedFront] = useState("all");
 
   if (!session || !dashboard || !evolution || !n8n || !analytics) {
     return null;
@@ -708,6 +747,14 @@ function PortalPage() {
     analytics.operations.find((operation) => operation.operationId === portalOperation.id) ?? null;
   const portalAnalyticsFacts = portalAnalyticsOperation?.facts ?? [];
   const portalAnalyticsBaseLeads = portalAnalyticsOperation?.baseLeads ?? [];
+  const frontOptions = [
+    ...new Set(
+      [...portalAnalyticsFacts, ...portalAnalyticsBaseLeads]
+        .map((item) => item.sourceTable)
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => String(a).localeCompare(String(b), "pt-BR"));
+  const hasMultipleFronts = frontOptions.length > 1;
   const dimensionAvailability =
     portalAnalyticsOperation?.dimensionAvailability ?? {
       segment_cluster: false,
@@ -729,18 +776,28 @@ function PortalPage() {
   const filteredFacts = hasActiveIcpFilters
     ? portalAnalyticsFacts.filter((fact) => matchesIcpFilters(fact.dimensions, selectedIcpFilters))
     : portalAnalyticsFacts;
+  const frontScopedFacts =
+    selectedFront === "all"
+      ? filteredFacts
+      : filteredFacts.filter((fact) => fact.sourceTable === selectedFront);
   const filteredBaseLeads = hasActiveIcpFilters
     ? portalAnalyticsBaseLeads.filter((lead) => matchesIcpFilters(lead.dimensions, selectedIcpFilters))
     : portalAnalyticsBaseLeads;
+  const frontScopedBaseLeads =
+    selectedFront === "all"
+      ? filteredBaseLeads
+      : filteredBaseLeads.filter((lead) => lead.sourceTable === selectedFront);
   const periodAnalytics =
-    hasActiveIcpFilters
-      ? summarizeFactsForPeriod(filteredFacts, selectedPeriod)
+    hasActiveIcpFilters || selectedFront !== "all"
+      ? summarizeFactsForPeriod(frontScopedFacts, selectedPeriod)
       : portalAnalyticsOperation?.periods[selectedPeriod] ?? null;
-  const periodScopeLabel = hasActiveIcpFilters
-    ? activeIcpFilters
-        .map(({ id, label }) => `${label}: ${formatIcpFilterValue(id, selectedIcpFilters[id])}`)
-        .join(" · ")
-    : "Operação inteira";
+  const periodScopeParts = [
+    selectedFront !== "all" ? `Frente: ${formatFrontLabel(selectedFront)}` : null,
+    ...(hasActiveIcpFilters
+      ? activeIcpFilters.map(({ id, label }) => `${label}: ${formatIcpFilterValue(id, selectedIcpFilters[id])}`)
+      : []),
+  ].filter(Boolean);
+  const periodScopeLabel = periodScopeParts.length > 0 ? periodScopeParts.join(" · ") : "Operação inteira";
   const latestCommercialEventAt =
     [portalAnalyticsOperation?.latestStageMovementAt, portalAnalyticsOperation?.latestDispatchEventAt, portalAnalyticsOperation?.latestReplyAt]
       .filter(Boolean)
@@ -822,11 +879,15 @@ function PortalPage() {
         b.execToday - a.execToday ||
         b.exec7d - a.exec7d,
     )[0] ?? null;
-  const replyCountsByDay = groupRepliesByDay(filteredFacts);
-  const dispatchesByDay = groupDispatchesByDay(filteredFacts);
+  const replyCountsByDay = groupRepliesByDay(frontScopedFacts);
+  const firstInterestCountsByDay = groupFirstInterestByDay(frontScopedFacts);
+  const dispatchesByDay = groupDispatchesByDay(frontScopedFacts);
   const chartTimelineData = (periodAnalytics?.timeline ?? []).map((item) => ({
     ...item,
-    leadDisplay: Math.max(item.leadInteressado, replyCountsByDay.get(item.sortKey ?? "") ?? 0),
+    leadDisplay: Math.max(
+      firstInterestCountsByDay.get(item.sortKey ?? "") ?? 0,
+      replyCountsByDay.get(item.sortKey ?? "") ?? 0,
+    ),
   }));
   const leadStageCount = periodAnalytics ? firstInterestCountForSummary(periodAnalytics) : 0;
   const chartStageData = periodAnalytics
@@ -848,10 +909,10 @@ function PortalPage() {
     currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value ?? 0;
   const overallCoverageDays =
     currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value ?? 0;
-  const filteredUnstarted = hasActiveIcpFilters
-    ? filteredBaseLeads.filter((lead) => lead.isUnstarted).length
+  const filteredUnstarted = hasActiveIcpFilters || selectedFront !== "all"
+    ? frontScopedBaseLeads.filter((lead) => lead.isUnstarted).length
     : overallUnstarted;
-  const filteredCoverageDays = hasActiveIcpFilters
+  const filteredCoverageDays = hasActiveIcpFilters || selectedFront !== "all"
     ? inferCoverageDaysForFilteredBase(filteredUnstarted, overallUnstarted, overallCoverageDays)
     : overallCoverageDays;
   const isMonthCurrentStale =
@@ -873,7 +934,14 @@ function PortalPage() {
       company_size_cluster: "all",
       cargo_cluster: "all",
     });
+    setSelectedFront("all");
   }, [portalOperation.id]);
+
+  useEffect(() => {
+    if (selectedFront === "all") return;
+    if (frontOptions.includes(selectedFront)) return;
+    setSelectedFront("all");
+  }, [frontOptions, selectedFront]);
 
   useEffect(() => {
     setSelectedIcpFilters((current) => {
@@ -1193,7 +1261,27 @@ function PortalPage() {
                 O bloco abaixo considera a movimentação real do período filtrado para a operação atual, com recorte combinável de ICP para leitura de disparo e conversão.
               </p>
               <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
-              <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-background/70 p-4 xl:grid-cols-[220px,220px,220px,1fr]">
+              <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-background/70 p-4 xl:grid-cols-[220px,220px,220px,220px,1fr]">
+                {hasMultipleFronts ? (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      Frente
+                    </div>
+                    <Select value={selectedFront} onValueChange={setSelectedFront}>
+                      <SelectTrigger className="h-10 bg-surface border-border text-sm">
+                        <SelectValue placeholder="Escolher frente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as frentes</SelectItem>
+                        {frontOptions.map((value) => (
+                          <SelectItem key={`front-${value}`} value={value}>
+                            {formatFrontLabel(value)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
                 {ICP_FILTERS.map(({ id, label, allLabel }) => (
                   <div key={id} className="space-y-2">
                     <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">

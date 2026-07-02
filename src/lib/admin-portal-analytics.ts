@@ -168,12 +168,14 @@ export interface PortalAnalyticsFact {
   eventAt: string;
   stageId: StageId | null;
   channel: ChannelId | null;
+  sourceTable: string | null;
   dimensions: Record<PortalIcpDimensionId, string | null>;
 }
 
 export interface PortalAnalyticsBaseLead {
   createdAt: string | null;
   isUnstarted: boolean;
+  sourceTable: string | null;
   dimensions: Record<PortalIcpDimensionId, string | null>;
 }
 
@@ -439,9 +441,11 @@ function mapStage(rawStage: string | null | undefined): StageId | null {
     case "prospecting":
     case "prospect":
       return "prospecting";
+    case "lead":
     case "lead_interessado":
     case "lead interessado":
       return "lead-interessado";
+    case "mql":
     case "mql_agendado":
     case "mql agendado":
       return "mql-agendado";
@@ -595,10 +599,25 @@ function inferOperationalDispatchChannel(
   const explicitRawChannel = mapRawChannel(rawRow?.Canal);
   if (explicitRawChannel) return explicitRawChannel;
 
+  const normalizedStatus = normalizeText(rawRow?.Status);
+  if (normalizedStatus.includes("wpp")) return "whatsapp";
+  if (normalizedStatus.includes("followup") || normalizedStatus.includes("breakup")) return "email";
+
   const operationalStatusChannel =
     mapRawChannel(rawRow?.Status) ??
     (nonBlank(rawRow?.Status_wpp) ? "whatsapp" : null) ??
-    (nonBlank(rawRow?.["Status LinkedIn"]) ? "linkedin" : null) ??
+    ((() => {
+      const linkedinStatus = normalizeText(rawRow?.["Status LinkedIn"]);
+      if (
+        linkedinStatus.includes("mensagem") ||
+        linkedinStatus.includes("conexao") ||
+        linkedinStatus.includes("conexão") ||
+        linkedinStatus.includes("interesse")
+      ) {
+        return "linkedin" as const;
+      }
+      return null;
+    })()) ??
     (nonBlank(rawRow?.["Status E-mail"]) ? "email" : null);
   if (operationalStatusChannel) return operationalStatusChannel;
 
@@ -858,8 +877,15 @@ function finalizePeriodSummary(summary: PortalPeriodSummary) {
     summary.stageCounts.won +
     summary.stageCounts.lost;
 
+  const stageBasedFirstInterestCount =
+    summary.stageCounts["lead-interessado"] +
+    summary.stageCounts["mql-agendado"] +
+    summary.stageCounts["mql-realizado"] +
+    summary.stageCounts.negotiation +
+    summary.stageCounts.won +
+    summary.stageCounts.lost;
   const firstInterestCount = Math.max(
-    summary.stageCounts["lead-interessado"],
+    stageBasedFirstInterestCount,
     summary.channels.email.replies +
       summary.channels.linkedin.replies +
       summary.channels.whatsapp.replies,
@@ -878,7 +904,14 @@ function finalizePeriodSummary(summary: PortalPeriodSummary) {
 
   (["email", "linkedin", "whatsapp"] as ChannelId[]).forEach((channelId) => {
     const channel = summary.channels[channelId];
-    const channelFirstInterestCount = Math.max(channel.leadInteressado, channel.replies);
+    const channelStageBasedFirstInterestCount =
+      channel.leadInteressado +
+      channel.mqlAgendado +
+      channel.mqlRealizado +
+      channel.negotiation +
+      channel.won +
+      channel.lost;
+    const channelFirstInterestCount = Math.max(channelStageBasedFirstInterestCount, channel.replies);
     channel.firstInterestPct = ratioPct(channelFirstInterestCount, channel.touched);
     channel.scheduledPct = ratioPct(channel.mqlAgendado, channelFirstInterestCount);
     channel.negotiationPct = ratioPct(channel.negotiation, channel.mqlAgendado);
@@ -1120,6 +1153,7 @@ export async function loadPortalAnalytics(params: {
           eventAt: row.last_edited_at,
           stageId,
           channel: primaryChannel ?? dispatchChannel ?? channelSignals[0] ?? null,
+          sourceTable: baseRow?.source_table ?? null,
           dimensions,
         });
     });
@@ -1163,6 +1197,7 @@ export async function loadPortalAnalytics(params: {
         eventAt: row.event_at,
         stageId: null,
         channel,
+        sourceTable: baseRow?.source_table ?? null,
         dimensions,
       });
     });
@@ -1215,6 +1250,7 @@ export async function loadPortalAnalytics(params: {
             eventAt: operationalDispatchAt,
             stageId: null,
             channel: dispatchChannel,
+            sourceTable: row.source_table ?? null,
             dimensions,
           });
           operationDispatchFallbackKeys.add(dispatchFactKey);
@@ -1233,6 +1269,10 @@ export async function loadPortalAnalytics(params: {
       if (!syntheticStageAt || !syntheticStage) return;
       const syntheticDate = new Date(syntheticStageAt);
       if (Number.isNaN(syntheticDate.getTime())) return;
+      const effectiveSyntheticStage =
+        syntheticStage === "lost" && hasOperationalInterestSignal(row, rawRow)
+          ? "lead-interessado"
+          : syntheticStage;
       const attributedChannels = dispatchChannel ? [dispatchChannel] : [];
       const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, rawRow, periods);
       const dimensions = extractDimensions(row, rawRow);
@@ -1241,7 +1281,7 @@ export async function loadPortalAnalytics(params: {
         if (!isWithinPeriod(syntheticDate, period, now)) return;
         applyStageMovement(
           operationPeriods[period],
-          syntheticStage,
+          effectiveSyntheticStage,
           syntheticStageAt,
           attributedChannels,
           false,
@@ -1251,7 +1291,7 @@ export async function loadPortalAnalytics(params: {
         breakdownBuckets.forEach((bucket) => {
           applyStageMovement(
             bucket.periods[period],
-            syntheticStage,
+            effectiveSyntheticStage,
             syntheticStageAt,
             attributedChannels,
             false,
@@ -1264,11 +1304,9 @@ export async function loadPortalAnalytics(params: {
       facts.push({
         kind: "stage",
         eventAt: syntheticStageAt,
-        stageId:
-          syntheticStage === "lost" && hasOperationalInterestSignal(row, rawRow)
-            ? "lead-interessado"
-            : syntheticStage,
+        stageId: effectiveSyntheticStage,
         channel: dispatchChannel,
+        sourceTable: row.source_table ?? null,
         dimensions,
       });
     });
@@ -1302,15 +1340,17 @@ export async function loadPortalAnalytics(params: {
           eventAt: row.last_reply_at,
           stageId: null,
           channel: primaryChannel,
+          sourceTable: row.source_table ?? null,
           dimensions,
         });
       });
 
     periods.forEach((period) => finalizePeriodSummary(operationPeriods[period]));
 
-    const baseLeads = operationBaseLeads.map(({ createdAt, isUnstarted, dimensions }) => ({
+    const baseLeads = operationBaseLeads.map(({ createdAt, isUnstarted, dimensions, row }) => ({
       createdAt,
       isUnstarted,
+      sourceTable: row.source_table ?? null,
       dimensions,
     }));
 
