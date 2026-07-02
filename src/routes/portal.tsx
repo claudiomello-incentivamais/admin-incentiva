@@ -95,6 +95,74 @@ function firstInterestCountForSummary(summary: PortalPeriodSummary) {
   );
 }
 
+function groupDispatchesByDay(facts: PortalAnalyticsFact[]) {
+  const grouped = new Map<string, Record<"email" | "linkedin" | "whatsapp", number>>();
+  facts.forEach((fact) => {
+    if (fact.kind !== "dispatch" || !fact.channel) return;
+    const dayKey = fact.eventAt.slice(0, 10);
+    const existing = grouped.get(dayKey) ?? { email: 0, linkedin: 0, whatsapp: 0 };
+    existing[fact.channel] += 1;
+    grouped.set(dayKey, existing);
+  });
+  return grouped;
+}
+
+function groupRepliesByDay(facts: PortalAnalyticsFact[]) {
+  const grouped = new Map<string, number>();
+  facts.forEach((fact) => {
+    if (fact.kind !== "reply") return;
+    const dayKey = fact.eventAt.slice(0, 10);
+    grouped.set(dayKey, (grouped.get(dayKey) ?? 0) + 1);
+  });
+  return grouped;
+}
+
+function buildRhythmDailyNote(
+  timeline: Array<{
+    label: string;
+    prospecting: number;
+    leadDisplay: number;
+    mqlAgendado: number;
+    won: number;
+    sortKey?: string;
+  }>,
+  dispatchesByDay: Map<string, Record<"email" | "linkedin" | "whatsapp", number>>,
+) {
+  if (timeline.length < 2) {
+    return "A observação diária aparece quando existem pelo menos dois dias úteis no recorte para comparar volume e canal.";
+  }
+
+  const previous = timeline[timeline.length - 2];
+  const current = timeline[timeline.length - 1];
+  const currentDay = dispatchesByDay.get(current.sortKey ?? "") ?? { email: 0, linkedin: 0, whatsapp: 0 };
+  const previousDay = dispatchesByDay.get(previous.sortKey ?? "") ?? { email: 0, linkedin: 0, whatsapp: 0 };
+  const delta = current.prospecting - previous.prospecting;
+
+  if (delta === 0) {
+    return `Ritmo estável entre ${previous.label} e ${current.label}: ${formatNumber(current.prospecting)} prospects iniciados em cada dia.`;
+  }
+
+  const direction = delta > 0 ? "subiu" : "caiu";
+  const reasons: string[] = [];
+
+  if (currentDay.whatsapp !== previousDay.whatsapp) {
+    reasons.push(`WhatsApp ${direction === "subiu" ? "foi de" : "caiu de"} ${formatNumber(previousDay.whatsapp)} para ${formatNumber(currentDay.whatsapp)}`);
+  }
+  if (currentDay.email !== previousDay.email) {
+    reasons.push(`e-mail ${direction === "subiu" ? "foi de" : "caiu de"} ${formatNumber(previousDay.email)} para ${formatNumber(currentDay.email)}`);
+  }
+  if (currentDay.linkedin !== previousDay.linkedin) {
+    reasons.push(`LinkedIn ${direction === "subiu" ? "foi de" : "caiu de"} ${formatNumber(previousDay.linkedin)} para ${formatNumber(currentDay.linkedin)}`);
+  }
+
+  const reasonText =
+    reasons.length > 0
+      ? reasons.join(" · ")
+      : "sem mudança clara de canal materializada na trilha atual";
+
+  return `Entre ${previous.label} e ${current.label}, o volume de novos iniciados ${direction} de ${formatNumber(previous.prospecting)} para ${formatNumber(current.prospecting)}. Principal leitura agora: ${reasonText}.`;
+}
+
 function formatDispatchSourceLabel(value: "events" | "fallback" | "none") {
   if (value === "events") return "eventos";
   if (value === "fallback") return "fallback";
@@ -750,21 +818,28 @@ function PortalPage() {
         b.execToday - a.execToday ||
         b.exec7d - a.exec7d,
     )[0] ?? null;
+  const replyCountsByDay = groupRepliesByDay(filteredFacts);
+  const dispatchesByDay = groupDispatchesByDay(filteredFacts);
+  const chartTimelineData = (periodAnalytics?.timeline ?? []).map((item) => ({
+    ...item,
+    leadDisplay: Math.max(item.leadInteressado, replyCountsByDay.get(item.sortKey ?? "") ?? 0),
+  }));
+  const leadStageCount = periodAnalytics ? firstInterestCountForSummary(periodAnalytics) : 0;
   const chartStageData = periodAnalytics
     ? [
         { stage: "Prospect", value: periodAnalytics.stageCounts.prospecting },
-        { stage: "Lead", value: periodAnalytics.stageCounts["lead-interessado"] },
+        { stage: "Lead", value: leadStageCount },
         { stage: "MQL Ag.", value: periodAnalytics.stageCounts["mql-agendado"] },
         { stage: "Negociação", value: periodAnalytics.stageCounts.negotiation },
         { stage: "Ganhos", value: periodAnalytics.stageCounts.won },
       ]
     : [];
-  const chartTimelineData = periodAnalytics?.timeline ?? [];
   const hasPeriodAnalytics = Boolean(periodAnalytics);
   const hasStageChartData = chartStageData.some((item) => item.value > 0);
   const hasTimelineChartData = chartTimelineData.some((item) =>
-    item.prospecting > 0 || item.leadInteressado > 0 || item.mqlAgendado > 0 || item.won > 0,
+    item.prospecting > 0 || item.leadDisplay > 0 || item.mqlAgendado > 0 || item.won > 0,
   );
+  const rhythmDailyNote = buildRhythmDailyNote(chartTimelineData, dispatchesByDay);
   const overallUnstarted =
     currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value ?? 0;
   const overallCoverageDays =
@@ -1195,7 +1270,7 @@ function PortalPage() {
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
                 {[
                   { id: "prospecting", count: periodAnalytics.stageCounts.prospecting },
-                  { id: "lead-interessado", count: periodAnalytics.stageCounts["lead-interessado"] },
+                  { id: "lead", count: leadStageCount },
                   { id: "mql-agendado", count: periodAnalytics.stageCounts["mql-agendado"] },
                   { id: "mql-realizado", count: periodAnalytics.stageCounts["mql-realizado"] },
                   { id: "negotiation", count: periodAnalytics.stageCounts.negotiation },
@@ -1204,9 +1279,13 @@ function PortalPage() {
                 ].map((stage) => (
                   <PortalNarrativeCard
                     key={stage.id}
-                    label={formatPipelineStageLabel(stage.id)}
+                    label={stage.id === "lead" ? "Lead" : formatPipelineStageLabel(stage.id)}
                     title={formatNumber(stage.count)}
-                    detail="Volume desta etapa dentro do período selecionado."
+                    detail={
+                      stage.id === "lead"
+                        ? "Levantadas de mão do período, positivas ou negativas."
+                        : "Volume desta etapa dentro do período selecionado."
+                    }
                   />
                 ))}
               </div>
@@ -1224,7 +1303,8 @@ function PortalPage() {
             <div>
               <h2 className="text-sm font-semibold text-display">Conversões do recorte por etapa</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Conversões calculadas com relação explícita entre origem e destino no período selecionado.
+                Conversões calculadas com relação explícita entre origem e destino no período selecionado. Aqui,
+                lead significa levantada de mão, positiva ou negativa.
               </p>
             </div>
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
@@ -1396,12 +1476,13 @@ function PortalPage() {
         <section className="grid gap-4 xl:grid-cols-2">
           <div className="surface-card p-5">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-semibold text-display">Funil do recorte</h2>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Etapas atualizadas dentro do período selecionado.
+            <div>
+              <h2 className="text-sm font-semibold text-display">Funil do recorte</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Etapas atualizadas dentro do período selecionado. O bloco de lead já considera
+                  levantada de mão, não só lead interessado.
                 </p>
-              </div>
+            </div>
               <ChartColumn className="h-3.5 w-3.5 text-primary" />
             </div>
 
@@ -1452,7 +1533,7 @@ function PortalPage() {
                 <ChartContainer
                   config={{
                     prospecting: { label: "Prospect", color: "#d4a373" },
-                    leadInteressado: { label: "Lead", color: "#588157" },
+                    leadDisplay: { label: "Lead", color: "#588157" },
                     mqlAgendado: { label: "MQL agendado", color: "#457b9d" },
                     won: { label: "Cliente ganho", color: "#1d3557" },
                   }}
@@ -1464,7 +1545,7 @@ function PortalPage() {
                     <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
                     <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
                     <Line type="monotone" dataKey="prospecting" stroke="var(--color-prospecting)" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="leadInteressado" stroke="var(--color-leadInteressado)" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="leadDisplay" stroke="var(--color-leadDisplay)" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="mqlAgendado" stroke="var(--color-mqlAgendado)" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="won" stroke="var(--color-won)" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -1479,6 +1560,11 @@ function PortalPage() {
                 O ritmo diário do recorte aparece aqui quando a leitura histórica por período estiver disponível.
               </div>
             )}
+            {hasPeriodAnalytics && hasTimelineChartData ? (
+              <div className="mt-3 rounded-xl border border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
+                {rhythmDailyNote}
+              </div>
+            ) : null}
           </div>
         </section>
 
