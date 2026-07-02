@@ -626,6 +626,26 @@ function inferOperationalDispatchChannel(
   return null;
 }
 
+function inferLinkedinOperationalDispatchAt(rawRow: OperationalLeadRow | null) {
+  return rawRow?.["Data de Início"] ?? rawRow?.["Data do Envio"] ?? null;
+}
+
+function hasOperationalLinkedinSignal(
+  baseRow: LeadsBaseRow | null,
+  rawRow: OperationalLeadRow | null,
+) {
+  if (nonBlank(baseRow?.status_linkedin)) return true;
+  const linkedinStatus = normalizeText(rawRow?.["Status LinkedIn"]);
+  if (!linkedinStatus) return false;
+  return (
+    linkedinStatus.includes("mensagem") ||
+    linkedinStatus.includes("conexao") ||
+    linkedinStatus.includes("conexão") ||
+    linkedinStatus.includes("interesse") ||
+    linkedinStatus.includes("perfil")
+  );
+}
+
 function toNumber(value: number | string | null | undefined) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
@@ -1254,6 +1274,41 @@ export async function loadPortalAnalytics(params: {
             dimensions,
           });
           operationDispatchFallbackKeys.add(dispatchFactKey);
+        }
+      }
+
+      const linkedinDispatchAt = inferLinkedinOperationalDispatchAt(rawRow);
+      if (leadKey && linkedinDispatchAt && hasOperationalLinkedinSignal(row, rawRow)) {
+        const linkedinDispatchDate = new Date(linkedinDispatchAt);
+        const linkedinDispatchFactKey = `${leadKey}:linkedin:${linkedinDispatchAt.slice(0, 10)}`;
+        if (
+          !Number.isNaN(linkedinDispatchDate.getTime()) &&
+          !operationDispatchFallbackKeys.has(linkedinDispatchFactKey)
+        ) {
+          const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, rawRow, periods);
+          const dimensions = extractDimensions(row, rawRow);
+          periods.forEach((period) => {
+            if (!isWithinPeriod(linkedinDispatchDate, period, now)) return;
+            operationPeriods[period].channels.linkedin.dispatches += 1;
+            if (operationPeriods[period].channels.linkedin.dispatchSource === "none") {
+              operationPeriods[period].channels.linkedin.dispatchSource = "fallback";
+            }
+            breakdownBuckets.forEach((bucket) => {
+              bucket.periods[period].channels.linkedin.dispatches += 1;
+              if (bucket.periods[period].channels.linkedin.dispatchSource === "none") {
+                bucket.periods[period].channels.linkedin.dispatchSource = "fallback";
+              }
+            });
+          });
+          facts.push({
+            kind: "dispatch",
+            eventAt: linkedinDispatchAt,
+            stageId: null,
+            channel: "linkedin",
+            sourceTable: row.source_table ?? null,
+            dimensions,
+          });
+          operationDispatchFallbackKeys.add(linkedinDispatchFactKey);
         }
       }
 

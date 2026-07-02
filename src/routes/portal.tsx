@@ -646,8 +646,12 @@ function formatEvolutionOverallDetail(
       }
     | null
     | undefined,
+  snapshotStale = false,
 ) {
   if (!row) return "Sem snapshot vivo para resumir a operação.";
+  if (snapshotStale) {
+    return "A última leitura viva ficou desatualizada; usar este bloco com cautela até a próxima materialização.";
+  }
   if (row.expectedInstanceCount > row.materializedInstanceCount) {
     return `${formatNumber(row.materializedInstanceCount)}/${formatNumber(row.expectedInstanceCount)} instâncias materializadas.`;
   }
@@ -655,6 +659,45 @@ function formatEvolutionOverallDetail(
     return `${formatNumber(row.errors24h)} erro(s) e ${formatNumber(row.stalled24h)} fila(s) nas últimas 24h.`;
   }
   return "Primário e standby visíveis, sem ruído crítico no recorte.";
+}
+
+function parseSnapshotAgeHours(snapshotAt: string | null | undefined) {
+  if (!snapshotAt) return null;
+  const snapshotDate = new Date(snapshotAt);
+  if (Number.isNaN(snapshotDate.getTime())) return null;
+  const diffMs = Date.now() - snapshotDate.getTime();
+  return diffMs >= 0 ? diffMs / (1000 * 60 * 60) : 0;
+}
+
+function isSnapshotStale(snapshotAt: string | null | undefined) {
+  const ageHours = parseSnapshotAgeHours(snapshotAt);
+  return ageHours != null && ageHours >= 4;
+}
+
+function formatEvolutionSnapshotState(
+  source: "live" | "snapshot",
+  snapshotAt: string | null | undefined,
+) {
+  if (source !== "live") return "Snapshot de contingência";
+  if (isSnapshotStale(snapshotAt)) return "Snapshot desatualizado";
+  return "Snapshot vivo";
+}
+
+function formatEvolutionInstanceDetail(
+  row:
+    | {
+        instanceName: string;
+        registryStatus: string | null;
+        reason: string;
+        snapshotAt: string | null;
+      }
+    | null
+    | undefined,
+) {
+  if (!row) return "Não materializada";
+  const statusPart = row.registryStatus ? ` · registry ${row.registryStatus}` : "";
+  const stalePart = isSnapshotStale(row.snapshotAt) ? " · leitura desatualizada" : "";
+  return `${row.instanceName}${statusPart}${stalePart}. ${trimDetail(row.reason, "sem motivo consolidado", 110)}`;
 }
 
 function evolutionSeverityClasses(
@@ -940,6 +983,13 @@ function PortalPage() {
     currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value ?? 0;
   const overallCoverageDays =
     currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value ?? 0;
+  const reactivationPool =
+    currentCockpit.baseMetrics.find((metric) => metric.id === "reactivation")?.value ?? 0;
+  const reprospeccaoEligible =
+    currentCockpit.baseMetrics.find((metric) => metric.id === "reprospeccao")?.value ?? 0;
+  const retomadaEligible =
+    currentCockpit.baseMetrics.find((metric) => metric.id === "retomada")?.value ?? 0;
+  const recoveryTotal = reactivationPool + reprospeccaoEligible + retomadaEligible;
   const filteredUnstarted = hasActiveIcpFilters || selectedFront !== "all"
     ? frontScopedBaseLeads.filter((lead) => lead.isUnstarted).length
     : overallUnstarted;
@@ -958,6 +1008,9 @@ function PortalPage() {
   const wonTouchedDisplay = periodAnalytics?.stageCounts.won ?? wonTouched;
   const primaryEvolutionInstance = findEvolutionInstanceByRole(evolutionInstances, "primary");
   const standbyEvolutionInstance = findEvolutionInstanceByRole(evolutionInstances, "standby");
+  const evolutionSnapshotStale = isSnapshotStale(
+    evolutionRow?.snapshotAt ?? topEvolutionInstance?.snapshotAt ?? null,
+  );
 
   useEffect(() => {
     setSelectedIcpFilters({
@@ -1045,6 +1098,8 @@ function PortalPage() {
   const evolutionHealth =
     evolution.source !== "live"
       ? ("monitor" as const)
+      : evolutionSnapshotStale
+        ? ("monitor" as const)
       : evolutionRow && evolutionRow.criticalInstances > 0
         ? ("risk" as const)
         : evolutionRow && (
@@ -1058,6 +1113,8 @@ function PortalPage() {
   const evolutionNextStep =
     evolution.source !== "live" || !evolutionRow
       ? "Restabelecer a telemetria viva da Evolution antes de usar este bloco para decisão."
+      : evolutionSnapshotStale
+        ? `Atualizar a snapshot viva da Evolution. Última leitura útil: ${trimDetail(evolution.snapshotLabel, "sem leitura útil", 120)}.`
       : evolutionRow.missingInstanceCount > 0
         ? `Materializar ${formatNumber(evolutionRow.missingInstanceCount)} instância(s) esperada(s) para a leitura ficar completa.`
         : topEvolutionInstance && topEvolutionInstance.severity !== "healthy"
@@ -1175,6 +1232,78 @@ function PortalPage() {
               detail="Coerência atual entre as camadas operacionais da conta."
               icon={Building2}
               tone="info"
+            />
+          </div>
+        </section>
+
+        <section className="surface-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-display">Reativação / Retomada</h2>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Pulmão tático de curto prazo para reaproveitar base, reacender conversa e reduzir pressão de cobertura.
+              </p>
+            </div>
+            <TimerReset className="h-3.5 w-3.5 text-primary" />
+          </div>
+
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-primary">Leitura executiva</div>
+            <div className="mt-1 text-base font-semibold text-display">
+              {formatNumber(recoveryTotal)} oportunidades táticas já visíveis na operação
+            </div>
+            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+              O Portal separa aqui o que já está classificado para reativação, o que pode voltar por reprospecção
+              e o que já está elegível para retomada de conversa.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <PortalMiniMetric
+              label="Pool de reativação"
+              value={formatNumber(reactivationPool)}
+              detail="Leads hoje classificados para reativação dentro da operação."
+            />
+            <PortalMiniMetric
+              label="Reprospecção elegível"
+              value={formatNumber(reprospeccaoEligible)}
+              detail="Contatos que já podem ser reaproveitados em nova abordagem."
+            />
+            <PortalMiniMetric
+              label="Retomada elegível"
+              value={formatNumber(retomadaEligible)}
+              detail="Leads prontos para voltar a receber conversa ativa."
+            />
+            <PortalMiniMetric
+              label="Workflows da frente"
+              value={`${formatNumber(reactivationSummary.active)}/${formatNumber(reactivationSummary.total)}`}
+              detail="Workflows ativos versus total da família de reativação no n8n."
+            />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <PortalNarrativeCard
+              label="Papel agora"
+              title="Alavanca tática de curto prazo"
+              detail="Esta frente amortece a pressão de lista nova e sustenta ritmo enquanto a cobertura principal se recompõe."
+            />
+            <PortalNarrativeCard
+              label="Saúde operacional"
+              title={statusMeta[reactivationSummary.health].label}
+              detail={
+                topReactivationWorkflow
+                  ? `${topReactivationWorkflow.workflowName} é hoje o principal workflow para checagem, com ${formatNumber(topReactivationWorkflow.exec7d)} execuções em 7 dias.`
+                  : "Sem workflow dominante nesta família no recorte atual."
+              }
+            />
+            <PortalNarrativeCard
+              label="Ação agora"
+              title="Priorizar o reaproveitamento com governança"
+              detail={
+                recoveryTotal > 0
+                  ? `Há ${formatNumber(recoveryTotal)} oportunidades já visíveis entre reativação, reprospecção e retomada.`
+                  : "A frente está materializada, mas ainda sem volume acionável relevante na leitura atual."
+              }
             />
           </div>
         </section>
@@ -1752,19 +1881,19 @@ function PortalPage() {
                 <EvolutionHealthTile
                   label="Primário"
                   title={formatEvolutionSeverityLabel(primaryEvolutionInstance?.severity ?? null)}
-                  detail={primaryEvolutionInstance?.instanceName ?? "Não materializada"}
+                  detail={formatEvolutionInstanceDetail(primaryEvolutionInstance)}
                   severity={primaryEvolutionInstance?.severity ?? null}
                 />
                 <EvolutionHealthTile
                   label="Standby"
                   title={formatEvolutionSeverityLabel(standbyEvolutionInstance?.severity ?? null)}
-                  detail={standbyEvolutionInstance?.instanceName ?? "Não materializada"}
+                  detail={formatEvolutionInstanceDetail(standbyEvolutionInstance)}
                   severity={standbyEvolutionInstance?.severity ?? null}
                 />
                 <EvolutionHealthTile
                   label="Geral"
                   title={formatOperationHealthLabelPt(evolutionHealth)}
-                  detail={formatEvolutionOverallDetail(evolutionRow)}
+                  detail={formatEvolutionOverallDetail(evolutionRow, evolutionSnapshotStale)}
                   severity={
                     evolutionHealth === "healthy"
                       ? "healthy"
@@ -1801,7 +1930,10 @@ function PortalPage() {
                     Janela técnica
                   </div>
                   <div className="mt-1 text-sm font-medium text-foreground">
-                    {evolution.source === "live" ? "Snapshot vivo" : "Snapshot de contingência"}
+                    {formatEvolutionSnapshotState(
+                      evolution.source,
+                      evolutionRow?.snapshotAt ?? topEvolutionInstance?.snapshotAt ?? null,
+                    )}
                   </div>
                   <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                     {evolution.source === "live"
