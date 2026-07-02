@@ -39,6 +39,12 @@ interface TopbarProps {
   hidePeriodFilter?: boolean;
 }
 
+function resolveSurfaceContextLabel(breadcrumb: string[]) {
+  if (breadcrumb.includes("Portal")) return "Portal do cliente";
+  if (breadcrumb.includes("Admin Global")) return "Uso interno";
+  return "Console operativo";
+}
+
 export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
   const {
     selectedOperationId,
@@ -49,6 +55,7 @@ export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
     setSelectedPeriod,
   } = useAdminFilters();
   const { session, signOut } = useAdminAuth();
+  const surfaceContextLabel = resolveSurfaceContextLabel(breadcrumb);
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/88 backdrop-blur-xl topbar-glow">
@@ -93,6 +100,12 @@ export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
           <div className="mt-1 flex flex-wrap items-center gap-1.5 xl:hidden">
             <Badge
               variant="outline"
+              className="h-5 rounded-full border-border bg-background px-2 text-[10px] uppercase tracking-[0.16em]"
+            >
+              {surfaceContextLabel}
+            </Badge>
+            <Badge
+              variant="outline"
               className="h-5 rounded-full border-border bg-surface px-2 text-[10px] uppercase tracking-[0.16em]"
             >
               {session?.name ?? selectedAccessProfile.label}
@@ -113,6 +126,12 @@ export function Topbar({ breadcrumb, hidePeriodFilter = false }: TopbarProps) {
           </div>
 
           <div className="hidden items-center gap-2 xl:flex">
+            <Badge
+              variant="outline"
+              className="h-9 rounded-full border-border bg-background px-3 text-[10px] uppercase tracking-[0.16em]"
+            >
+              {surfaceContextLabel}
+            </Badge>
             {!hidePeriodFilter ? (
               <div className="relative">
                 <CalendarRange className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

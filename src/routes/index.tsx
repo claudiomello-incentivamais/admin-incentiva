@@ -178,6 +178,12 @@ function AdminGlobal() {
             <div className="flex items-center gap-2">
               <Badge
                 variant="outline"
+                className="text-[10px] uppercase tracking-[0.18em] border-border bg-background h-5"
+              >
+                Uso interno
+              </Badge>
+              <Badge
+                variant="outline"
                 className="text-[10px] uppercase tracking-[0.18em] border-primary/40 text-primary bg-primary/5 h-5"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-primary mr-1.5 animate-pulse" />
@@ -191,12 +197,12 @@ function AdminGlobal() {
               </Badge>
             </div>
             <h1 className="text-[28px] leading-tight font-semibold text-display tracking-tight">
-              {isSingleOperationView ? "Painel Administrativo da Operação" : "Visão Consolidada de Operações"}
+              {isSingleOperationView ? "Admin Global da Operação" : "Admin Global da Carteira"}
             </h1>
             <p className="text-sm text-muted-foreground max-w-xl">
               {isSingleOperationView
-                ? "Leitura administrativa focada na operação filtrada, sem forçar comparativos que só fazem sentido em multioperação."
-                : "Painel executivo para identificar onde a carteira está travando e qual ação deve abrir primeiro."}
+                ? "Camada administrativa interna focada na operação filtrada, sem misturar a leitura client-facing do Portal com comparativos de bastidor."
+                : "Camada administrativa interna para identificar onde a carteira está travando e qual ação deve abrir primeiro."}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">

@@ -24,8 +24,11 @@ import { BrandMark } from "@/components/admin/BrandMark";
 import { useAdminAuth } from "@/components/admin/auth-context";
 import { Badge } from "@/components/ui/badge";
 
-const principal = [
-  { title: "Portal", url: "/portal", icon: GlobeLock },
+const clientFacingRoutes = [
+  { title: "Portal do Cliente", url: "/portal", icon: GlobeLock },
+];
+
+const internalRoutes = [
   { title: "Admin Global", url: "/", icon: LayoutDashboard },
   { title: "Integrações", url: "/integracoes", icon: Link2 },
   { title: "Faturamento", url: "/faturamento", icon: Receipt },
@@ -40,16 +43,31 @@ export function AppSidebar() {
   const isActive = (p: string) => (p === "/" ? pathname === "/" : pathname.startsWith(p));
   const allowedRoutes = new Set(session?.allowedRoutes ?? ["/"]);
 
-  const renderGroup = (label: string, items: typeof principal) => (
-    <SidebarGroup>
+  const renderGroup = (
+    label: string,
+    items: typeof clientFacingRoutes,
+    description?: string,
+  ) => {
+    const visibleItems = items.filter((item) => allowedRoutes.has(item.url));
+    if (visibleItems.length === 0) return null;
+
+    return (
+      <SidebarGroup>
       {(!collapsed || isMobile) && (
-        <SidebarGroupLabel className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-          {label}
-        </SidebarGroupLabel>
+        <div className="px-2 pb-1">
+          <SidebarGroupLabel className="px-0 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            {label}
+          </SidebarGroupLabel>
+          {description ? (
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
+              {description}
+            </p>
+          ) : null}
+        </div>
       )}
       <SidebarGroupContent>
         <SidebarMenu>
-          {items.filter((item) => allowedRoutes.has(item.url)).map((item) => {
+          {visibleItems.map((item) => {
             const active = isActive(item.url);
             return (
               <SidebarMenuItem key={item.title}>
@@ -75,7 +93,8 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
-  );
+    );
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -104,7 +123,16 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="gap-1">
-        {renderGroup("Principal", principal)}
+        {renderGroup(
+          "Portal principal",
+          clientFacingRoutes,
+          "Leitura client-facing da operação, com foco em cockpit, prioridade e execução.",
+        )}
+        {renderGroup(
+          "Camada interna",
+          internalRoutes,
+          "Controles administrativos, comparativos e governança multioperação.",
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
@@ -116,6 +144,9 @@ export function AppSidebar() {
               </span>
               <span className="mt-1 block text-xs text-sidebar-foreground">
                 Piloto Lovable
+              </span>
+              <span className="mt-1 block text-[11px] text-muted-foreground">
+                Portal externo + administração interna separados por contexto.
               </span>
               {session && (
                 <>

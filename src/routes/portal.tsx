@@ -572,6 +572,12 @@ function PortalPage() {
         <section className="flex flex-wrap items-end justify-between gap-4 pb-2">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 flex-wrap">
+              <Badge
+                variant="outline"
+                className="text-[10px] uppercase tracking-[0.18em] border-primary/30 bg-primary/5 text-primary h-5"
+              >
+                Portal do cliente
+              </Badge>
               <Badge variant="outline" className="text-[10px] uppercase tracking-[0.18em] h-5">
                 {formatPeriodLabel(selectedPeriod)}
               </Badge>
@@ -583,8 +589,8 @@ function PortalPage() {
               Portal de Operação
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
-              Visão central da operação com foco em base, cobertura, conversão, ações executáveis
-              e saúde técnica das integrações.
+              Cockpit principal da operação, desenhado para concentrar a leitura client-facing de
+              base, cobertura, conversão, ações executáveis e saúde técnica das integrações.
               {isBundleRefreshing ? " Atualizando recorte da operação..." : ""}
             </p>
           </div>
@@ -603,7 +609,7 @@ function PortalPage() {
                 <Button variant="outline" size="sm" className="h-9 gap-2 bg-surface" asChild>
                   <Link to={allowedRoutes.has("/clientes") ? "/clientes" : "/"}>
                     <ArrowRight className="h-3.5 w-3.5" />
-                    Voltar ao admin
+                    Ir para camada interna
                   </Link>
                 </Button>
               )}
@@ -630,8 +636,9 @@ function PortalPage() {
               </div>
               <h2 className="text-xl font-semibold text-display">{portalOperation.name}</h2>
               <p className="text-sm text-muted-foreground max-w-2xl">
-                Cockpit resumido da operação selecionada, com leitura de base, links de trabalho,
-                priorização e runtime técnico no mesmo lugar.
+                Cockpit resumido da operação selecionada, com leitura de base, priorização,
+                links de trabalho e runtime técnico no mesmo lugar, sem te empurrar para telas
+                administrativas para entender a operação.
               </p>
             </div>
           </div>
