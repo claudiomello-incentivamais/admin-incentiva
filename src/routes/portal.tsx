@@ -95,6 +95,10 @@ function firstInterestCountForSummary(summary: PortalPeriodSummary) {
   );
 }
 
+function firstInterestCountForChannel(channel: PortalChannelPeriodSummary) {
+  return Math.max(channel.leadInteressado, channel.replies);
+}
+
 function groupDispatchesByDay(facts: PortalAnalyticsFact[]) {
   const grouped = new Map<string, Record<"email" | "linkedin" | "whatsapp", number>>();
   facts.forEach((fact) => {
@@ -1370,61 +1374,71 @@ function PortalPage() {
                   title="E-mail"
                   icon={Mail}
                   sourceLabel={formatDispatchSourceLabel(periodAnalytics.channels.email.dispatchSource)}
-                  detail="Conversão comercial do recorte priorizando a trilha append-only de eventos de e-mail. O Notion fica apenas como fallback de contingência para estado operacional."
+                  detail="Leitura do recorte comercial do e-mail, separando volume enviado, respostas e levantadas de mão."
+                  highlight={{
+                    label: "Lead rate",
+                    value: `${formatPercent(periodAnalytics.channels.email.firstInterestPct)}%`,
+                  }}
                   metrics={[
                     {
-                      label: "Prospects no canal",
+                      label: "Prospects tocados",
                       value: formatNumber(periodAnalytics.channels.email.touched),
                     },
                     {
-                      label: "Virada para Lead",
-                      value: `${formatPercent(periodAnalytics.channels.email.firstInterestPct)}%`,
-                    },
-                    {
-                      label: "MQL agendado",
-                      value: formatNumber(periodAnalytics.channels.email.mqlAgendado),
+                      label: "Levantadas de mão",
+                      value: formatNumber(firstInterestCountForChannel(periodAnalytics.channels.email)),
                     },
                     {
                       label: "Disparos confirmados",
                       value: formatNumber(periodAnalytics.channels.email.dispatches),
                     },
                     {
-                      label: "Respostas no recorte",
+                      label: "Respostas",
                       value: formatNumber(periodAnalytics.channels.email.replies),
                     },
                   ]}
-                  footer={`Apoio operacional: ${formatNumber(emailWorkflowExec7d)} cadências de e-mail em 7 dias no n8n. Hoje: ${formatNumber(emailWorkflowExecToday)} execuções. Waiting atual: ${emailWaitingMetric}.`}
+                  bars={[
+                    { label: "Disparos", value: periodAnalytics.channels.email.dispatches },
+                    { label: "Respostas", value: periodAnalytics.channels.email.replies },
+                    { label: "Leads", value: firstInterestCountForChannel(periodAnalytics.channels.email) },
+                  ]}
+                  footer={`Prospects tocados = registros que movimentaram Prospect no período. Disparos confirmados = envios materializados na trilha do canal. Apoio n8n: ${formatNumber(emailWorkflowExec7d)} cadências em 7 dias; hoje ${formatNumber(emailWorkflowExecToday)} execuções; waiting atual ${emailWaitingMetric}.`}
                 />
 
                 <ChannelActivityCard
                   title="WhatsApp"
                   icon={MessageCircle}
                   sourceLabel={formatDispatchSourceLabel(periodAnalytics.channels.whatsapp.dispatchSource)}
-                  detail="Conversão comercial do recorte priorizando a trilha append-only de WhatsApp, cruzada com a telemetria viva da Evolution. Status atual do lead não serve mais como evidência histórica de disparo."
+                  detail="Leitura do recorte comercial do WhatsApp, cruzando disparo histórico e resposta materializada."
+                  highlight={{
+                    label: "Lead rate",
+                    value: `${formatPercent(periodAnalytics.channels.whatsapp.firstInterestPct)}%`,
+                  }}
                   metrics={[
                     {
-                      label: "Prospects no canal",
+                      label: "Prospects tocados",
                       value: formatNumber(periodAnalytics.channels.whatsapp.touched),
                     },
                     {
-                      label: "Virada para Lead",
-                      value: `${formatPercent(periodAnalytics.channels.whatsapp.firstInterestPct)}%`,
-                    },
-                    {
-                      label: "MQL agendado",
-                      value: formatNumber(periodAnalytics.channels.whatsapp.mqlAgendado),
+                      label: "Levantadas de mão",
+                      value: formatNumber(firstInterestCountForChannel(periodAnalytics.channels.whatsapp)),
                     },
                     {
                       label: "Disparos confirmados",
                       value: formatNumber(periodAnalytics.channels.whatsapp.dispatches),
                     },
                     {
-                      label: "Respostas no recorte",
+                      label: "Respostas",
                       value: formatNumber(periodAnalytics.channels.whatsapp.replies),
                     },
                   ]}
+                  bars={[
+                    { label: "Disparos", value: periodAnalytics.channels.whatsapp.dispatches },
+                    { label: "Respostas", value: periodAnalytics.channels.whatsapp.replies },
+                    { label: "Leads", value: firstInterestCountForChannel(periodAnalytics.channels.whatsapp) },
+                  ]}
                   footer={evolutionRow?.snapshotAt
-                    ? `Telemetria viva: ${formatNumber(evolutionOutbound7d)} envios em 7 dias. Nas últimas 24h: ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas, ${formatNumber(evolutionRow.errors24h)} erros.`
+                    ? `Prospects tocados = registros que movimentaram Prospect no período. Disparos confirmados = envios materializados na trilha do canal. Telemetria viva: ${formatNumber(evolutionOutbound7d)} envios em 7 dias; nas últimas 24h ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erros.`
                     : "Sem snapshot vivo da Evolution para esta operação."}
                 />
 
@@ -1432,30 +1446,35 @@ function PortalPage() {
                   title="LinkedIn"
                   icon={Workflow}
                   sourceLabel={formatDispatchSourceLabel(periodAnalytics.channels.linkedin.dispatchSource)}
-                  detail="Conversão comercial do recorte priorizando a trilha append-only de LinkedIn quando materializada. Status do canal e execução do n8n ficam apenas como fallback temporário."
+                  detail="Leitura do recorte comercial do LinkedIn quando a trilha histórica do canal está materializada."
+                  highlight={{
+                    label: "Lead rate",
+                    value: `${formatPercent(periodAnalytics.channels.linkedin.firstInterestPct)}%`,
+                  }}
                   metrics={[
                     {
-                      label: "Prospects no canal",
+                      label: "Prospects tocados",
                       value: formatNumber(periodAnalytics.channels.linkedin.touched),
                     },
                     {
-                      label: "Virada para Lead",
-                      value: `${formatPercent(periodAnalytics.channels.linkedin.firstInterestPct)}%`,
+                      label: "Levantadas de mão",
+                      value: formatNumber(firstInterestCountForChannel(periodAnalytics.channels.linkedin)),
                     },
                     {
-                      label: "MQL agendado",
-                      value: formatNumber(periodAnalytics.channels.linkedin.mqlAgendado),
-                    },
-                    {
-                      label: "Sinais confirmados",
+                      label: "Disparos confirmados",
                       value: formatNumber(periodAnalytics.channels.linkedin.dispatches),
                     },
                     {
-                      label: "Respostas no recorte",
+                      label: "Respostas",
                       value: formatNumber(periodAnalytics.channels.linkedin.replies),
                     },
                   ]}
-                  footer={`Apoio operacional: ${formatNumber(linkedinWorkflowExec7d)} cadências ligadas ao LinkedIn em 7 dias no n8n. Hoje: ${formatNumber(linkedinWorkflowExecToday)} execuções. Saúde atual: ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
+                  bars={[
+                    { label: "Disparos", value: periodAnalytics.channels.linkedin.dispatches },
+                    { label: "Respostas", value: periodAnalytics.channels.linkedin.replies },
+                    { label: "Leads", value: firstInterestCountForChannel(periodAnalytics.channels.linkedin) },
+                  ]}
+                  footer={`Prospects tocados = registros que movimentaram Prospect no período. Disparos confirmados = envios materializados na trilha do canal. Apoio n8n: ${formatNumber(linkedinWorkflowExec7d)} cadências em 7 dias; hoje ${formatNumber(linkedinWorkflowExecToday)} execuções; saúde atual ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
                 />
               </div>
               <div className="mt-3">
@@ -1803,16 +1822,21 @@ function ChannelActivityCard({
   icon: Icon,
   sourceLabel,
   detail,
+  highlight,
   metrics,
+  bars,
   footer,
 }: {
   title: string;
   icon: typeof MessageCircle;
   sourceLabel: string;
   detail: string;
+  highlight: { label: string; value: string };
   metrics: { label: string; value: string }[];
+  bars: { label: string; value: number }[];
   footer: string;
 }) {
+  const maxBarValue = Math.max(...bars.map((item) => item.value), 1);
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
@@ -1826,7 +1850,13 @@ function ChannelActivityCard({
           {sourceLabel}
         </Badge>
       </div>
-      <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+      <div className="mt-3 flex items-start justify-between gap-3">
+        <p className="text-[12px] leading-relaxed text-muted-foreground">{detail}</p>
+        <div className="min-w-[108px] rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-right">
+          <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{highlight.label}</div>
+          <div className="mt-1 text-sm font-semibold text-foreground">{highlight.value}</div>
+        </div>
+      </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {metrics.map((metric) => (
           <div key={`${title}-${metric.label}`} className="rounded-lg border border-border bg-surface px-3 py-2.5">
@@ -1834,6 +1864,22 @@ function ChannelActivityCard({
               {metric.label}
             </div>
             <div className="mt-1 text-sm font-medium text-foreground">{metric.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 space-y-2">
+        {bars.map((bar) => (
+          <div key={`${title}-${bar.label}`}>
+            <div className="flex items-center justify-between gap-2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              <span>{bar.label}</span>
+              <span>{formatNumber(bar.value)}</span>
+            </div>
+            <div className="mt-1 h-2 rounded-full bg-surface">
+              <div
+                className="h-2 rounded-full bg-primary"
+                style={{ width: `${Math.max(6, (bar.value / maxBarValue) * 100)}%` }}
+              />
+            </div>
           </div>
         ))}
       </div>
