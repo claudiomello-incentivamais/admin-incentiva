@@ -113,6 +113,12 @@ export interface PortalOperationAnalytics {
   operationName: string;
   periods: Record<PortalPeriodPreset, PortalPeriodSummary>;
   breakdowns: Record<PortalIcpDimensionId, PortalIcpDimensionAnalytics>;
+  facts: PortalAnalyticsFact[];
+  baseLeads: PortalAnalyticsBaseLead[];
+  dimensionAvailability: Record<PortalIcpDimensionId, boolean>;
+  latestStageMovementAt: string | null;
+  latestDispatchEventAt: string | null;
+  latestReplyAt: string | null;
 }
 
 export interface PortalAnalyticsDashboard {
@@ -130,6 +136,20 @@ export interface PortalIcpDimensionAnalytics {
   id: PortalIcpDimensionId;
   label: string;
   buckets: PortalIcpBucketAnalytics[];
+}
+
+export interface PortalAnalyticsFact {
+  kind: "stage" | "dispatch" | "reply";
+  eventAt: string;
+  stageId: StageId | null;
+  channel: ChannelId | null;
+  dimensions: Record<PortalIcpDimensionId, string | null>;
+}
+
+export interface PortalAnalyticsBaseLead {
+  createdAt: string | null;
+  isUnstarted: boolean;
+  dimensions: Record<PortalIcpDimensionId, string | null>;
 }
 
 type PortalIcpBucketAccumulator = {
@@ -493,6 +513,14 @@ function resolveLeadBreakdownBuckets(
   ) as PortalIcpBucketAccumulator[];
 }
 
+function extractDimensions(baseRow: LeadsBaseRow | null): Record<PortalIcpDimensionId, string | null> {
+  return {
+    segment_cluster: normalizeBucketValue(baseRow?.segment_cluster) || null,
+    company_size_cluster: normalizeBucketValue(baseRow?.company_size_cluster) || null,
+    cargo_cluster: normalizeBucketValue(baseRow?.cargo_cluster) || null,
+  };
+}
+
 function applyStageMovement(
   summary: PortalPeriodSummary,
   stageId: StageId,
@@ -779,6 +807,7 @@ export async function loadPortalAnalytics(params: {
       periods.map((period) => [period, createPeriodSummary(period)]),
     ) as Record<PortalPeriodPreset, PortalPeriodSummary>;
     const breakdowns = buildBreakdowns(periods);
+    const facts: PortalAnalyticsFact[] = [];
 
     const operationBaseMap = baseMaps.get(operation.name) ?? new Map<string, LeadsBaseRow>();
     const operationCompanyMap =
@@ -824,6 +853,7 @@ export async function loadPortalAnalytics(params: {
           extractDispatchChannelFromRawProperties(snapshotRow?.raw_properties) ??
           (baseRow?.status_linkedin && primaryChannel === "linkedin" ? "linkedin" : null);
         const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, baseRow, periods);
+        const dimensions = extractDimensions(baseRow);
         const attributedChannels =
           primaryChannel
             ? [primaryChannel]
@@ -858,6 +888,14 @@ export async function loadPortalAnalytics(params: {
             );
           });
         });
+
+        facts.push({
+          kind: "stage",
+          eventAt: row.last_edited_at,
+          stageId,
+          channel: primaryChannel ?? dispatchChannel ?? channelSignals[0] ?? null,
+          dimensions,
+        });
     });
 
     operationDispatchEvents.forEach((row) => {
@@ -867,7 +905,7 @@ export async function loadPortalAnalytics(params: {
       if (Number.isNaN(eventAt.getTime())) return;
       const leadKey = normalizeLeadKey(row.nome, row.empresa);
       let baseRow = leadKey ? operationBaseMap.get(leadKey) ?? null : null;
-      if (!baseRow) {
+        if (!baseRow) {
         const normalizedCompany = normalizeText(row.empresa);
         const companyRows = normalizedCompany
           ? operationCompanyMap.get(normalizedCompany) ?? []
@@ -877,6 +915,7 @@ export async function loadPortalAnalytics(params: {
         }
       }
       const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, baseRow, periods);
+      const dimensions = extractDimensions(baseRow);
 
       periods.forEach((period) => {
         if (!isWithinPeriod(eventAt, period, now)) return;
@@ -888,11 +927,27 @@ export async function loadPortalAnalytics(params: {
           bucket.periods[period].channels[channel].dispatchSource = "events";
         });
       });
+
+      facts.push({
+        kind: "dispatch",
+        eventAt: row.event_at,
+        stageId: null,
+        channel,
+        dimensions,
+      });
     });
 
-    leadRows
-      .filter((row) => row.operation_name === operation.name && row.last_reply_at)
-      .forEach((row) => {
+    const operationBaseLeads = leadRows
+      .filter((row) => row.operation_name === operation.name)
+      .map((row) => ({
+        createdAt: row.created_at,
+        isUnstarted: !nonBlank(row.status) && !nonBlank(row.estagio),
+        dimensions: extractDimensions(row),
+        row,
+      }));
+
+    operationBaseLeads.forEach(({ row }) => {
+      if (!row.last_reply_at) return;
         const leadKey = normalizeLeadKey(row.nome, row.empresa);
         const primaryChannel =
           inferPrimaryChannel(row) ??
@@ -901,6 +956,7 @@ export async function loadPortalAnalytics(params: {
         const replyAt = new Date(row.last_reply_at);
         if (Number.isNaN(replyAt.getTime())) return;
         const breakdownBuckets = resolveLeadBreakdownBuckets(breakdowns, row, periods);
+        const dimensions = extractDimensions(row);
 
         periods.forEach((period) => {
           if (!isWithinPeriod(replyAt, period, now)) return;
@@ -909,15 +965,62 @@ export async function loadPortalAnalytics(params: {
             bucket.periods[period].channels[primaryChannel].replies += 1;
           });
         });
+
+        facts.push({
+          kind: "reply",
+          eventAt: row.last_reply_at,
+          stageId: null,
+          channel: primaryChannel,
+          dimensions,
+        });
       });
 
     periods.forEach((period) => finalizePeriodSummary(operationPeriods[period]));
+
+    const baseLeads = operationBaseLeads.map(({ createdAt, isUnstarted, dimensions }) => ({
+      createdAt,
+      isUnstarted,
+      dimensions,
+    }));
+
+    const dimensionAvailability = Object.fromEntries(
+      ICP_DIMENSIONS.map(({ id }) => [
+        id,
+        facts.some((fact) => Boolean(fact.dimensions[id])) ||
+          baseLeads.some((lead) => Boolean(lead.dimensions[id])),
+      ]),
+    ) as Record<PortalIcpDimensionId, boolean>;
+
+    const latestStageMovementAt =
+      facts
+        .filter((fact) => fact.kind === "stage")
+        .map((fact) => fact.eventAt)
+        .sort()
+        .at(-1) ?? null;
+    const latestDispatchEventAt =
+      facts
+        .filter((fact) => fact.kind === "dispatch")
+        .map((fact) => fact.eventAt)
+        .sort()
+        .at(-1) ?? null;
+    const latestReplyAt =
+      facts
+        .filter((fact) => fact.kind === "reply")
+        .map((fact) => fact.eventAt)
+        .sort()
+        .at(-1) ?? null;
 
     return {
       operationId: operation.id,
       operationName: operation.name,
       periods: operationPeriods,
       breakdowns: finalizeBreakdowns(breakdowns),
+      facts,
+      baseLeads,
+      dimensionAvailability,
+      latestStageMovementAt,
+      latestDispatchEventAt,
+      latestReplyAt,
     } satisfies PortalOperationAnalytics;
   });
 

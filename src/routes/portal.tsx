@@ -45,7 +45,14 @@ import {
 } from "@/lib/admin-data";
 import { applyPeriodToCockpit } from "@/lib/admin-period";
 import { loadPortalPageBundleServerFn } from "@/lib/admin-portal-rpc";
-import type { PortalIcpDimensionId } from "@/lib/admin-portal-analytics";
+import type {
+  PortalAnalyticsBaseLead,
+  PortalAnalyticsFact,
+  PortalChannelPeriodSummary,
+  PortalIcpDimensionId,
+  PortalPeriodPreset,
+  PortalPeriodSummary,
+} from "@/lib/admin-portal-analytics";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/portal")({
@@ -204,6 +211,280 @@ function formatIcpDimensionLabel(value: PortalIcpDimensionId) {
   return "Cargo";
 }
 
+const ICP_FILTERS: Array<{ id: PortalIcpDimensionId; label: string; allLabel: string }> = [
+  { id: "segment_cluster", label: "Setor", allLabel: "Todos os setores" },
+  { id: "company_size_cluster", label: "Porte", allLabel: "Todos os portes" },
+  { id: "cargo_cluster", label: "Cargo", allLabel: "Todos os cargos" },
+];
+
+function createPortalChannelSummary(channel: PortalChannelPeriodSummary["channel"]): PortalChannelPeriodSummary {
+  return {
+    channel,
+    touched: 0,
+    dispatches: 0,
+    leadInteressado: 0,
+    mqlAgendado: 0,
+    mqlRealizado: 0,
+    negotiation: 0,
+    won: 0,
+    lost: 0,
+    firstInterestPct: 0,
+    scheduledPct: 0,
+    negotiationPct: 0,
+    wonPct: 0,
+    replies: 0,
+    dispatchSource: "none",
+  };
+}
+
+function createPortalPeriodSummary(period: PortalPeriodPreset, label: string): PortalPeriodSummary {
+  return {
+    period,
+    label,
+    stageCounts: {
+      prospecting: 0,
+      "lead-interessado": 0,
+      "mql-agendado": 0,
+      "mql-realizado": 0,
+      negotiation: 0,
+      won: 0,
+      lost: 0,
+    },
+    touched: 0,
+    firstInterestPct: 0,
+    scheduledPct: 0,
+    negotiationPct: 0,
+    wonPct: 0,
+    channels: {
+      email: createPortalChannelSummary("email"),
+      linkedin: createPortalChannelSummary("linkedin"),
+      whatsapp: createPortalChannelSummary("whatsapp"),
+    },
+    attributionFallbackCount: 0,
+    unattributedStageCount: 0,
+    timeline: [],
+  };
+}
+
+function localMidnight(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = parts.find((item) => item.type === "year")?.value ?? "1970";
+  const month = parts.find((item) => item.type === "month")?.value ?? "01";
+  const day = parts.find((item) => item.type === "day")?.value ?? "01";
+  return new Date(`${year}-${month}-${day}T00:00:00-03:00`);
+}
+
+function periodWindow(period: PortalPeriodPreset, now: Date) {
+  const today = localMidnight(now);
+  if (period === "mtd") {
+    return {
+      start: new Date(
+        `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01T00:00:00-03:00`,
+      ),
+      endExclusive: null,
+    };
+  }
+
+  if (period === "prev_month") {
+    const currentMonthStart = new Date(
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-01T00:00:00-03:00`,
+    );
+    const previousMonthDate = new Date(currentMonthStart);
+    previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
+    return {
+      start: new Date(
+        `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, "0")}-01T00:00:00-03:00`,
+      ),
+      endExclusive: currentMonthStart,
+    };
+  }
+
+  const days = period === "7d" ? 6 : 89;
+  return {
+    start: new Date(today.getTime() - days * 24 * 60 * 60 * 1000),
+    endExclusive: null,
+  };
+}
+
+function isWithinPeriod(value: Date, period: PortalPeriodPreset, now: Date) {
+  const { start, endExclusive } = periodWindow(period, now);
+  if (value < start) return false;
+  if (endExclusive && value >= endExclusive) return false;
+  return true;
+}
+
+function localDayLabel(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "n/d";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(date);
+}
+
+function matchesIcpFilters(
+  dimensions: Record<PortalIcpDimensionId, string | null>,
+  filters: Record<PortalIcpDimensionId, string>,
+) {
+  return ICP_FILTERS.every(({ id }) => filters[id] === "all" || dimensions[id] === filters[id]);
+}
+
+function summarizeFactsForPeriod(
+  facts: PortalAnalyticsFact[],
+  period: PortalPeriodPreset,
+  now = new Date(),
+): PortalPeriodSummary {
+  const labels: Record<PortalPeriodPreset, string> = {
+    mtd: "Mês atual",
+    prev_month: "Mês anterior",
+    "7d": "Últimos 7 dias",
+    "90d": "Últimos 90 dias",
+  };
+  const summary = createPortalPeriodSummary(period, labels[period]);
+  const timeline = new Map<string, PortalPeriodSummary["timeline"][number]>();
+
+  facts.forEach((fact) => {
+    const eventDate = new Date(fact.eventAt);
+    if (Number.isNaN(eventDate.getTime()) || !isWithinPeriod(eventDate, period, now)) return;
+
+    if (fact.kind === "dispatch" && fact.channel) {
+      summary.channels[fact.channel].dispatches += 1;
+      summary.channels[fact.channel].dispatchSource = "events";
+      return;
+    }
+
+    if (fact.kind === "reply" && fact.channel) {
+      summary.channels[fact.channel].replies += 1;
+      return;
+    }
+
+    if (fact.kind !== "stage" || !fact.stageId) return;
+
+    summary.stageCounts[fact.stageId] += 1;
+    if (fact.channel) {
+      const channel = summary.channels[fact.channel];
+      if (fact.stageId === "prospecting") channel.touched += 1;
+      if (fact.stageId === "lead-interessado") channel.leadInteressado += 1;
+      if (fact.stageId === "mql-agendado") channel.mqlAgendado += 1;
+      if (fact.stageId === "mql-realizado") channel.mqlRealizado += 1;
+      if (fact.stageId === "negotiation") channel.negotiation += 1;
+      if (fact.stageId === "won") channel.won += 1;
+      if (fact.stageId === "lost") channel.lost += 1;
+    } else {
+      summary.unattributedStageCount += 1;
+    }
+
+    const dayKey = fact.eventAt.slice(0, 10);
+    const existing =
+      timeline.get(dayKey) ??
+      {
+        sortKey: dayKey,
+        label: localDayLabel(fact.eventAt),
+        prospecting: 0,
+        leadInteressado: 0,
+        mqlAgendado: 0,
+        negotiation: 0,
+        won: 0,
+      };
+    if (fact.stageId === "prospecting") existing.prospecting += 1;
+    if (fact.stageId === "lead-interessado") existing.leadInteressado += 1;
+    if (fact.stageId === "mql-agendado") existing.mqlAgendado += 1;
+    if (fact.stageId === "negotiation") existing.negotiation += 1;
+    if (fact.stageId === "won") existing.won += 1;
+    timeline.set(dayKey, existing);
+  });
+
+  summary.touched =
+    summary.stageCounts.prospecting +
+    summary.stageCounts["lead-interessado"] +
+    summary.stageCounts["mql-agendado"] +
+    summary.stageCounts["mql-realizado"] +
+    summary.stageCounts.negotiation +
+    summary.stageCounts.won +
+    summary.stageCounts.lost;
+  summary.firstInterestPct = ratioPct(
+    summary.stageCounts["lead-interessado"],
+    summary.stageCounts.prospecting,
+  );
+  summary.scheduledPct = ratioPct(
+    summary.stageCounts["mql-agendado"],
+    summary.stageCounts["lead-interessado"],
+  );
+  summary.negotiationPct = ratioPct(
+    summary.stageCounts.negotiation,
+    summary.stageCounts["mql-agendado"],
+  );
+  summary.wonPct = ratioPct(summary.stageCounts.won, summary.stageCounts.negotiation);
+  (["email", "linkedin", "whatsapp"] as const).forEach((channelId) => {
+    const channel = summary.channels[channelId];
+    channel.firstInterestPct = ratioPct(channel.leadInteressado, channel.touched);
+    channel.scheduledPct = ratioPct(channel.mqlAgendado, channel.leadInteressado);
+    channel.negotiationPct = ratioPct(channel.negotiation, channel.mqlAgendado);
+    channel.wonPct = ratioPct(channel.won, channel.negotiation);
+  });
+  summary.timeline = [...timeline.values()].sort((a, b) => (a.sortKey ?? "").localeCompare(b.sortKey ?? ""));
+  return summary;
+}
+
+function inferCoverageDaysForFilteredBase(
+  filteredUnstarted: number,
+  overallUnstarted: number,
+  overallCoverageDays: number,
+) {
+  if (overallUnstarted <= 0 || overallCoverageDays <= 0) return 0;
+  return Math.max(0, Math.round((filteredUnstarted / overallUnstarted) * overallCoverageDays));
+}
+
+function formatFreshnessLabel(value: string | null | undefined) {
+  if (!value) return "Sem leitura recente";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sem leitura recente";
+  return date.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function findEvolutionInstanceByRole(
+  instances: Array<{ instanceRole: string; instanceName: string }>,
+  role: "primary" | "standby",
+) {
+  return (
+    instances.find((instance) => instance.instanceRole.toLowerCase() === role) ??
+    instances.find((instance) => instance.instanceRole.toLowerCase().includes(role)) ??
+    null
+  );
+}
+
+function formatEvolutionInstanceHealthLabel(
+  instance:
+    | {
+        instanceName: string;
+        severity: "healthy" | "attention" | "critical" | "insufficient";
+      }
+    | null
+    | undefined,
+) {
+  if (!instance) return "Não materializada";
+  const label =
+    instance.severity === "healthy"
+      ? "saudável"
+      : instance.severity === "attention"
+        ? "em atenção"
+        : instance.severity === "critical"
+          ? "crítica"
+          : "insuficiente";
+  return `${instance.instanceName} · ${label}`;
+}
+
 function PortalPage() {
   const search = Route.useSearch();
   const { session } = useAdminAuth();
@@ -217,8 +498,11 @@ function PortalPage() {
   }, [loaderData]);
 
   const { dashboard, evolution, n8n, analytics, focusOperationId } = bundleData;
-  const [selectedIcpDimension, setSelectedIcpDimension] = useState<"all" | PortalIcpDimensionId>("all");
-  const [selectedIcpValue, setSelectedIcpValue] = useState("all");
+  const [selectedIcpFilters, setSelectedIcpFilters] = useState<Record<PortalIcpDimensionId, string>>({
+    segment_cluster: "all",
+    company_size_cluster: "all",
+    cargo_cluster: "all",
+  });
 
   if (!session || !dashboard || !evolution || !n8n || !analytics) {
     return null;
@@ -310,24 +594,46 @@ function PortalPage() {
   const wonPct = ratioPct(wonTouched, negotiationTouched);
   const portalAnalyticsOperation =
     analytics.operations.find((operation) => operation.operationId === portalOperation.id) ?? null;
-  const selectedIcpBreakdown =
-    selectedIcpDimension !== "all"
-      ? portalAnalyticsOperation?.breakdowns[selectedIcpDimension] ?? null
-      : null;
-  const icpBucketOptions = selectedIcpBreakdown?.buckets ?? [];
-  const selectedIcpBucket =
-    selectedIcpBreakdown && selectedIcpValue !== "all"
-      ? selectedIcpBreakdown.buckets.find((bucket) => bucket.value === selectedIcpValue) ?? null
-      : null;
+  const portalAnalyticsFacts = portalAnalyticsOperation?.facts ?? [];
+  const portalAnalyticsBaseLeads = portalAnalyticsOperation?.baseLeads ?? [];
+  const dimensionAvailability =
+    portalAnalyticsOperation?.dimensionAvailability ?? {
+      segment_cluster: false,
+      company_size_cluster: false,
+      cargo_cluster: false,
+    };
+  const activeIcpFilters = ICP_FILTERS.filter(({ id }) => selectedIcpFilters[id] !== "all");
+  const hasActiveIcpFilters = activeIcpFilters.length > 0;
+  const icpValueOptions = Object.fromEntries(
+    ICP_FILTERS.map(({ id }) => [
+      id,
+      [...new Set(
+        [...portalAnalyticsFacts, ...portalAnalyticsBaseLeads]
+          .map((item) => item.dimensions[id])
+          .filter(Boolean),
+      )].sort((a, b) => String(a).localeCompare(String(b), "pt-BR")),
+    ]),
+  ) as Record<PortalIcpDimensionId, string[]>;
+  const filteredFacts = hasActiveIcpFilters
+    ? portalAnalyticsFacts.filter((fact) => matchesIcpFilters(fact.dimensions, selectedIcpFilters))
+    : portalAnalyticsFacts;
+  const filteredBaseLeads = hasActiveIcpFilters
+    ? portalAnalyticsBaseLeads.filter((lead) => matchesIcpFilters(lead.dimensions, selectedIcpFilters))
+    : portalAnalyticsBaseLeads;
   const periodAnalytics =
-    selectedIcpBucket?.periods[selectedPeriod] ??
-    portalAnalyticsOperation?.periods[selectedPeriod] ??
-    null;
-  const periodScopeLabel = selectedIcpBucket
-    ? `${selectedIcpBreakdown?.label}: ${selectedIcpBucket.label}`
-      : selectedIcpBreakdown
-        ? `${selectedIcpBreakdown.label}: todos`
-        : "Operação inteira";
+    hasActiveIcpFilters
+      ? summarizeFactsForPeriod(filteredFacts, selectedPeriod)
+      : portalAnalyticsOperation?.periods[selectedPeriod] ?? null;
+  const periodScopeLabel = hasActiveIcpFilters
+    ? activeIcpFilters
+        .map(({ id, label }) => `${label}: ${selectedIcpFilters[id]}`)
+        .join(" · ")
+    : "Operação inteira";
+  const latestCommercialEventAt =
+    [portalAnalyticsOperation?.latestStageMovementAt, portalAnalyticsOperation?.latestDispatchEventAt, portalAnalyticsOperation?.latestReplyAt]
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
   const evolutionRow =
     evolution.operations.find((row) => row.operationId === portalOperation.id) ?? null;
   const evolutionInstances = evolution.instances.filter((row) => row.operationId === portalOperation.id);
@@ -419,21 +725,50 @@ function PortalPage() {
   const hasTimelineChartData = chartTimelineData.some((item) =>
     item.prospecting > 0 || item.leadInteressado > 0 || item.mqlAgendado > 0 || item.won > 0,
   );
+  const overallUnstarted =
+    currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value ?? 0;
+  const overallCoverageDays =
+    currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value ?? 0;
+  const filteredUnstarted = hasActiveIcpFilters
+    ? filteredBaseLeads.filter((lead) => lead.isUnstarted).length
+    : overallUnstarted;
+  const filteredCoverageDays = hasActiveIcpFilters
+    ? inferCoverageDaysForFilteredBase(filteredUnstarted, overallUnstarted, overallCoverageDays)
+    : overallCoverageDays;
+  const isMonthCurrentStale =
+    selectedPeriod === "mtd" &&
+    Boolean(periodAnalytics) &&
+    (periodAnalytics.touched === 0 &&
+      periodAnalytics.channels.email.dispatches === 0 &&
+      periodAnalytics.channels.whatsapp.dispatches === 0 &&
+      periodAnalytics.channels.linkedin.dispatches === 0) &&
+    Boolean(latestCommercialEventAt);
   const firstInterestPctDisplay = periodAnalytics?.firstInterestPct ?? firstInterestPct;
   const wonTouchedDisplay = periodAnalytics?.stageCounts.won ?? wonTouched;
+  const primaryEvolutionInstance = findEvolutionInstanceByRole(evolutionInstances, "primary");
+  const standbyEvolutionInstance = findEvolutionInstanceByRole(evolutionInstances, "standby");
 
   useEffect(() => {
-    setSelectedIcpValue("all");
-  }, [selectedIcpDimension, portalOperation.id]);
+    setSelectedIcpFilters({
+      segment_cluster: "all",
+      company_size_cluster: "all",
+      cargo_cluster: "all",
+    });
+  }, [portalOperation.id]);
 
   useEffect(() => {
-    if (selectedIcpDimension === "all") return;
-    if (selectedIcpValue === "all") return;
-    const bucketExists = icpBucketOptions.some((bucket) => bucket.value === selectedIcpValue);
-    if (!bucketExists) {
-      setSelectedIcpValue("all");
-    }
-  }, [icpBucketOptions, selectedIcpDimension, selectedIcpValue]);
+    setSelectedIcpFilters((current) => {
+      let changed = false;
+      const next = { ...current };
+      ICP_FILTERS.forEach(({ id }) => {
+        if (current[id] === "all") return;
+        if (icpValueOptions[id].includes(current[id])) return;
+        next[id] = "all";
+        changed = true;
+      });
+      return changed ? next : current;
+    });
+  }, [icpValueOptions]);
 
   const n8nLiveCard = {
     id: "n8n" as const,
@@ -511,8 +846,8 @@ function PortalPage() {
       evolution.source !== "live" || !evolutionRow
         ? "A leitura viva da Evolution não carregou nesta operação."
         : topEvolutionInstance
-          ? `${topEvolutionInstance.instanceName} está em ${topEvolutionInstance.severity}. Materialização: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. 24h: ${formatNumber(topEvolutionInstance.outbound24h)} envios, ${formatNumber(topEvolutionInstance.inbound24h)} inbound, ${formatNumber(topEvolutionInstance.replyContacts24h)} contatos com resposta, ${formatNumber(topEvolutionInstance.errors24h)} erro(s) e ${formatNumber(topEvolutionInstance.stalled24h)} item(ns) parados. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
-          : `Materialização atual: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
+          ? `Primária: ${formatEvolutionInstanceHealthLabel(primaryEvolutionInstance)}. Standby: ${formatEvolutionInstanceHealthLabel(standbyEvolutionInstance)}. Materialização: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. 24h: ${formatNumber(topEvolutionInstance.outbound24h)} envios, ${formatNumber(topEvolutionInstance.inbound24h)} inbound, ${formatNumber(topEvolutionInstance.replyContacts24h)} contatos com resposta, ${formatNumber(topEvolutionInstance.errors24h)} erro(s) e ${formatNumber(topEvolutionInstance.stalled24h)} item(ns) parados. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
+          : `Primária: ${formatEvolutionInstanceHealthLabel(primaryEvolutionInstance)}. Standby: ${formatEvolutionInstanceHealthLabel(standbyEvolutionInstance)}. Materialização atual: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
     lastSync:
       evolution.source === "live"
         ? evolution.snapshotLabel
@@ -521,7 +856,15 @@ function PortalPage() {
     ctaValue: "24h + 7 dias",
     facts: [
       {
-        label: "Materializadas",
+        label: "Primária",
+        value: formatEvolutionInstanceHealthLabel(primaryEvolutionInstance),
+      },
+      {
+        label: "Standby",
+        value: formatEvolutionInstanceHealthLabel(standbyEvolutionInstance),
+      },
+      {
+        label: "Materialização",
         value: evolutionRow
           ? `${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)}`
           : "Sem leitura",
@@ -529,14 +872,6 @@ function PortalPage() {
       {
         label: "Envios 24h",
         value: evolutionRow ? formatNumber(evolutionRow.outbound24h) : "Sem leitura",
-      },
-      {
-        label: "Inbound 24h",
-        value: topEvolutionInstance ? formatNumber(topEvolutionInstance.inbound24h) : "Sem leitura",
-      },
-      {
-        label: "Instância foco",
-        value: topEvolutionInstance?.instanceName ?? "Sem instância foco",
       },
     ],
     nextStep:
@@ -548,22 +883,7 @@ function PortalPage() {
           ? `Checar ${topEvolutionInstance.instanceName}, webhook e motivo '${topEvolutionInstance.reason}'.`
           : "Sem pressão técnica material agora; acompanhar entrega, reply e erros pela janela técnica.",
   };
-  const runtimePortalCards = [n8nLiveCard, evolutionLiveCard];
-  const primaryOwner =
-    portalOperation.baseCoverage < 60
-      ? "Bruna + Sales Ops"
-      : portalOperation.dataReconciliation < 85
-        ? "Claw + Sales Ops"
-        : "Sales Ops";
-  const primaryRoute =
-    portalOperation.baseCoverage < 60
-      ? "Acionar reposição de base e abrir card de lista/ICP."
-      : portalOperation.dataReconciliation < 85
-        ? "Abrir saneamento de dado antes de cobrar leitura comercial."
-        : "Abrir ação comercial em cima do gargalo dominante do funil.";
-  const executionNote =
-    "O Portal mostra a rota principal de trabalho. O disparo automático para Discord e Trello ainda não está ligado daqui, então esta tela não deveria te fazer escolher entre três ações diferentes.";
-
+  const runtimePortalCards = [evolutionLiveCard];
   return (
     <>
       <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
@@ -590,7 +910,8 @@ function PortalPage() {
             </h1>
             <p className="text-sm text-muted-foreground max-w-3xl">
               Cockpit principal da operação, desenhado para concentrar a leitura client-facing de
-              base, cobertura, conversão, ações executáveis e saúde técnica das integrações.
+              base, cobertura, conversão e saúde do canal principal, sem misturar bastidor
+              administrativo no que deveria ser leitura executiva da conta.
               {isBundleRefreshing ? " Atualizando recorte da operação..." : ""}
             </p>
           </div>
@@ -636,9 +957,9 @@ function PortalPage() {
               </div>
               <h2 className="text-xl font-semibold text-display">{portalOperation.name}</h2>
               <p className="text-sm text-muted-foreground max-w-2xl">
-                Cockpit resumido da operação selecionada, com leitura de base, priorização,
-                links de trabalho e runtime técnico no mesmo lugar, sem te empurrar para telas
-                administrativas para entender a operação.
+                Cockpit resumido da operação selecionada, com leitura de base, priorização e
+                links de trabalho em uma camada só, deixando o detalhe administrativo para a
+                área interna.
               </p>
             </div>
           </div>
@@ -732,49 +1053,6 @@ function PortalPage() {
         <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-display">Como isso vira trabalho real</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Cadência da leitura e rota única para transformar prioridade em trabalho real.
-              </p>
-            </div>
-            <Target className="h-3.5 w-3.5 text-primary" />
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <PortalNarrativeCard
-              label="Atualização técnica"
-              title="n8n + Evolution até 5 min"
-              detail="A saúde técnica desta tela é sincronizada para o Supabase em janelas de até 5 minutos antes de refletir no Portal."
-            />
-            <PortalNarrativeCard
-              label="Atualização comercial"
-              title="Recalcula na carga"
-              detail="Base, conversão e prioridade são recalculadas quando o Portal abre, usando o estado atual disponível em Supabase, Notion e views de governança."
-            />
-            <PortalNarrativeCard
-              label="Responsável agora"
-              title={primaryOwner}
-              detail="Dono sugerido da frente principal desta conta no estado atual da operação."
-            />
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-primary">Próxima ação operacional</div>
-            <div className="mt-1 text-base font-semibold text-display">{primaryRoute}</div>
-            <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-              {actionPlan.headline} A ideia correta aqui é existir uma rota principal de execução,
-              não te obrigar a copiar uma mensagem para um lugar, um card para outro e um terceiro texto para o admin.
-            </p>
-          </div>
-
-          <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-[11px] leading-relaxed text-muted-foreground">
-            {executionNote}
-          </div>
-        </section>
-
-        <section className="surface-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
               <h2 className="text-sm font-semibold text-display">Acessos rápidos da operação</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 Tudo que precisa ser aberto para tocar a conta sem caçar em outras telas.
@@ -832,84 +1110,74 @@ function PortalPage() {
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-sm font-medium text-display">Base e movimento comercial do recorte</div>
               <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-                O bloco abaixo considera a movimentação real do período filtrado para a operação atual, com recorte opcional de ICP para leitura de disparo e conversão.
+                O bloco abaixo considera a movimentação real do período filtrado para a operação atual, com recorte combinável de ICP para leitura de disparo e conversão.
               </p>
               <div className="mt-3 text-[11px] text-muted-foreground">{cadenceView.syncLabel}</div>
-
-              <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-background/70 p-4 lg:grid-cols-[220px,220px,1fr]">
-                <div className="space-y-2">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Recorte ICP
+              <div className="mt-4 grid gap-3 rounded-2xl border border-border bg-background/70 p-4 xl:grid-cols-[220px,220px,220px,1fr]">
+                {ICP_FILTERS.map(({ id, label, allLabel }) => (
+                  <div key={id} className="space-y-2">
+                    <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      {label}
+                    </div>
+                    <Select
+                      value={selectedIcpFilters[id]}
+                      onValueChange={(value) =>
+                        setSelectedIcpFilters((current) => ({ ...current, [id]: value }))
+                      }
+                      disabled={!dimensionAvailability[id] || icpValueOptions[id].length === 0}
+                    >
+                      <SelectTrigger className="h-10 bg-surface border-border text-sm">
+                        <SelectValue placeholder={dimensionAvailability[id] ? `Escolher ${label.toLowerCase()}` : "Indisponível"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">{allLabel}</SelectItem>
+                        {icpValueOptions[id].map((value) => (
+                          <SelectItem key={`${id}-${value}`} value={value}>
+                            {value}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <Select
-                    value={selectedIcpDimension}
-                    onValueChange={(value) =>
-                      setSelectedIcpDimension(value as "all" | PortalIcpDimensionId)
-                    }
-                  >
-                    <SelectTrigger className="h-10 bg-surface border-border text-sm">
-                      <SelectValue placeholder="Escolher recorte" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Operação inteira</SelectItem>
-                      <SelectItem value="segment_cluster">Setor</SelectItem>
-                      <SelectItem value="company_size_cluster">Porte</SelectItem>
-                      <SelectItem value="cargo_cluster">Cargo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                ))}
 
-                <div className="space-y-2">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Valor do recorte
-                  </div>
-                  <Select
-                    value={selectedIcpValue}
-                    onValueChange={setSelectedIcpValue}
-                    disabled={selectedIcpDimension === "all" || icpBucketOptions.length === 0}
-                  >
-                    <SelectTrigger className="h-10 bg-surface border-border text-sm">
-                      <SelectValue
-                        placeholder={
-                          selectedIcpDimension === "all" ? "Sem recorte adicional" : "Escolher valor"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">
-                        {selectedIcpDimension === "all"
-                          ? "Sem recorte adicional"
-                          : `Todos os ${formatIcpDimensionLabel(selectedIcpDimension).toLowerCase()}s`}
-                      </SelectItem>
-                      {icpBucketOptions.map((bucket) => (
-                        <SelectItem key={bucket.value} value={bucket.value}>
-                          {bucket.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-border bg-surface px-4 py-3 text-[12px] leading-relaxed text-muted-foreground xl:col-span-1">
                   <span className="font-medium text-foreground">Escopo atual:</span> {periodScopeLabel}. O
-                  recorte abaixo reaproveita a mesma leitura de período para comparar `disparos`,
-                  `lead`, `MQL`, `negociação` e `cliente ganho` por setor, porte ou cargo.
-                  {selectedIcpDimension !== "all" && icpBucketOptions.length === 0
-                    ? ` Nesta carga, ${formatIcpDimensionLabel(selectedIcpDimension).toLowerCase()} ainda não veio materializado na fonte viva desta operação.`
+                  recorte abaixo reaproveita a mesma leitura de período para comparar disparos,
+                  lead, MQL, negociação e cliente ganho combinando setor, porte e cargo.
+                  {ICP_FILTERS.some(({ id }) => !dimensionAvailability[id])
+                    ? ` Parte do ICP ainda não está materializada na fonte viva desta operação.`
                     : ""}
                 </div>
               </div>
 
+              {isMonthCurrentStale ? (
+                <div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-[12px] leading-relaxed text-amber-700">
+                  O mês atual está zerado porque a trilha histórica desta operação ainda não materializou
+                  movimentação comercial em julho na fonte usada pelo Portal. Última leitura útil:
+                  {" "}
+                  {formatFreshnessLabel(latestCommercialEventAt)}.
+                </div>
+              ) : null}
+
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <PortalMiniMetric
                   label="Não iniciados"
-                  value={currentCockpit.baseMetrics.find((metric) => metric.id === "unstarted")?.value?.toLocaleString("pt-BR") ?? "0"}
-                  detail="Fotografia atual da base, separada da movimentação do recorte."
+                  value={formatNumber(filteredUnstarted)}
+                  detail={
+                    hasActiveIcpFilters
+                      ? "Fotografia atual da base filtrada pelo recorte ICP selecionado."
+                      : "Fotografia atual da base, separada da movimentação do recorte."
+                  }
                 />
                 <PortalMiniMetric
                   label="Cobertura em dias"
-                  value={currentCockpit.baseMetrics.find((metric) => metric.id === "coverage-days")?.value?.toLocaleString("pt-BR") ?? "0"}
-                  detail="Fotografia atual da cobertura, separada da movimentação do recorte."
+                  value={formatNumber(filteredCoverageDays)}
+                  detail={
+                    hasActiveIcpFilters
+                      ? "Estimativa de cobertura da base filtrada, proporcional à régua atual da operação."
+                      : "Fotografia atual da cobertura, separada da movimentação do recorte."
+                  }
                 />
                 <PortalMiniMetric
                   label="Prospects tocados"
@@ -1214,139 +1482,12 @@ function PortalPage() {
         </section>
 
         <section className="surface-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-semibold text-display">Reativação e Social Selling</h2>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Frentes modulares de expansão do Portal, separando o que já é leitura operacional do que ainda depende de maturidade da fonte.
-              </p>
-            </div>
-            <Workflow className="h-3.5 w-3.5 text-primary" />
-          </div>
-
-          <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
-                    <Users className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Reativação / retomada</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Módulo de prospecção para base já trabalhada ou parada.
-                    </div>
-                  </div>
-                </div>
-                <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
-                  V1
-                </Badge>
-              </div>
-
-              <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
-                Esta frente já entra no Portal com leitura técnica própria. A conversão comercial por
-                ICP entra na próxima camada, quando a trilha append-only também marcar a origem da ação
-                como reativação em vez de misturar tudo no outbound principal.
-              </p>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <PortalMiniMetric
-                  label="Workflows ativos"
-                  value={`${formatNumber(reactivationSummary.active)}/${formatNumber(reactivationSummary.total)}`}
-                  detail="Família de reativação materializada hoje na telemetria governada do n8n."
-                />
-                <PortalMiniMetric
-                  label="Execuções 7d"
-                  value={formatNumber(reactivationSummary.exec7d)}
-                  detail="Volume técnico dos workflows de retomada nos últimos 7 dias."
-                />
-                <PortalMiniMetric
-                  label="Erros hoje"
-                  value={formatNumber(reactivationSummary.errorToday)}
-                  detail="Falhas técnicas atuais desta frente dentro do n8n."
-                />
-                <PortalMiniMetric
-                  label="Waiting hoje"
-                  value={formatNumber(reactivationSummary.waitingToday)}
-                  detail="Itens aguardando processamento na família de reativação."
-                />
-              </div>
-
-              <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
-                {reactivationSummary.total > 0
-                  ? topReactivationWorkflow
-                    ? `Workflow foco agora: ${topReactivationWorkflow.workflowName}. Se a gente quiser responder “qual setor, porte ou cargo converte mais na reativação”, o próximo passo estrutural é fazer a trilha de disparos carregar a origem da ação.`
-                    : "A família de reativação já aparece no Portal; o próximo ganho vem da marcação semântica da origem do disparo."
-                  : "Ainda não existe workflow de reativação materializado nesta operação. Quando a frente subir, este bloco já nasce no Portal sem precisar redesenhar a tela."}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
-                    <NotebookPen className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Social Selling / conteúdo</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      Camada progressiva para calendário, produção e ponte conteúdo {">"} outreach.
-                    </div>
-                  </div>
-                </div>
-                <Badge variant="outline" className="h-5 text-[10px] uppercase tracking-[0.16em]">
-                  V2 / V3
-                </Badge>
-              </div>
-
-              <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
-                Aqui eu prefiro separar maturidade técnica de maturidade de produto: a telemetria dos
-                workflows sociais já pode aparecer, mas o dashboard client-facing mais rico só faz
-                sentido quando o calendário editorial e a produção de conteúdo começarem a rodar de
-                verdade.
-              </p>
-
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                <PortalMiniMetric
-                  label="Workflows ativos"
-                  value={`${formatNumber(socialSellingSummary.active)}/${formatNumber(socialSellingSummary.total)}`}
-                  detail="Família `linkedin_social` já visível na fonte governada do n8n."
-                />
-                <PortalMiniMetric
-                  label="Execuções 7d"
-                  value={formatNumber(socialSellingSummary.exec7d)}
-                  detail="Volume técnico recente da camada de social selling."
-                />
-                <PortalMiniMetric
-                  label="Erros hoje"
-                  value={formatNumber(socialSellingSummary.errorToday)}
-                  detail="Falhas técnicas atuais desta frente."
-                />
-                <PortalMiniMetric
-                  label="Waiting hoje"
-                  value={formatNumber(socialSellingSummary.waitingToday)}
-                  detail="Itens aguardando processamento na família social."
-                />
-              </div>
-
-              <div className="mt-3 rounded-xl border border-dashed border-border bg-surface px-3 py-3 text-[11px] leading-relaxed text-muted-foreground">
-                {socialSellingSummary.total > 0
-                  ? topSocialSellingWorkflow
-                    ? `Workflow foco agora: ${topSocialSellingWorkflow.workflowName}. Quando a frente de conteúdo entrar em operação, este módulo passa a somar calendário, produção pendente, publicações e sinais de engajamento sem canibalizar o Notion.`
-                    : "A telemetria social já está pronta para virar módulo dedicado quando a frente de conteúdo começar a operar."
-                  : "A frente de social selling ainda está em prontidão. O Portal já ficou preparado para encaixar calendário editorial, produção e publicação assim que essa camada sair do papel."}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="surface-card p-5">
           <div className="flex items-center justify-between mb-4 gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-display">Saúde técnica da operação</h2>
+              <h2 className="text-sm font-semibold text-display">Saúde do WhatsApp da operação</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Leitura executiva do runtime da operação, em janela técnica própria. Este bloco não
-                segue o filtro comercial de mês atual, mês anterior, 7 dias ou 90 dias.
+                Leitura executiva da Evolution API para acompanhar a operação principal de WhatsApp.
+                Este bloco não segue o filtro comercial de mês atual, mês anterior, 7 dias ou 90 dias.
               </p>
             </div>
             <Badge
@@ -1368,30 +1509,14 @@ function PortalPage() {
                   id: card.id,
                   title: card.title,
                   health: card.health,
-                  mode:
-                    card.modeLabel === "Leitura viva"
-                      ? "live"
-                      : card.id === "n8n" || card.id === "evolution" || card.id === "api4com"
-                        ? "operational"
-                        : card.modeLabel === "Leitura governada"
-                          ? "guarded"
-                          : "snapshot",
-                  headline:
-                    card.id === "n8n"
-                      ? "Execução dos workflows da operação."
-                      : "Canal WhatsApp e entrega da operação.",
-                  detail:
-                    card.id === "n8n"
-                      ? `${card.facts.find((fact) => fact.label === "Erro")?.value ?? "-"} erros e ${card.facts.find((fact) => fact.label === "Waiting")?.value ?? "-"} em waiting no recorte atual.`
-                      : `${card.facts.find((fact) => fact.label === "Instância")?.value ?? "-"} com ${card.facts.find((fact) => fact.label === "Webhook")?.value?.toLowerCase() ?? "webhook monitorado"} e ${card.facts.find((fact) => fact.label === "Fila")?.value?.toLowerCase() ?? "fila monitorada"}.`,
+                  mode: card.mode === "live" ? "live" : "operational",
+                  headline: card.headline,
+                  detail: card.detail,
                   lastSync: card.lastSync,
-                  ctaLabel: "Última leitura",
-                  ctaValue: card.id === "n8n" ? "Runtime de workflows" : "Canal WhatsApp",
+                  ctaLabel: card.ctaLabel,
+                  ctaValue: card.ctaValue,
                   facts: card.facts.slice(0, 4),
-                  nextStep:
-                    card.id === "n8n"
-                      ? "Abrir workflow crítico se erro ou waiting subir."
-                      : "Checar instância e webhook se o canal sair de saudável.",
+                  nextStep: card.nextStep,
                   availabilityLabel: undefined,
                 }}
               />
