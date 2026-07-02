@@ -197,7 +197,7 @@ function buildRhythmDailyNote(
       ? reasons.join(" · ")
       : "sem mudança clara de canal materializada na trilha atual";
 
-  return `Entre ${previous.label} e ${current.label}, o volume de novos iniciados ${direction} de ${formatNumber(previous.prospecting)} para ${formatNumber(current.prospecting)}. Principal leitura agora: ${reasonText}.`;
+  return `Entre ${previous.label} e ${current.label}, a leitura atual do Portal mostra que os novos iniciados ${direction} de ${formatNumber(previous.prospecting)} para ${formatNumber(current.prospecting)}. Na trilha atual, ${reasonText}.`;
 }
 
 function formatDispatchSourceLabel(value: "events" | "fallback" | "none") {
@@ -624,6 +624,37 @@ function formatEvolutionSeverityLabel(
   if (severity === "critical") return "Crítica";
   if (severity === "insufficient") return "Insuficiente";
   return "Não materializada";
+}
+
+function formatOperationHealthLabelPt(
+  health: "healthy" | "monitor" | "risk" | "critical" | null | undefined,
+) {
+  if (health === "healthy") return "Saudável";
+  if (health === "monitor") return "Monitoramento";
+  if (health === "risk") return "Em risco";
+  if (health === "critical") return "Crítica";
+  return "Sem leitura";
+}
+
+function formatEvolutionOverallDetail(
+  row:
+    | {
+        materializedInstanceCount: number;
+        expectedInstanceCount: number;
+        errors24h: number;
+        stalled24h: number;
+      }
+    | null
+    | undefined,
+) {
+  if (!row) return "Sem snapshot vivo para resumir a operação.";
+  if (row.expectedInstanceCount > row.materializedInstanceCount) {
+    return `${formatNumber(row.materializedInstanceCount)}/${formatNumber(row.expectedInstanceCount)} instâncias materializadas.`;
+  }
+  if (row.errors24h > 0 || row.stalled24h > 0) {
+    return `${formatNumber(row.errors24h)} erro(s) e ${formatNumber(row.stalled24h)} fila(s) nas últimas 24h.`;
+  }
+  return "Primário e standby visíveis, sem ruído crítico no recorte.";
 }
 
 function evolutionSeverityClasses(
@@ -1703,33 +1734,46 @@ function PortalPage() {
                     <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
                       <MessageCircle className="h-3.5 w-3.5" />
                     </div>
-                    <div className="text-sm font-medium text-foreground">Evolution API</div>
-                    <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
-                      {evolution.source === "live" ? "live" : "snapshot"}
-                    </Badge>
+                    <div className="text-sm font-medium text-foreground">Saúde WhatsApp</div>
                   </div>
                   <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
-                    Leitura visual das instâncias da operação, sem excesso de texto técnico.
+                    Leitura executiva do número primário, do standby e da condição geral da operação.
                   </p>
                 </div>
                 <Badge
                   variant="outline"
                   className={cn("text-[10px] uppercase tracking-[0.16em] h-5", statusMeta[evolutionHealth].color)}
                 >
-                  {statusMeta[evolutionHealth].label}
+                  Geral · {formatOperationHealthLabelPt(evolutionHealth)}
                 </Badge>
               </div>
 
               <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <EvolutionHealthTile
-                  label="Primária"
-                  instanceName={primaryEvolutionInstance?.instanceName ?? "Não materializada"}
+                  label="Primário"
+                  title={formatEvolutionSeverityLabel(primaryEvolutionInstance?.severity ?? null)}
+                  detail={primaryEvolutionInstance?.instanceName ?? "Não materializada"}
                   severity={primaryEvolutionInstance?.severity ?? null}
                 />
                 <EvolutionHealthTile
                   label="Standby"
-                  instanceName={standbyEvolutionInstance?.instanceName ?? "Não materializada"}
+                  title={formatEvolutionSeverityLabel(standbyEvolutionInstance?.severity ?? null)}
+                  detail={standbyEvolutionInstance?.instanceName ?? "Não materializada"}
                   severity={standbyEvolutionInstance?.severity ?? null}
+                />
+                <EvolutionHealthTile
+                  label="Geral"
+                  title={formatOperationHealthLabelPt(evolutionHealth)}
+                  detail={formatEvolutionOverallDetail(evolutionRow)}
+                  severity={
+                    evolutionHealth === "healthy"
+                      ? "healthy"
+                      : evolutionHealth === "monitor"
+                        ? "attention"
+                        : evolutionHealth === "risk"
+                          ? "critical"
+                          : "critical"
+                  }
                 />
                 <PortalMiniMetric
                   label="Materialização"
@@ -1756,7 +1800,9 @@ function PortalPage() {
                   <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
                     Janela técnica
                   </div>
-                  <div className="mt-1 text-sm font-medium text-foreground">24h + 7 dias</div>
+                  <div className="mt-1 text-sm font-medium text-foreground">
+                    {evolution.source === "live" ? "Snapshot vivo" : "Snapshot de contingência"}
+                  </div>
                   <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                     {evolution.source === "live"
                       ? evolution.snapshotLabel
@@ -1834,11 +1880,13 @@ function PortalMiniMetric({
 
 function EvolutionHealthTile({
   label,
-  instanceName,
+  title,
+  detail,
   severity,
 }: {
   label: string;
-  instanceName: string;
+  title: string;
+  detail?: string;
   severity: "healthy" | "attention" | "critical" | "insufficient" | null;
 }) {
   return (
@@ -1849,7 +1897,8 @@ function EvolutionHealthTile({
           {formatEvolutionSeverityLabel(severity)}
         </Badge>
       </div>
-      <div className="mt-2 text-sm font-medium text-foreground">{instanceName}</div>
+      <div className="mt-2 text-sm font-medium text-foreground">{title}</div>
+      {detail ? <div className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{detail}</div> : null}
     </div>
   );
 }

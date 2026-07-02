@@ -38,10 +38,39 @@ create unique index if not exists portal_dispatch_events_idempotency_idx
   where idempotency_key is not null;
 
 create or replace view public.portal_dispatch_events_v1 as
+with ranked as (
+  select
+    operation_name,
+    page_id,
+    coalesce(lead_key, page_id) as lead_key,
+    nome,
+    empresa,
+    channel,
+    idempotency_key,
+    event_type,
+    workflow_name,
+    execution_id,
+    provider_message_id,
+    event_at,
+    metadata,
+    row_number() over (
+      partition by
+        operation_name,
+        coalesce(page_id, ''),
+        coalesce(nome, ''),
+        coalesce(empresa, ''),
+        channel,
+        event_type,
+        event_at,
+        coalesce(metadata->>'branch', '')
+      order by created_at desc, id desc
+    ) as dedupe_rank
+  from public.portal_dispatch_events
+)
 select
   operation_name,
   page_id,
-  coalesce(lead_key, page_id) as lead_key,
+  lead_key,
   nome,
   empresa,
   channel,
@@ -52,7 +81,9 @@ select
   provider_message_id,
   event_at,
   metadata
-from public.portal_dispatch_events;
+from ranked
+where coalesce(metadata->>'branch', '') <> 'manual_backfill_operacional'
+   or dedupe_rank = 1;
 
 create or replace function public.portal_dispatch_event_ingest_v1(
   p_operation_name text,
