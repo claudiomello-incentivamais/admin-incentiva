@@ -283,7 +283,7 @@ function summarizeWorkflowSet(
     waiting7d: number;
   }>,
 ) {
-  return workflows.reduce(
+  const summary = workflows.reduce(
     (summary, workflow) => {
       summary.total += 1;
       summary.active += workflow.active ? 1 : 0;
@@ -306,6 +306,18 @@ function summarizeWorkflowSet(
       waiting7d: 0,
     },
   );
+
+  const health =
+    summary.errorToday > 0 || summary.error7d > 0
+      ? "risk"
+      : summary.total === 0 || summary.active === 0 || summary.waitingToday > 0 || summary.waiting7d > 0
+        ? "monitor"
+        : "healthy";
+
+  return {
+    ...summary,
+    health,
+  };
 }
 
 function formatPipelineStageLabel(stageId: string) {
