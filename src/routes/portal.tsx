@@ -638,6 +638,12 @@ function formatEvolutionSeverityLabel(
   return "Não materializada";
 }
 
+function resolveStatusMeta(
+  health: "healthy" | "monitor" | "risk" | "critical" | null | undefined,
+) {
+  return statusMeta[health ?? "monitor"] ?? statusMeta.monitor;
+}
+
 function formatOperationHealthLabelPt(
   health: "healthy" | "monitor" | "risk" | "critical" | null | undefined,
 ) {
@@ -1195,12 +1201,9 @@ function PortalPage() {
                 </Badge>
                 <Badge
                   variant="outline"
-                  className={cn(
-                    "text-[10px] uppercase tracking-[0.16em] h-5",
-                    statusMeta[portalOperation.health].color,
-                  )}
+                  className={cn("text-[10px] uppercase tracking-[0.16em] h-5", resolveStatusMeta(portalOperation.health).color)}
                 >
-                  {statusMeta[portalOperation.health].label}
+                  {resolveStatusMeta(portalOperation.health).label}
                 </Badge>
               </div>
               <h2 className="text-xl font-semibold text-display">{portalOperation.name}</h2>
@@ -1301,7 +1304,7 @@ function PortalPage() {
             />
             <PortalNarrativeCard
               label="Saúde operacional"
-              title={statusMeta[reactivationSummary.health].label}
+              title={resolveStatusMeta(reactivationSummary.health).label}
               detail={
                 topReactivationWorkflow
                   ? `${topReactivationWorkflow.workflowName} é hoje o principal workflow para checagem, com ${formatNumber(topReactivationWorkflow.exec7d)} execuções em 7 dias.`
@@ -1734,7 +1737,7 @@ function PortalPage() {
                     { label: "Respostas", value: periodAnalytics.channels.linkedin.replies },
                     { label: "Leads", value: firstInterestCountForChannel(periodAnalytics.channels.linkedin) },
                   ]}
-                  footer={`Prospects tocados = registros que movimentaram Prospect no período. Disparos confirmados = envios materializados na trilha do canal. Apoio n8n: ${formatNumber(linkedinWorkflowExec7d)} cadências em 7 dias; hoje ${formatNumber(linkedinWorkflowExecToday)} execuções; saúde atual ${linkedinChannel ? statusMeta[linkedinChannel.health].label : "n/d"}.`}
+                  footer={`Prospects tocados = registros que movimentaram Prospect no período. Disparos confirmados = envios materializados na trilha do canal. Apoio n8n: ${formatNumber(linkedinWorkflowExec7d)} cadências em 7 dias; hoje ${formatNumber(linkedinWorkflowExecToday)} execuções; saúde atual ${linkedinChannel ? resolveStatusMeta(linkedinChannel.health).label : "n/d"}.`}
                 />
               </div>
               <div className="mt-3">
@@ -1858,12 +1861,9 @@ function PortalPage() {
             </div>
             <Badge
               variant="outline"
-              className={cn(
-                "text-[10px] uppercase tracking-[0.16em] h-5",
-                statusMeta[portalOperation.health].color,
-              )}
+              className={cn("text-[10px] uppercase tracking-[0.16em] h-5", resolveStatusMeta(portalOperation.health).color)}
             >
-              {statusMeta[portalOperation.health].label}
+              {resolveStatusMeta(portalOperation.health).label}
             </Badge>
           </div>
 
@@ -1883,7 +1883,7 @@ function PortalPage() {
                 </div>
                 <Badge
                   variant="outline"
-                  className={cn("text-[10px] uppercase tracking-[0.16em] h-5", statusMeta[evolutionHealth].color)}
+                  className={cn("text-[10px] uppercase tracking-[0.16em] h-5", resolveStatusMeta(evolutionHealth).color)}
                 >
                   Geral · {formatOperationHealthLabelPt(evolutionHealth)}
                 </Badge>
@@ -2240,7 +2240,7 @@ function LiveSourceCard({
     availabilityLabel?: string;
   };
 }) {
-  const meta = statusMeta[card.health];
+  const meta = resolveStatusMeta(card.health);
   const Icon =
     card.id === "supabase"
       ? Database
