@@ -15,6 +15,7 @@ import {
   PhoneCall,
   ServerCog,
   Target,
+  TimerReset,
   TrendingUp,
   Users,
   Workflow,
