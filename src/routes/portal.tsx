@@ -86,6 +86,15 @@ function formatStageConversionValue(numerator: number, denominator: number) {
   return `${formatPercent(ratioPct(numerator, denominator))}%`;
 }
 
+function firstInterestCountForSummary(summary: PortalPeriodSummary) {
+  return Math.max(
+    summary.stageCounts["lead-interessado"],
+    summary.channels.email.replies +
+      summary.channels.linkedin.replies +
+      summary.channels.whatsapp.replies,
+  );
+}
+
 function formatDispatchSourceLabel(value: "events" | "fallback" | "none") {
   if (value === "events") return "eventos";
   if (value === "fallback") return "fallback";
@@ -421,13 +430,11 @@ function summarizeFactsForPeriod(
     summary.stageCounts.negotiation +
     summary.stageCounts.won +
     summary.stageCounts.lost;
-  summary.firstInterestPct = ratioPct(
-    summary.stageCounts["lead-interessado"],
-    summary.stageCounts.prospecting,
-  );
+  const firstInterestCount = firstInterestCountForSummary(summary);
+  summary.firstInterestPct = ratioPct(firstInterestCount, summary.stageCounts.prospecting);
   summary.scheduledPct = ratioPct(
     summary.stageCounts["mql-agendado"],
-    summary.stageCounts["lead-interessado"],
+    firstInterestCount,
   );
   summary.negotiationPct = ratioPct(
     summary.stageCounts.negotiation,
@@ -436,8 +443,9 @@ function summarizeFactsForPeriod(
   summary.wonPct = ratioPct(summary.stageCounts.won, summary.stageCounts.negotiation);
   (["email", "linkedin", "whatsapp"] as const).forEach((channelId) => {
     const channel = summary.channels[channelId];
-    channel.firstInterestPct = ratioPct(channel.leadInteressado, channel.touched);
-    channel.scheduledPct = ratioPct(channel.mqlAgendado, channel.leadInteressado);
+    const channelFirstInterestCount = Math.max(channel.leadInteressado, channel.replies);
+    channel.firstInterestPct = ratioPct(channelFirstInterestCount, channel.touched);
+    channel.scheduledPct = ratioPct(channel.mqlAgendado, channelFirstInterestCount);
     channel.negotiationPct = ratioPct(channel.negotiation, channel.mqlAgendado);
     channel.wonPct = ratioPct(channel.won, channel.negotiation);
   });
@@ -496,6 +504,25 @@ function formatEvolutionInstanceHealthLabel(
           ? "crítica"
           : "insuficiente";
   return `${instance.instanceName} · ${label}`;
+}
+
+function formatEvolutionSeverityLabel(
+  severity: "healthy" | "attention" | "critical" | "insufficient" | null | undefined,
+) {
+  if (severity === "healthy") return "Saudável";
+  if (severity === "attention") return "Atenção";
+  if (severity === "critical") return "Crítica";
+  if (severity === "insufficient") return "Insuficiente";
+  return "Não materializada";
+}
+
+function evolutionSeverityClasses(
+  severity: "healthy" | "attention" | "critical" | "insufficient" | null | undefined,
+) {
+  if (severity === "healthy") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-700";
+  if (severity === "attention") return "border-amber-500/25 bg-amber-500/10 text-amber-700";
+  if (severity === "critical") return "border-rose-500/25 bg-rose-500/10 text-rose-700";
+  return "border-slate-500/20 bg-slate-500/10 text-slate-700";
 }
 
 function PortalPage() {
@@ -837,66 +864,27 @@ function PortalPage() {
           ? `Abrir ${topN8nWorkflow.workflowName} e tratar ${topN8nWorkflow.errorToday > 0 ? "erro" : "waiting"} com base na última mensagem registrada.`
           : `Sem erro material agora; acompanhar ${formatNumber(inactiveN8nWorkflowCount)} workflow(s) inativo(s) e revisar se o total ${formatNumber(n8nOperation.workflowCount)} continua coerente com a régua core desta operação.`,
   };
-  const evolutionLiveCard = {
-    id: "evolution" as const,
-    title: "Evolution API",
-    health:
-      evolution.source !== "live"
-        ? ("monitor" as const)
-        : evolutionRow && evolutionRow.criticalInstances > 0
-          ? ("risk" as const)
-          : evolutionRow && (
-              evolutionRow.missingInstanceCount > 0 ||
-              evolutionRow.attentionInstances > 0 ||
-              evolutionRow.errors24h > 0 ||
-              evolutionRow.stalled24h > 0
-            )
-            ? ("monitor" as const)
-            : ("healthy" as const),
-    mode: (evolution.source === "live" ? "live" : "snapshot") as "live" | "snapshot",
-    headline: "Telemetria técnica própria da Evolution, em janela operacional de 24h e 7 dias.",
-    detail:
-      evolution.source !== "live" || !evolutionRow
-        ? "A leitura viva da Evolution não carregou nesta operação."
-        : topEvolutionInstance
-          ? `Primária: ${formatEvolutionInstanceHealthLabel(primaryEvolutionInstance)}. Standby: ${formatEvolutionInstanceHealthLabel(standbyEvolutionInstance)}. Materialização: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. 24h: ${formatNumber(topEvolutionInstance.outbound24h)} envios, ${formatNumber(topEvolutionInstance.inbound24h)} inbound, ${formatNumber(topEvolutionInstance.replyContacts24h)} contatos com resposta, ${formatNumber(topEvolutionInstance.errors24h)} erro(s) e ${formatNumber(topEvolutionInstance.stalled24h)} item(ns) parados. ${trimDetail(topEvolutionInstance.reason, "Sem motivo consolidado.")}${topEvolutionInstance.spikeReason ? ` Spike: ${trimDetail(topEvolutionInstance.spikeReason, "")}` : ""}`
-          : `Primária: ${formatEvolutionInstanceHealthLabel(primaryEvolutionInstance)}. Standby: ${formatEvolutionInstanceHealthLabel(standbyEvolutionInstance)}. Materialização atual: ${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)} instâncias. Últimas 24h com ${formatNumber(evolutionRow.outbound24h)} envios, ${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erro(s).`,
-    lastSync:
-      evolution.source === "live"
-        ? evolution.snapshotLabel
-        : "A seção técnica da Evolution está em fallback e não deve ser usada como verdade operacional.",
-    ctaLabel: "Janela técnica",
-    ctaValue: "24h + 7 dias",
-    facts: [
-      {
-        label: "Primária",
-        value: formatEvolutionInstanceHealthLabel(primaryEvolutionInstance),
-      },
-      {
-        label: "Standby",
-        value: formatEvolutionInstanceHealthLabel(standbyEvolutionInstance),
-      },
-      {
-        label: "Materialização",
-        value: evolutionRow
-          ? `${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)}`
-          : "Sem leitura",
-      },
-      {
-        label: "Envios 24h",
-        value: evolutionRow ? formatNumber(evolutionRow.outbound24h) : "Sem leitura",
-      },
-    ],
-    nextStep:
-      evolution.source !== "live" || !evolutionRow
-        ? "Restabelecer a telemetria viva da Evolution antes de usar este bloco para decisão."
-        : evolutionRow.missingInstanceCount > 0
-          ? `Materializar ${formatNumber(evolutionRow.missingInstanceCount)} instância(s) esperada(s) no card antes de tratar esta leitura como fotografia completa da operação.`
+  const evolutionHealth =
+    evolution.source !== "live"
+      ? ("monitor" as const)
+      : evolutionRow && evolutionRow.criticalInstances > 0
+        ? ("risk" as const)
+        : evolutionRow && (
+            evolutionRow.missingInstanceCount > 0 ||
+            evolutionRow.attentionInstances > 0 ||
+            evolutionRow.errors24h > 0 ||
+            evolutionRow.stalled24h > 0
+          )
+          ? ("monitor" as const)
+          : ("healthy" as const);
+  const evolutionNextStep =
+    evolution.source !== "live" || !evolutionRow
+      ? "Restabelecer a telemetria viva da Evolution antes de usar este bloco para decisão."
+      : evolutionRow.missingInstanceCount > 0
+        ? `Materializar ${formatNumber(evolutionRow.missingInstanceCount)} instância(s) esperada(s) para a leitura ficar completa.`
         : topEvolutionInstance && topEvolutionInstance.severity !== "healthy"
-          ? `Checar ${topEvolutionInstance.instanceName}, webhook e motivo '${topEvolutionInstance.reason}'.`
-          : "Sem pressão técnica material agora; acompanhar entrega, reply e erros pela janela técnica.",
-  };
-  const runtimePortalCards = [evolutionLiveCard];
+          ? `Checar ${topEvolutionInstance.instanceName} e o motivo '${trimDetail(topEvolutionInstance.reason, "sem motivo consolidado", 90)}'.`
+          : "Sem pressão técnica material agora; acompanhar reply, erros e entrega pela janela técnica.";
   return (
     <>
       <Topbar breadcrumb={["Console Incentiva", "Portal"]} />
@@ -1247,18 +1235,18 @@ function PortalPage() {
               <PortalMiniMetric
                 label="Prospect -> Lead"
                 value={formatStageConversionValue(
-                  periodAnalytics.stageCounts["lead-interessado"],
+                  firstInterestCountForSummary(periodAnalytics),
                   periodAnalytics.stageCounts.prospecting,
                 )}
-                detail={`${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads sobre ${formatNumber(periodAnalytics.stageCounts.prospecting)} prospects tocados no período.`}
+                detail={`${formatNumber(firstInterestCountForSummary(periodAnalytics))} sinais de primeiro interesse sobre ${formatNumber(periodAnalytics.stageCounts.prospecting)} prospects tocados no período. Considera resposta materializada mesmo quando o lead depois vira perdido.`}
               />
               <PortalMiniMetric
                 label="Lead -> MQL agendado"
                 value={formatStageConversionValue(
                   periodAnalytics.stageCounts["mql-agendado"],
-                  periodAnalytics.stageCounts["lead-interessado"],
+                  firstInterestCountForSummary(periodAnalytics),
                 )}
-                detail={`${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} MQLs agendados sobre ${formatNumber(periodAnalytics.stageCounts["lead-interessado"])} leads no período.`}
+                detail={`${formatNumber(periodAnalytics.stageCounts["mql-agendado"])} MQLs agendados sobre ${formatNumber(firstInterestCountForSummary(periodAnalytics))} sinais de primeiro interesse no período.`}
               />
               <PortalMiniMetric
                 label="MQL agendado -> Negociação"
@@ -1515,25 +1503,81 @@ function PortalPage() {
           </div>
 
           <div className="grid gap-4">
-            {runtimePortalCards.map((card) => (
-              <LiveSourceCard
-                key={card.id}
-                card={{
-                  id: card.id,
-                  title: card.title,
-                  health: card.health,
-                  mode: card.mode === "live" ? "live" : "operational",
-                  headline: card.headline,
-                  detail: card.detail,
-                  lastSync: card.lastSync,
-                  ctaLabel: card.ctaLabel,
-                  ctaValue: card.ctaValue,
-                  facts: card.facts.slice(0, 4),
-                  nextStep: card.nextStep,
-                  availabilityLabel: undefined,
-                }}
-              />
-            ))}
+            <div className="rounded-2xl border border-border bg-surface p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-2 text-primary">
+                      <MessageCircle className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="text-sm font-medium text-foreground">Evolution API</div>
+                    <Badge variant="secondary" className="text-[10px] uppercase tracking-[0.16em] h-5">
+                      {evolution.source === "live" ? "live" : "snapshot"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+                    Leitura visual das instâncias da operação, sem excesso de texto técnico.
+                  </p>
+                </div>
+                <Badge
+                  variant="outline"
+                  className={cn("text-[10px] uppercase tracking-[0.16em] h-5", statusMeta[evolutionHealth].color)}
+                >
+                  {statusMeta[evolutionHealth].label}
+                </Badge>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <EvolutionHealthTile
+                  label="Primária"
+                  instanceName={primaryEvolutionInstance?.instanceName ?? "Não materializada"}
+                  severity={primaryEvolutionInstance?.severity ?? null}
+                />
+                <EvolutionHealthTile
+                  label="Standby"
+                  instanceName={standbyEvolutionInstance?.instanceName ?? "Não materializada"}
+                  severity={standbyEvolutionInstance?.severity ?? null}
+                />
+                <PortalMiniMetric
+                  label="Materialização"
+                  value={
+                    evolutionRow
+                      ? `${formatNumber(evolutionRow.materializedInstanceCount)}/${formatNumber(evolutionRow.expectedInstanceCount)}`
+                      : "Sem leitura"
+                  }
+                  detail="Instâncias esperadas versus instâncias que já apareceram no snapshot vivo."
+                />
+                <PortalMiniMetric
+                  label="Envios 24h"
+                  value={evolutionRow ? formatNumber(evolutionRow.outbound24h) : "Sem leitura"}
+                  detail={
+                    evolutionRow
+                      ? `${formatNumber(evolutionRow.replies24h)} respostas e ${formatNumber(evolutionRow.errors24h)} erros nas últimas 24h.`
+                      : "Sem snapshot vivo da Evolution para esta operação."
+                  }
+                />
+              </div>
+
+              <div className="mt-4 grid gap-3 xl:grid-cols-2">
+                <div className="rounded-xl border border-border bg-card px-3 py-3">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Janela técnica
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-foreground">24h + 7 dias</div>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    {evolution.source === "live"
+                      ? evolution.snapshotLabel
+                      : "A leitura viva não carregou; usar este bloco apenas como contingência."}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-primary/15 bg-primary/5 px-3 py-3">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                    Ação agora
+                  </div>
+                  <div className="mt-1 text-[12px] leading-relaxed text-foreground">{evolutionNextStep}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
@@ -1591,6 +1635,28 @@ function PortalMiniMetric({
       <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
       <div className="mt-1 text-sm font-medium text-foreground">{value}</div>
       <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{detail}</p>
+    </div>
+  );
+}
+
+function EvolutionHealthTile({
+  label,
+  instanceName,
+  severity,
+}: {
+  label: string;
+  instanceName: string;
+  severity: "healthy" | "attention" | "critical" | "insufficient" | null;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{label}</div>
+        <Badge variant="outline" className={cn("h-5 text-[10px] uppercase tracking-[0.16em]", evolutionSeverityClasses(severity))}>
+          {formatEvolutionSeverityLabel(severity)}
+        </Badge>
+      </div>
+      <div className="mt-2 text-sm font-medium text-foreground">{instanceName}</div>
     </div>
   );
 }

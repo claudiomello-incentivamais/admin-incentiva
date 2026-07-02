@@ -51,6 +51,12 @@ type OperationalLeadRow = {
   "Status E-mail"?: string | null;
   "Status LinkedIn"?: string | null;
   Status_wpp?: string | null;
+  last_reply_at?: string | null;
+  negative_signal_count?: number | string | null;
+  positive_signal_count?: number | string | null;
+  last_qualification_signal?: string | null;
+  last_objection_category?: string | null;
+  linkedin_last_inbound_at?: string | null;
 };
 
 type NotionCanonicalRow = {
@@ -588,12 +594,51 @@ function inferOperationalDispatchChannel(
 ): ChannelId | null {
   const explicitRawChannel = mapRawChannel(rawRow?.Canal);
   if (explicitRawChannel) return explicitRawChannel;
+
+  const operationalStatusChannel =
+    mapRawChannel(rawRow?.Status) ??
+    (nonBlank(rawRow?.Status_wpp) ? "whatsapp" : null) ??
+    (nonBlank(rawRow?.["Status LinkedIn"]) ? "linkedin" : null) ??
+    (nonBlank(rawRow?.["Status E-mail"]) ? "email" : null);
+  if (operationalStatusChannel) return operationalStatusChannel;
+
   const baseChannel = baseRow ? inferPrimaryChannel(baseRow) : null;
   if (baseChannel) return baseChannel;
-  if (nonBlank(rawRow?.["Status E-mail"])) return "email";
-  if (nonBlank(rawRow?.["Status LinkedIn"])) return "linkedin";
-  if (nonBlank(rawRow?.Status_wpp)) return "whatsapp";
   return null;
+}
+
+function toNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const normalized = value.replace(",", ".").trim();
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function inferOperationalFirstInterestAt(
+  baseRow: LeadsBaseRow | null,
+  rawRow: OperationalLeadRow | null,
+) {
+  return (
+    rawRow?.last_reply_at ??
+    baseRow?.last_reply_at ??
+    rawRow?.linkedin_last_inbound_at ??
+    null
+  );
+}
+
+function hasOperationalInterestSignal(
+  baseRow: LeadsBaseRow | null,
+  rawRow: OperationalLeadRow | null,
+) {
+  if (inferOperationalFirstInterestAt(baseRow, rawRow)) return true;
+  if (toNumber(rawRow?.positive_signal_count) > 0) return true;
+  if (toNumber(rawRow?.negative_signal_count) > 0) return true;
+  if (nonBlank(rawRow?.last_qualification_signal)) return true;
+  if (nonBlank(rawRow?.last_objection_category)) return true;
+  return false;
 }
 
 function formatBucketLabel(dimensionId: PortalIcpDimensionId, value: string) {
@@ -813,13 +858,17 @@ function finalizePeriodSummary(summary: PortalPeriodSummary) {
     summary.stageCounts.won +
     summary.stageCounts.lost;
 
-  summary.firstInterestPct = ratioPct(
+  const firstInterestCount = Math.max(
     summary.stageCounts["lead-interessado"],
-    summary.stageCounts.prospecting,
+    summary.channels.email.replies +
+      summary.channels.linkedin.replies +
+      summary.channels.whatsapp.replies,
   );
+
+  summary.firstInterestPct = ratioPct(firstInterestCount, summary.stageCounts.prospecting);
   summary.scheduledPct = ratioPct(
     summary.stageCounts["mql-agendado"],
-    summary.stageCounts["lead-interessado"],
+    firstInterestCount,
   );
   summary.negotiationPct = ratioPct(
     summary.stageCounts.negotiation,
@@ -829,8 +878,9 @@ function finalizePeriodSummary(summary: PortalPeriodSummary) {
 
   (["email", "linkedin", "whatsapp"] as ChannelId[]).forEach((channelId) => {
     const channel = summary.channels[channelId];
-    channel.firstInterestPct = ratioPct(channel.leadInteressado, channel.touched);
-    channel.scheduledPct = ratioPct(channel.mqlAgendado, channel.leadInteressado);
+    const channelFirstInterestCount = Math.max(channel.leadInteressado, channel.replies);
+    channel.firstInterestPct = ratioPct(channelFirstInterestCount, channel.touched);
+    channel.scheduledPct = ratioPct(channel.mqlAgendado, channelFirstInterestCount);
     channel.negotiationPct = ratioPct(channel.negotiation, channel.mqlAgendado);
     channel.wonPct = ratioPct(channel.won, channel.negotiation);
   });
@@ -897,7 +947,7 @@ export async function loadPortalAnalytics(params: {
       const rows = await fetchAllRowsFromSourceTable<OperationalLeadRow>(
         config,
         sourceTable,
-        'id,"Setor","Tecnologia","Funcionários","Cargo","Data do Envio","Data de Início","Status","Estágio","Canal","Status E-mail","Status LinkedIn","Status_wpp"',
+        'id,"Setor","Tecnologia","Funcionários","Cargo","Data do Envio","Data de Início","Status","Estágio","Canal","Status E-mail","Status LinkedIn","Status_wpp","last_reply_at","negative_signal_count","positive_signal_count","last_qualification_signal","last_objection_category","linkedin_last_inbound_at"',
       ).catch(() => []);
       operationalRowsBySourceTable.set(
         sourceTable,
@@ -1172,8 +1222,14 @@ export async function loadPortalAnalytics(params: {
       }
 
       if (leadKey && operationCanonicalLeadKeys.has(leadKey)) return;
-      const syntheticStageAt = rawRow["Data do Envio"] ?? rawRow["Data de Início"] ?? row.created_at;
       const syntheticStage = mapStage(rawRow.Estágio ?? row.estagio ?? rawRow.Status ?? row.status);
+      const syntheticStageAt =
+        (syntheticStage && syntheticStage !== "prospecting"
+          ? inferOperationalFirstInterestAt(row, rawRow)
+          : null) ??
+        rawRow["Data do Envio"] ??
+        rawRow["Data de Início"] ??
+        row.created_at;
       if (!syntheticStageAt || !syntheticStage) return;
       const syntheticDate = new Date(syntheticStageAt);
       if (Number.isNaN(syntheticDate.getTime())) return;
@@ -1208,7 +1264,10 @@ export async function loadPortalAnalytics(params: {
       facts.push({
         kind: "stage",
         eventAt: syntheticStageAt,
-        stageId: syntheticStage,
+        stageId:
+          syntheticStage === "lost" && hasOperationalInterestSignal(row, rawRow)
+            ? "lead-interessado"
+            : syntheticStage,
         channel: dispatchChannel,
         dimensions,
       });
